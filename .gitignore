@@ -9,4 +9,5 @@ dist/
 coverage/
 .nyc_output/
 .aida/
+aida-output/
 *.tsbuildinfo
