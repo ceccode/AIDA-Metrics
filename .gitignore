@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.env
+.env.local
+.env.production.local
+.env.test.local
+coverage/
+.nyc_output/
+.aida/
+*.tsbuildinfo
