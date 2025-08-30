@@ -1,0 +1,46 @@
+name: AIDA Analyze
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need history for metrics
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -w build
+
+      - name: Run AIDA (collect/analyze/report)
+        run: |
+          node packages/cli/dist/index.js collect --since 90d --out-dir ./.aida
+          node packages/cli/dist/index.js analyze --out-dir ./.aida
+          node packages/cli/dist/index.js report --out-dir ./.aida --format both
+
+      - name: Upload AIDA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aida-report
+          path: |
+            ./.aida/commit-stream.json
+            ./.aida/metrics.json
+            ./.aida/report.json
+            ./.aida/report.md
