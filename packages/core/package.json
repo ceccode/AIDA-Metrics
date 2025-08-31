@@ -1,14 +1,24 @@
 {
   "name": "@aida/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core functionality for AIDA (AI Development Accounting) - Git collection, AI tagging, and schemas",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
-  "keywords": ["ai", "development", "metrics", "git", "analysis", "copilot", "cursor"],
-  "author": "Francesco",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "ai",
+    "development",
+    "metrics",
+    "git",
+    "analysis",
+    "copilot",
+    "cursor"
+  ],
+  "author": "Francesco Falanga <falanga.fra@gmail.com>",
   "license": "MIT",
   "homepage": "https://github.com/ceccode/aida-metrics#readme",
   "repository": {
