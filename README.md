@@ -30,6 +30,21 @@ AIDA wants to provide a **common language and tooling** for both worlds.
 - **CLI-First**: Simple commands for collection, analysis, and reporting
 - **GitHub Actions**: Automated analysis on every push
 
+## Installation
+
+### Global CLI (Recommended)
+```bash
+npm install -g @aida-dev/cli
+```
+
+### From Source
+```bash
+git clone https://github.com/ceccode/aida-metrics.git
+cd aida-metrics
+pnpm install
+pnpm build
+```
+
 ## Core Metrics
 
 The first version of AIDA will focus on four key metrics:
@@ -51,6 +66,25 @@ The first version of AIDA will focus on four key metrics:
 
 ## Quick Start
 
+### Using Global CLI
+```bash
+# Install globally
+npm install -g @aida-dev/cli
+
+# Navigate to your Git repository
+cd /path/to/your/repo
+
+# Collect commits from last 90 days
+aida collect --since 90d
+
+# Analyze the data
+aida analyze
+
+# Generate reports
+aida report
+```
+
+### Using from Source
 ```bash
 # Install dependencies
 pnpm install
@@ -72,9 +106,9 @@ node packages/cli/dist/index.js report
 
 This is a TypeScript monorepo with three main packages:
 
-- **`@aida/core`** - Git collection, AI tagging, and data schemas
-- **`@aida/metrics`** - Merge ratio and persistence calculations  
-- **`@aida/cli`** - Command-line interface for end users
+- **`@aida-dev/core`** - Git collection, AI tagging, and data schemas
+- **`@aida-dev/metrics`** - Merge ratio and persistence calculations  
+- **`@aida-dev/cli`** - Command-line interface for end users
 
 ## CLI Usage
 
@@ -142,7 +176,36 @@ File-level proxy for how long AI-modified files survive before being changed aga
 - `report.json` - JSON report (mirrors metrics.json)
 - `report.md` - Human-readable Markdown report
 
-## GitHub Actions
+## CI/CD Integration
+
+### GitHub Actions
+```yaml
+- name: Install AIDA
+  run: npm install -g @aida-dev/cli
+
+- name: Run AIDA Analysis
+  run: |
+    aida collect --since 30d
+    aida analyze
+    aida report
+
+- name: Upload Reports
+  uses: actions/upload-artifact@v4
+  with:
+    name: aida-reports
+    path: aida-output/
+```
+
+### GitLab CI
+```yaml
+aida_analysis:
+  script:
+    - npm install -g @aida-dev/cli
+    - aida collect --since 30d && aida analyze && aida report
+  artifacts:
+    paths:
+      - aida-output/
+```
 
 The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 1. Runs AIDA analysis on every push to main/master
@@ -151,15 +214,15 @@ The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 
 ## Repository Structure
 
+```
 /aida-metrics
-/docs
-intro.md
-roadmap.md
-/src
-/examples
-demo-repo-with-ai-code
-README.md
-LICENSE
+├── packages/
+│   ├── cli/           # @aida-dev/cli
+│   ├── core/          # @aida-dev/core
+│   └── metrics/       # @aida-dev/metrics
+├── .github/workflows/ # CI/CD automation
+└── docs/             # Documentation
+```
 
 ## Roadmap
 
@@ -177,8 +240,51 @@ This is just the starting point. We are looking for contributors who can help wi
 - Improving analysis pipelines  
 - Validating approaches with real-world projects  
 
+### Git Workflow
+
+We use a simple, main-branch workflow with automated publishing:
+
+1. **Create Feature Branch**
+   ```bash
+   git checkout -b feat/your-feature-name
+   # or
+   git checkout -b fix/bug-description
+   ```
+
+2. **Make Changes & Commit**
+   ```bash
+   git add .
+   git commit -m "feat: add new feature"
+   ```
+
+3. **Add Changeset** (for version bumps)
+   ```bash
+   pnpm changeset
+   # Select packages to version
+   # Choose version bump type (patch/minor/major)
+   # Add description for changelog
+   ```
+
+4. **Open Pull Request**
+   - Target: `main` branch
+   - Include changeset file if versioning needed
+   - Describe changes and testing
+
+5. **Merge & Auto-Publish**
+   - Once merged, GitHub Actions automatically publishes to NPM
+   - Feature branch gets deleted after merge
+
+### Branch Rules
+- **Main branch only** - no separate dev/release branches
+- **Feature branches** - `feat/xyz`, `fix/abc`, `docs/update-readme`
+- **Clean history** - squash merge preferred
+- **Auto-publish** - changesets trigger NPM releases
+
 Feel free to open an **Issue** or start a **Discussion**.
 
+## Code of Conduct
+
+This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
 
 ## License
 
