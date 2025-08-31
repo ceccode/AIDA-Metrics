@@ -1,17 +1,31 @@
 {
   "name": "@aida/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Core functionality for AIDA (AI Development Accounting) - Git collection, AI tagging, and schemas",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist"],
+  "keywords": ["ai", "development", "metrics", "git", "analysis", "copilot", "cursor"],
+  "author": "Francesco",
+  "license": "MIT",
+  "homepage": "https://github.com/ceccode/aida-metrics#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ceccode/aida-metrics.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/ceccode/aida-metrics/issues"
+  },
   "scripts": {
     "build": "tsup src/index.ts --dts",
     "dev": "tsup src/index.ts --dts --watch",
     "test": "vitest run",
     "lint": "eslint . --ext .ts",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "simple-git": "^3.20.0",
@@ -24,5 +38,11 @@
     "prettier": "^3.2.5",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
