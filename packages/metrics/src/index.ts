@@ -1,4 +1,4 @@
-import { CommitStream, formatISODate } from '@aida/core';
+import { CommitStream, formatISODate } from '@aida-dev/core';
 import { calculateMergeRatio } from './merge-ratio.js';
 import { calculatePersistence } from './persistence.js';
 import { Metrics } from './schema/metrics.js';

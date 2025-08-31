@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { collectCommits, writeJSON, createLogger } from '@aida/core';
+import { collectCommits, writeJSON, createLogger } from '@aida-dev/core';
 import { join } from 'path';
 import { CLIConfig } from '../schema/config.js';
 

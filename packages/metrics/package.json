@@ -1,5 +1,5 @@
 {
-  "name": "@aida/metrics",
+  "name": "@aida-dev/metrics",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "zod": "^3.22.4",
-    "@aida/core": "workspace:*"
+    "@aida-dev/core": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

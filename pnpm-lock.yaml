@@ -32,10 +32,10 @@ importers:
 
   packages/cli:
     dependencies:
-      '@aida/core':
+      '@aida-dev/core':
         specifier: workspace:*
         version: link:../core
-      '@aida/metrics':
+      '@aida-dev/metrics':
         specifier: workspace:*
         version: link:../metrics
       commander:
@@ -94,7 +94,7 @@ importers:
 
   packages/metrics:
     dependencies:
-      '@aida/core':
+      '@aida-dev/core':
         specifier: workspace:*
         version: link:../core
       zod:

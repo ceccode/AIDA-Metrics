@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import { readJSON, writeJSON, createLogger } from '@aida/core';
-import { Metrics } from '@aida/metrics';
+import { readJSON, writeJSON, createLogger } from '@aida-dev/core';
+import { Metrics } from '@aida-dev/metrics';
 import { join } from 'path';
 import { promises as fs } from 'fs';
 import { CLIConfig } from '../schema/config.js';

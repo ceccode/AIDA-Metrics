@@ -1,4 +1,4 @@
-import { CommitStream, daysBetween } from '@aida/core';
+import { CommitStream, daysBetween } from '@aida-dev/core';
 import { Persistence } from './schema/metrics.js';
 
 interface FileLifecycle {

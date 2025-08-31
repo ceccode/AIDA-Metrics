@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateMergeRatio } from './merge-ratio.js';
-import { CommitStream } from '@aida/core';
+import { CommitStream } from '@aida-dev/core';
 
 describe('Merge Ratio Calculation', () => {
   it('should calculate merge ratio correctly', () => {

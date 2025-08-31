@@ -1,4 +1,4 @@
-import { CommitStream } from '@aida/core';
+import { CommitStream } from '@aida-dev/core';
 import { MergeRatio } from './schema/metrics.js';
 
 export function calculateMergeRatio(commitStream: CommitStream): MergeRatio {
