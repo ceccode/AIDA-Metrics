@@ -1,4 +1,4 @@
-# @aida/cli
+# @aida-dev/cli
 
 Command-line interface for AIDA (AI Development Accounting) metrics.
 

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIDA - AI Development Accounting</title>
+    <meta name="description" content="Track and measure AI-assisted development in your repositories. Open-source framework for quantifying AI coding impact.">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="AIDA - AI Development Accounting">
+    <meta property="og:description" content="Track and measure AI-assisted development in your repositories">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ceccode.github.io/aida-metrics">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AIDA - AI Development Accounting">
+    <meta name="twitter:description" content="Track and measure AI-assisted development in your repositories">
+    
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="nav-brand">
+                <h1>AIDA</h1>
+                <span class="tagline">AI Development Accounting</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#install">Install</a>
+                <a href="#docs">Docs</a>
+                <a href="https://github.com/ceccode/aida-metrics" target="_blank">GitHub</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1 class="hero-title">
+                    Track and measure<br>
+                    <span class="gradient-text">AI-assisted development</span>
+                </h1>
+                <p class="hero-subtitle">
+                    AIDA provides tangible, auditable metrics to distinguish between AI noise 
+                    and AI value in your software development workflow.
+                </p>
+                <div class="hero-actions">
+                    <div class="install-command">
+                        <code>npm install -g @aida-dev/cli</code>
+                        <button class="copy-btn" onclick="copyInstallCommand()">Copy</button>
+                    </div>
+                    <a href="https://github.com/ceccode/aida-metrics" class="btn btn-secondary">
+                        View on GitHub
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="demo">
+            <div class="container">
+                <div class="terminal">
+                    <div class="terminal-header">
+                        <div class="terminal-controls">
+                            <span class="control red"></span>
+                            <span class="control yellow"></span>
+                            <span class="control green"></span>
+                        </div>
+                        <span class="terminal-title">Terminal</span>
+                    </div>
+                    <div class="terminal-body">
+                        <div class="terminal-line">
+                            <span class="prompt">$</span> aida collect --since 30d
+                        </div>
+                        <div class="terminal-line output">
+                            ✓ Collected 247 commits from last 30 days
+                        </div>
+                        <div class="terminal-line">
+                            <span class="prompt">$</span> aida analyze
+                        </div>
+                        <div class="terminal-line output">
+                            ✓ Merge ratio: 78.5%
+                        </div>
+                        <div class="terminal-line output">
+                            ✓ Average persistence: 12.3 days
+                        </div>
+                        <div class="terminal-line">
+                            <span class="prompt">$</span> aida report
+                        </div>
+                        <div class="terminal-line output">
+                            ✓ Reports generated in ./aida-output/
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="features" class="features">
+            <div class="container">
+                <h2>Core Metrics</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Merge Ratio</h3>
+                        <p>Track what percentage of AI-generated code actually gets merged into production.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">⏱️</div>
+                        <h3>Persistence</h3>
+                        <p>Measure how long AI-generated code survives in your codebase before being modified.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🎯</div>
+                        <h3>AI Detection</h3>
+                        <p>Configurable heuristics to identify AI-assisted commits with high accuracy.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🚀</div>
+                        <h3>CI/CD Ready</h3>
+                        <p>Seamless integration with GitHub Actions, GitLab CI, and other pipelines.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="install" class="install">
+            <div class="container">
+                <h2>Get Started</h2>
+                <div class="install-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Install globally</h3>
+                            <code>npm install -g @aida-dev/cli</code>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Navigate to your Git repo</h3>
+                            <code>cd /path/to/your/repo</code>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Run analysis</h3>
+                            <code>aida collect --since 30d && aida analyze && aida report</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="cta">
+            <div class="container">
+                <h2>Ready to measure AI impact?</h2>
+                <p>Join developers who are quantifying their AI-assisted development workflow.</p>
+                <div class="cta-actions">
+                    <a href="https://github.com/ceccode/aida-metrics" class="btn btn-primary">
+                        Get Started
+                    </a>
+                    <a href="https://github.com/ceccode/aida-metrics#contributing" class="btn btn-secondary">
+                        Contribute
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>AIDA</h3>
+                    <p>AI Development Accounting</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-section">
+                        <h4>Project</h4>
+                        <a href="https://github.com/ceccode/aida-metrics">GitHub</a>
+                        <a href="https://github.com/ceccode/aida-metrics/issues">Issues</a>
+                        <a href="https://github.com/ceccode/aida-metrics/blob/main/CODE_OF_CONDUCT.md">Code of Conduct</a>
+                    </div>
+                    <div class="footer-section">
+                        <h4>Resources</h4>
+                        <a href="https://github.com/ceccode/aida-metrics#readme">Documentation</a>
+                        <a href="https://www.npmjs.com/package/@aida-dev/cli">NPM Package</a>
+                        <a href="https://github.com/ceccode/aida-metrics/blob/main/LICENSE">MIT License</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Francesco Falanga. Open source under MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

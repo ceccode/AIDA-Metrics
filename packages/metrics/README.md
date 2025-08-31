@@ -1,4 +1,4 @@
-# @aida/metrics
+# @aida-dev/metrics
 
 Metrics calculation for AIDA (AI Development Accounting).
 
@@ -11,7 +11,7 @@ Metrics calculation for AIDA (AI Development Accounting).
 ## Usage
 
 ```typescript
-import { calculateMetrics } from '@aida/metrics';
+import { calculateMetrics } from '@aida-dev/metrics';
 
 const metrics = calculateMetrics(commitStream);
 console.log(`Merge ratio: ${metrics.mergeRatio.mergeRatio * 100}%`);
