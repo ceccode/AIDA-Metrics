@@ -1,4 +1,4 @@
-# @aida/core
+# @aida-dev/core
 
 Core functionality for AIDA (AI Development Accounting) metrics collection.
 
@@ -12,7 +12,7 @@ Core functionality for AIDA (AI Development Accounting) metrics collection.
 ## Usage
 
 ```typescript
-import { collectCommits, createLogger } from '@aida/core';
+import { collectCommits, createLogger } from '@aida-dev/core';
 
 const commitStream = await collectCommits({
   repoPath: '/path/to/repo',
