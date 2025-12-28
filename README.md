@@ -6,7 +6,6 @@ AIDA is an open-source framework to measure the real impact of AI coding agents 
 
 The goal is to move beyond "AI hype" and provide **tangible, auditable metrics** to distinguish between **AI noise** (suggestions discarded, unstable code) and **AI value** (stable, production-ready contributions).
 
-
 ## Why AIDA?
 
 AI coding assistants (Copilot, Cursor, Windsurf, custom agents, etc.) are increasingly part of the development workflow.  
@@ -20,7 +19,6 @@ But today we lack a structured way to **quantify their real contribution**.
 
 AIDA wants to provide a **common language and tooling** for both worlds.
 
-
 ## Features
 
 - **AI Detection**: Configurable heuristics to identify AI-assisted commits
@@ -33,11 +31,13 @@ AIDA wants to provide a **common language and tooling** for both worlds.
 ## Installation
 
 ### Global CLI (Recommended)
+
 ```bash
 npm install -g @aida-dev/cli
 ```
 
 ### From Source
+
 ```bash
 git clone https://github.com/ceccode/aida-metrics.git
 cd aida-metrics
@@ -63,10 +63,10 @@ The first version of AIDA will focus on four key metrics:
 
 > ⚠️ These metrics are **experimental**. The goal is not perfect precision, but providing **a baseline for discussion and analysis**.
 
-
 ## Quick Start
 
 ### Using Global CLI
+
 ```bash
 # Install globally
 npm install -g @aida-dev/cli
@@ -85,6 +85,7 @@ aida report
 ```
 
 ### Using from Source
+
 ```bash
 # Install dependencies
 pnpm install
@@ -115,19 +116,25 @@ This is a TypeScript monorepo with three main packages:
 ### Commands
 
 #### `aida collect`
+
 Collect commits and generate normalized commit stream:
+
 ```bash
 aida collect --since 90d --out-dir ./aida-output
 ```
 
-#### `aida analyze` 
+#### `aida analyze`
+
 Calculate merge ratio and persistence metrics:
+
 ```bash
 aida analyze --out-dir ./aida-output
 ```
 
 #### `aida report`
+
 Generate human-readable reports:
+
 ```bash
 aida report --format both --out-dir ./aida-output
 ```
@@ -148,13 +155,16 @@ aida report --format both --out-dir ./aida-output
 AIDA uses configurable heuristics to identify AI-assisted commits:
 
 ### Default Patterns
+
 - Commit messages containing: `ai`, `copilot`, `cursor`, `windsurf`, `codeium`
 - AI tags: `[AI]`, `[ai]`
 - Git trailers: `AI: true`, `X-AI: true`
 - Bot co-authors: `Co-authored-by: *bot*`
 
 ### Custom Patterns
+
 Add your own detection patterns:
+
 ```bash
 aida collect --ai-pattern "claude" --ai-pattern "chatgpt"
 ```
@@ -162,10 +172,13 @@ aida collect --ai-pattern "claude" --ai-pattern "chatgpt"
 ## Metrics
 
 ### Merge Ratio
+
 Percentage of AI-tagged commits that were merged into the default branch.
 
 ### Persistence (MVP)
+
 File-level proxy for how long AI-modified files survive before being changed again.
+
 - Buckets: 0-1d, 2-7d, 8-30d, 31-90d, 90d+
 - Provides average and median survival times
 
@@ -179,6 +192,7 @@ File-level proxy for how long AI-modified files survive before being changed aga
 ## CI/CD Integration
 
 ### GitHub Actions
+
 ```yaml
 - name: Install AIDA
   run: npm install -g @aida-dev/cli
@@ -197,6 +211,7 @@ File-level proxy for how long AI-modified files survive before being changed aga
 ```
 
 ### GitLab CI
+
 ```yaml
 aida_analysis:
   script:
@@ -208,13 +223,14 @@ aida_analysis:
 ```
 
 The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
+
 1. Runs AIDA analysis on every push to main/master
 2. Uploads artifacts with commit stream, metrics, and reports
 3. Provides historical tracking of AI development patterns
 
 ## Repository Structure
 
-```
+```bash
 /aida-metrics
 ├── packages/
 │   ├── cli/           # @aida-dev/cli
@@ -231,10 +247,10 @@ The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 - **v0.3** → Connect to issue trackers (GitHub Issues, Jira) for Value per LOC.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 
-
 ## Contributing
 
 This is just the starting point. We are looking for contributors who can help with:  
+
 - Designing robust metrics  
 - Building integrations (Copilot, Cursor, etc.)  
 - Improving analysis pipelines  
@@ -245,6 +261,7 @@ This is just the starting point. We are looking for contributors who can help wi
 We use a simple, main-branch workflow with automated publishing:
 
 1. **Create Feature Branch**
+
    ```bash
    git checkout -b feat/your-feature-name
    # or
@@ -252,12 +269,14 @@ We use a simple, main-branch workflow with automated publishing:
    ```
 
 2. **Make Changes & Commit**
+
    ```bash
    git add .
    git commit -m "feat: add new feature"
    ```
 
 3. **Add Changeset** (for version bumps)
+
    ```bash
    pnpm changeset
    # Select packages to version
@@ -275,21 +294,13 @@ We use a simple, main-branch workflow with automated publishing:
    - Feature branch gets deleted after merge
 
 ### Branch Rules
+
 - **Main branch only** - no separate dev/release branches
 - **Feature branches** - `feat/xyz`, `fix/abc`, `docs/update-readme`
 - **Clean history** - squash merge preferred
 - **Auto-publish** - changesets trigger NPM releases
 
 Feel free to open an **Issue** or start a **Discussion**.
-
-## Code of Conduct
-
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
-
-## License
-
-MIT License – use it, modify it, contribute back.
-
 
 ## Call to Action
 
@@ -327,6 +338,10 @@ pnpm lint
 - **Validation**: zod for schema validation
 - **CLI**: commander for command-line interface
 
+## Code of Conduct
+
+This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+
 ## License
 
-MIT
+MIT License

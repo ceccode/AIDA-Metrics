@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const MergeRatio = z.object({
   aiCommitsTotal: z.number().int().nonnegative(),

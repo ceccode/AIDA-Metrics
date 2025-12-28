@@ -12,20 +12,20 @@ export function createAnalyzeCommand(): Command {
     .action(async (options) => {
       const config = CLIConfig.parse(options);
       const logger = createLogger(config.verbose);
-      
+
       try {
         logger.info('Starting metrics analysis...');
-        
+
         const inputPath = join(config.outDir, 'commit-stream.json');
         const commitStream = await readJSON(inputPath);
-        
+
         logger.info(`Analyzing ${commitStream.commits.length} commits`);
-        
+
         const metrics = calculateMetrics(commitStream);
-        
+
         const outputPath = join(config.outDir, 'metrics.json');
         await writeJSON(outputPath, metrics);
-        
+
         logger.info(`Merge ratio: ${(metrics.mergeRatio.mergeRatio * 100).toFixed(1)}%`);
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);
         logger.info(`Output written to: ${outputPath}`);

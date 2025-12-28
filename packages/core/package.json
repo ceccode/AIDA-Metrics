@@ -33,7 +33,7 @@
     "build": "tsup src/index.ts --dts",
     "dev": "tsup src/index.ts --dts --watch",
     "test": "vitest run",
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint .",
     "format": "prettier -w .",
     "prepublishOnly": "pnpm build"
   },

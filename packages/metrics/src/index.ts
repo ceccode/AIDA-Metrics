@@ -10,13 +10,13 @@ export * from './persistence.js';
 export function calculateMetrics(commitStream: CommitStream): Metrics {
   const mergeRatio = calculateMergeRatio(commitStream);
   const persistence = calculatePersistence(commitStream);
-  
+
   const caveats = [
-    "Persistence is file-level, not line-level.",
-    "Merge ratio computed on default branch only for MVP.",
-    "AI tagging uses heuristic patterns; false positives/negatives possible.",
+    'Persistence is file-level, not line-level.',
+    'Merge ratio computed on default branch only for MVP.',
+    'AI tagging uses heuristic patterns; false positives/negatives possible.',
   ];
-  
+
   return {
     generatedAt: formatISODate(new Date()),
     window: {

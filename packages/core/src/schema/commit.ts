@@ -1,8 +1,8 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 export const FileChange = z.object({
   path: z.string(),
-  status: z.enum(["added", "modified", "deleted", "renamed"]).optional(), // best-effort
+  status: z.enum(['added', 'modified', 'deleted', 'renamed']).optional(), // best-effort
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
 });

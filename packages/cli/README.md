@@ -12,6 +12,7 @@ pnpm build
 ## Usage
 
 ### Basic workflow
+
 ```bash
 # Collect commits from last 90 days
 aida collect --since 90d
@@ -26,9 +27,11 @@ aida report --format both
 ### Commands
 
 #### `aida collect`
+
 Collect commits and generate `commit-stream.json`
 
 Options:
+
 - `--repo <path>` - Repository path (default: current directory)
 - `--since <date>` - Start date (ISO or relative like 90d)
 - `--until <date>` - End date (ISO or relative)
@@ -38,17 +41,20 @@ Options:
 - `--verbose` - Verbose logging
 
 #### `aida analyze`
+
 Analyze commit stream and generate `metrics.json`
 
 #### `aida report`
+
 Generate human-readable reports from metrics
 
 Options:
+
 - `--format <format>` - Output format: json, md, both (default: both)
 
 ## Output Files
 
 - `commit-stream.json` - Normalized commit data with AI tagging
-- `metrics.json` - Calculated merge ratio and persistence metrics  
+- `metrics.json` - Calculated merge ratio and persistence metrics
 - `report.json` - JSON report (same as metrics.json)
 - `report.md` - Human-readable Markdown report

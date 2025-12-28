@@ -26,17 +26,17 @@ describe('AI Tagging', () => {
     const messageWithTrailer = `feat: new feature
 
 AI: true`;
-    
+
     const result = tagger(messageWithTrailer);
     expect(result.ai).toBe(true);
-    expect(result.sources.some(s => s.includes('trailer_pattern'))).toBe(true);
+    expect(result.sources.some((s) => s.includes('trailer_pattern'))).toBe(true);
   });
 
   it('should handle custom patterns', () => {
     const customTagger = createAITagger({ patterns: ['custom-ai-tool'] });
-    
+
     const result = customTagger('fix: custom-ai-tool generated code');
     expect(result.ai).toBe(true);
-    expect(result.sources.some(s => s.includes('custom-ai-tool'))).toBe(true);
+    expect(result.sources.some((s) => s.includes('custom-ai-tool'))).toBe(true);
   });
 });

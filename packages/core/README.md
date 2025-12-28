@@ -25,6 +25,7 @@ const commitStream = await collectCommits({
 ## AI Detection Patterns
 
 Default patterns include:
+
 - `\b(ai|copilot|cursor|windsurf|codeium)\b` - Common AI tool mentions
 - `\[ai\]` - AI tags in commit messages
 - Trailer patterns for `AI: true`, `X-AI: true`, and bot co-authors

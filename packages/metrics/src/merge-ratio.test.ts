@@ -42,7 +42,7 @@ describe('Merge Ratio Calculation', () => {
     };
 
     const result = calculateMergeRatio(mockCommitStream);
-    
+
     expect(result.aiCommitsTotal).toBe(1);
     expect(result.aiCommitsMerged).toBe(1);
     expect(result.mergeRatio).toBe(1.0);
@@ -58,7 +58,7 @@ describe('Merge Ratio Calculation', () => {
     };
 
     const result = calculateMergeRatio(mockCommitStream);
-    
+
     expect(result.aiCommitsTotal).toBe(0);
     expect(result.aiCommitsMerged).toBe(0);
     expect(result.mergeRatio).toBe(0);

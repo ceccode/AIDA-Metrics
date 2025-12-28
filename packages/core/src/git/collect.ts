@@ -1,6 +1,6 @@
-import { simpleGit, SimpleGit, LogResult } from 'simple-git';
+import { simpleGit, SimpleGit } from 'simple-git';
 import { Commit, CommitStream } from '../schema/commit.js';
-import { createAITagger, AITagConfig } from '../tags/ai-tags.js';
+import { createAITagger } from '../tags/ai-tags.js';
 import { getDiffStats } from './diff.js';
 import { parseRelativeDate, formatISODate } from '../utils/dates.js';
 import { Logger } from '../utils/log.js';
@@ -51,16 +51,18 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   } = options;
 
   const git = simpleGit(repoPath);
-  
+
   // Detect default branch
-  const defaultBranch = providedDefaultBranch || await detectDefaultBranch(git);
+  const defaultBranch = providedDefaultBranch || (await detectDefaultBranch(git));
   logger?.info(`Using default branch: ${defaultBranch}`);
 
   // Parse date range
   const sinceDate = since ? parseRelativeDate(since) : undefined;
   const untilDate = until ? parseRelativeDate(until) : new Date();
 
-  logger?.info(`Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`);
+  logger?.info(
+    `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
+  );
 
   // Build log options
   const logOptions: any = {
@@ -87,7 +89,9 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     const aiTag = aiTagger(gitCommit.message);
 
     // Parse parents
-    const parents = (gitCommit as any).parents ? (gitCommit as any).parents.split(' ').filter((p: string) => p) : [];
+    const parents = (gitCommit as any).parents
+      ? (gitCommit as any).parents.split(' ').filter((p: string) => p)
+      : [];
 
     const commit: Commit = {
       hash: gitCommit.hash,
