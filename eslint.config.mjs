@@ -6,7 +6,7 @@ import globals from 'globals';
 export default [
   js.configs.recommended,
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/docs/**'],
   },
   {
     files: ['**/*.ts', '**/*.tsx'],

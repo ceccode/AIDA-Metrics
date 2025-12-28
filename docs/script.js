@@ -48,6 +48,14 @@ function showCopyFeedback() {
     }, 2000);
 }
 
+// Attach copy button event listener
+document.addEventListener('DOMContentLoaded', function() {
+    const copyBtn = document.getElementById('copy-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', copyInstallCommand);
+    }
+});
+
 // Smooth scrolling for navigation links
 document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-links a[href^="#"]');

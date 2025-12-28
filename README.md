@@ -6,6 +6,8 @@ AIDA is an open-source framework to measure the real impact of AI coding agents 
 
 The goal is to move beyond "AI hype" and provide **tangible, auditable metrics** to distinguish between **AI noise** (suggestions discarded, unstable code) and **AI value** (stable, production-ready contributions).
 
+📖 **[Documentation & Demo](https://ceccode.github.io/AIDA-Metrics/)**
+
 ## Why AIDA?
 
 AI coding assistants (Copilot, Cursor, Windsurf, custom agents, etc.) are increasingly part of the development workflow.  

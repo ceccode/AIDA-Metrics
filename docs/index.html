@@ -3,30 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIDA - AI Development Accounting</title>
+    <title>AIDA Metrics - AI Development Accounting</title>
     <meta name="description" content="Track and measure AI-assisted development in your repositories. Open-source framework for quantifying AI coding impact.">
     
     <!-- Open Graph -->
-    <meta property="og:title" content="AIDA - AI Development Accounting">
+    <meta property="og:title" content="AIDA Metrics - AI Development Accounting">
     <meta property="og:description" content="Track and measure AI-assisted development in your repositories">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://ceccode.github.io/aida-metrics">
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="AIDA - AI Development Accounting">
+    <meta name="twitter:title" content="AIDA Metrics - AI Development Accounting">
     <meta name="twitter:description" content="Track and measure AI-assisted development in your repositories">
     
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="header">
         <nav class="nav">
             <div class="nav-brand">
-                <h1>AIDA</h1>
+                <h1><span class="brand-aida">AIDA</span> <span class="brand-metrics">Metrics</span></h1>
                 <span class="tagline">AI Development Accounting</span>
             </div>
             <div class="nav-links">
@@ -46,13 +46,13 @@
                     <span class="gradient-text">AI-assisted development</span>
                 </h1>
                 <p class="hero-subtitle">
-                    AIDA provides tangible, auditable metrics to distinguish between AI noise 
+                    AIDA Metrics provides tangible, auditable metrics to distinguish between AI noise 
                     and AI value in your software development workflow.
                 </p>
                 <div class="hero-actions">
                     <div class="install-command">
                         <code>npm install -g @aida-dev/cli</code>
-                        <button class="copy-btn" onclick="copyInstallCommand()">Copy</button>
+                        <button class="copy-btn" id="copy-btn">Copy</button>
                     </div>
                     <a href="https://github.com/ceccode/aida-metrics" class="btn btn-secondary">
                         View on GitHub
@@ -176,7 +176,7 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-brand">
-                    <h3>AIDA</h3>
+                    <h3><span class="brand-aida">AIDA</span></h3>
                     <p>AI Development Accounting</p>
                 </div>
                 <div class="footer-links">
