@@ -1,6 +1,6 @@
 {
   "name": "@aida-dev/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Core functionality for AIDA (AI Development Accounting) - Git collection, AI tagging, and schemas",
   "type": "module",
   "main": "dist/index.js",
