@@ -11,3 +11,30 @@ coverage/
 .aida/
 aida-output/
 *.tsbuildinfo
+
+# AIDA generated output files
+commit-stream.json
+metrics.json
+report.json
+report.md
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# Additional OS files
+Thumbs.db
+Desktop.ini
+
+# Cache
+.eslintcache
+.turbo/
+
+# AI assistants
+.claude/
+.cursor/
+.windsurf/
+.artiforge/
