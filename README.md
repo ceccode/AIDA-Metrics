@@ -256,9 +256,10 @@ The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 
 ## Roadmap
 
-- **v0.1** → Git-based metrics (Merge Ratio + Persistence).  
-- **v0.2** → Integration with AI assistants (Copilot, Cursor) if APIs available.  
-- **v0.3** → Connect to issue trackers (GitHub Issues, Jira) for Value per LOC.  
+- **v0.1** ✅ Git-based metrics (Merge Ratio + Persistence).  
+- **v0.2** ✅ AI detection for Claude Code, ChatGPT, Gemini, Copilot, Cursor, Windsurf, Codeium.  
+- **v0.3** → Attribution classification: explicit / implicit / mention / none ([#5](https://github.com/ceccode/AIDA-Metrics/issues/5)).  
+- **v0.4** → Connect to issue trackers (GitHub Issues, Jira) for Value per LOC.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 
 ## Contributing
