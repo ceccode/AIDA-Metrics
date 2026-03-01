@@ -1,5 +1,13 @@
 # @aida/cli
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [76f5bda]
+  - @aida-dev/core@0.3.0
+  - @aida-dev/metrics@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
