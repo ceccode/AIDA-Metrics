@@ -141,13 +141,25 @@ Generate human-readable reports:
 aida report --format both --out-dir ./aida-output
 ```
 
-### Global Options
+### Options
+
+#### `aida collect`
 
 - `--repo <path>` - Repository path (default: current directory)
 - `--since <date>` - Start date (ISO or relative like 90d)
 - `--until <date>` - End date (ISO or relative)
 - `--ai-pattern <pattern>` - Custom AI detection pattern (repeatable)
 - `--default-branch <name>` - Default branch name (auto-detect if omitted)
+- `--out-dir <path>` - Output directory (default: ./aida-output)
+- `--verbose` - Verbose logging
+
+#### `aida analyze`
+
+- `--out-dir <path>` - Output directory (default: ./aida-output)
+- `--verbose` - Verbose logging
+
+#### `aida report`
+
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--format <format>` - Output format: json, md, both (default: both)
 - `--verbose` - Verbose logging
