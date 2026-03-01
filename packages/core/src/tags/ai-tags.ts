@@ -7,16 +7,24 @@ export interface AITagConfig {
   patterns: string[];
 }
 
-const DEFAULT_PATTERNS = ['\\b(ai|copilot|cursor|windsurf|codeium)\\b', '\\[ai\\]'];
+const DEFAULT_PATTERNS = [
+  '\\b(ai|copilot|cursor|windsurf|codeium|claude|chatgpt|gemini)\\b',
+  '\\[ai\\]',
+];
 
-const DEFAULT_TRAILER_PATTERNS = ['^AI:\\s*true$', '^X-AI:\\s*true$', '^Co-authored-by:.*bot.*$'];
+const DEFAULT_TRAILER_PATTERNS = [
+  '^AI:\\s*true$',
+  '^X-AI:\\s*true$',
+  '^Co-authored-by:.*bot.*$',
+  '^Co-authored-by:.*\\b(anthropic|openai|github\\.com)\\b.*$',
+];
 
 export function createAITagger(
   config: AITagConfig = { patterns: [] }
 ): (message: string) => AITagResult {
   const allPatterns = [...DEFAULT_PATTERNS, ...config.patterns];
   const messageRegexes = allPatterns.map((pattern) => new RegExp(pattern, 'im'));
-  const trailerRegexes = DEFAULT_TRAILER_PATTERNS.map((pattern) => new RegExp(pattern, 'm'));
+  const trailerRegexes = DEFAULT_TRAILER_PATTERNS.map((pattern) => new RegExp(pattern, 'mi'));
 
   return (message: string): AITagResult => {
     const sources: string[] = [];

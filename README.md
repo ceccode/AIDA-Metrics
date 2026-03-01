@@ -170,10 +170,10 @@ AIDA uses configurable heuristics to identify AI-assisted commits:
 
 ### Default Patterns
 
-- Commit messages containing: `ai`, `copilot`, `cursor`, `windsurf`, `codeium`
+- Commit messages containing: `ai`, `copilot`, `cursor`, `windsurf`, `codeium`, `claude`, `chatgpt`, `gemini`
 - AI tags: `[AI]`, `[ai]`
 - Git trailers: `AI: true`, `X-AI: true`
-- Bot co-authors: `Co-authored-by: *bot*`
+- Co-authors: `Co-authored-by: *bot*`, or known AI domains (`anthropic.com`, `openai.com`, `github.com`)
 
 ### Custom Patterns
 
