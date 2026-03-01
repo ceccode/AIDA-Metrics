@@ -1,5 +1,13 @@
 # @aida/metrics
 
+## 0.1.2
+
+### Patch Changes
+
+- d86d3e2: Fix --since/--until date filters and remove maxCount cap (#4)
+- Updated dependencies [d86d3e2]
+  - @aida-dev/core@0.2.2
+
 ## 0.1.1
 
 ### Patch Changes
