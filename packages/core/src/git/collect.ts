@@ -64,14 +64,15 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
   );
 
-  // Build log options
-  const logOptions: any = {
-    from: defaultBranch,
-    maxCount: 100, // Limit for demo
-  };
+  // Build log arguments
+  const logArgs: string[] = [defaultBranch];
+  if (sinceDate) {
+    logArgs.push(`--after=${sinceDate.toISOString()}`);
+  }
+  logArgs.push(`--before=${untilDate.toISOString()}`);
 
   // Get commits
-  const logResult = await git.log(logOptions);
+  const logResult = await git.log(logArgs);
   logger?.info(`Found ${logResult.all.length} commits`);
 
   // Create AI tagger
