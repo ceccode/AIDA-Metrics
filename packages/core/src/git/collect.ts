@@ -86,8 +86,11 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     // Get diff stats
     const stats = await getDiffStats(repoPath, gitCommit.hash);
 
-    // Tag AI
-    const aiTag = aiTagger(gitCommit.message);
+    // Tag AI (include body for trailer detection like Co-Authored-By)
+    const fullMessage = (gitCommit as any).body
+      ? `${gitCommit.message}\n\n${(gitCommit as any).body}`
+      : gitCommit.message;
+    const aiTag = aiTagger(fullMessage);
 
     // Parse parents
     const parents = (gitCommit as any).parents
