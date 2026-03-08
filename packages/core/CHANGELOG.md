@@ -1,5 +1,11 @@
 # @aida/core
 
+## 0.3.0
+
+### Minor Changes
+
+- 76f5bda: Add AI detection for Claude Code, ChatGPT, and Gemini commits
+
 ## 0.2.2
 
 ### Patch Changes
