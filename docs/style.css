@@ -397,6 +397,55 @@ body {
     border: 1px solid var(--border);
 }
 
+/* Supported Tools Section */
+.supported-tools {
+    padding: 6rem 0;
+    background: var(--background);
+    text-align: center;
+}
+
+.supported-tools h2 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.section-subtitle {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    max-width: 700px;
+    margin: 0 auto 2.5rem;
+    line-height: 1.6;
+}
+
+.tools-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.tool-badge {
+    background: white;
+    border: 1px solid var(--border);
+    padding: 0.75rem 1.5rem;
+    border-radius: 2rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.tool-badge:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
 /* CTA Section */
 .cta {
     padding: 6rem 0;

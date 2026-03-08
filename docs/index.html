@@ -79,6 +79,9 @@
                         <div class="terminal-line output">
                             ✓ Collected 247 commits from last 30 days
                         </div>
+                        <div class="terminal-line output">
+                            ✓ AI-tagged commits: 89 (Claude, Copilot, ChatGPT)
+                        </div>
                         <div class="terminal-line">
                             <span class="prompt">$</span> aida analyze
                         </div>
@@ -116,7 +119,7 @@
                     <div class="feature-card">
                         <div class="feature-icon">🎯</div>
                         <h3>AI Detection</h3>
-                        <p>Configurable heuristics to identify AI-assisted commits with high accuracy.</p>
+                        <p>Detects AI-assisted commits from Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium and more.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">🚀</div>
@@ -152,6 +155,23 @@
                             <code>aida collect --since 30d && aida analyze && aida report</code>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="docs" class="supported-tools">
+            <div class="container">
+                <h2>Supported AI Tools</h2>
+                <p class="section-subtitle">AIDA automatically detects commits from these AI coding assistants via commit messages, git trailers, and Co-Authored-By attribution.</p>
+                <div class="tools-grid">
+                    <div class="tool-badge">Claude Code</div>
+                    <div class="tool-badge">GitHub Copilot</div>
+                    <div class="tool-badge">ChatGPT</div>
+                    <div class="tool-badge">Cursor</div>
+                    <div class="tool-badge">Windsurf</div>
+                    <div class="tool-badge">Gemini</div>
+                    <div class="tool-badge">Codeium</div>
+                    <div class="tool-badge">+ Custom patterns</div>
                 </div>
             </div>
         </section>
@@ -195,7 +215,7 @@
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2025 Francesco Falanga. Open source under MIT License.</p>
+                <p>&copy; 2025-2026 Francesco Falanga. Open source under MIT License.</p>
             </div>
         </div>
     </footer>
