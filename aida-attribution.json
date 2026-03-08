@@ -1,0 +1,94 @@
+{
+  "version": "1.0",
+  "description": "Retroactive AI attribution for commits made before automated Co-Authored-By tracking was enabled.",
+  "note": "This repository was built with ~80% AI assistance using Windsurf (Claude Opus). These commits predate the adoption of Co-Authored-By trailers.",
+  "tool": "windsurf",
+  "model": "claude-opus",
+  "ai_assisted_commits": [
+    {
+      "hash": "2f972ace3ff158fbe272d2850e879008abb0b197",
+      "message": "first commit"
+    },
+    {
+      "hash": "f892cec4e8bd271116c91b04db2b55f5cde23016",
+      "message": "doc: add dev cmds"
+    },
+    {
+      "hash": "dfa394e3048151d87080e1e2c8bad839e44177cf",
+      "message": "feat: prepare AIDA for NPM publishing"
+    },
+    {
+      "hash": "da1d92cf5a7e4dc4adad9169bcca4ea566b4a805",
+      "message": "chore: add changeset for initial release"
+    },
+    {
+      "hash": "38616b00d75a72d29960d25c58e64b4d5090caa4",
+      "message": "update publishConfig"
+    },
+    {
+      "hash": "884e1f1893e46bf3e71052efd06494c0abb38fe2",
+      "message": "chore: update packages after first @aida-dev release"
+    },
+    {
+      "hash": "d12cf05af41f260b644a0b2947ca90e1815d9ff9",
+      "message": "feat: add landing page"
+    },
+    {
+      "hash": "2200625f195df02bfa0602e5e30d5b9c657e7510",
+      "message": "fix: ESLint and Prettier configuration for monorepo"
+    },
+    {
+      "hash": "27199401cc2f3ba148832ef8905bb68f22fd1b2a",
+      "message": "docs: update typography and refactor copy button handler"
+    },
+    {
+      "hash": "a5e753ebaeaf2c3f114d5e13018e838558bfbf24",
+      "message": "chore: enhance .gitignore with IDE, cache, and output files !"
+    },
+    {
+      "hash": "bc031ef8e3da6873b49d8bd91643fe66beb64a20",
+      "message": "fix: apply --since/--until date filters to git log"
+    },
+    {
+      "hash": "d86d3e2a2c5402c98b3dae9b62d8778aeeb2ce87",
+      "message": "chore: add changeset for #4 fix"
+    },
+    {
+      "hash": "d52510f260c3be62dc42b887111db8370f1eac65",
+      "message": "docs: update CLI options to reflect per-command structure"
+    },
+    {
+      "hash": "7ab1fb0be47d3f92d0abe58fcb671406611b4c8b",
+      "message": "feat: detect Claude Code, ChatGPT and Gemini commits"
+    },
+    {
+      "hash": "a2794a1ec1c775e818c29455ae9388b37df8366f",
+      "message": "docs: update roadmap with completed milestones and attribution classification"
+    },
+    {
+      "hash": "76f5bda5255734abf874cc8b7e10ce559872e19d",
+      "message": "chore: add changeset for AI detection improvements"
+    }
+  ],
+  "excluded_commits": [
+    {
+      "hash": "38b8007ef656b27194e90952b6a676068868299b",
+      "message": "feat: initial AIDA metrics implementation with AI-powered analysis"
+    },    
+    {
+      "hash": "300d0f153b39b29d5624df6880aa07cedc2ab37a",
+      "message": "docs: add Contributor Covenant Code of Conduct",
+      "reason": "Standard template, not AI-generated"
+    },
+    {
+      "hash": "1be7b68039b5156881c080def855c7d4dd30698d",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "a424c3327700f82d41164769c3a956a2586c5e0e",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    }
+  ]
+}

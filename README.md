@@ -308,6 +308,24 @@ We use a simple, main-branch workflow with automated publishing:
    - Once merged, GitHub Actions automatically publishes to NPM
    - Feature branch gets deleted after merge
 
+### AI Attribution Convention
+
+If you use AI assistants (Claude, Copilot, ChatGPT, Cursor, Windsurf, etc.) while contributing, please add a `Co-Authored-By` trailer to your commit messages:
+
+```bash
+git commit -m "feat: add new feature
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+Common trailers:
+
+- `Co-Authored-By: Claude <noreply@anthropic.com>`
+- `Co-Authored-By: GitHub Copilot <noreply@github.com>`
+- `Co-Authored-By: ChatGPT <noreply@openai.com>`
+
+This helps AIDA accurately track AI contribution metrics — and it's what we're building this tool to measure.
+
 ### Branch Rules
 
 - **Main branch only** - no separate dev/release branches
