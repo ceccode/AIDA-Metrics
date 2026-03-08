@@ -10,9 +10,7 @@ The goal is to move beyond "AI hype" and provide **tangible, auditable metrics**
 
 ## Why AIDA?
 
-AI coding assistants (Copilot, Cursor, Windsurf, custom agents, etc.) are increasingly part of the development workflow.  
-
-AIDA provides production-ready metrics for understanding how AI tools contribute to your development workflow, including merge ratios and code persistence analysis.
+AI coding assistants (Copilot, Cursor, Windsurf, Claude Code, ChatGPT, Gemini, etc.) are increasingly part of the development workflow.  
 
 But today we lack a structured way to **quantify their real contribution**.
 
@@ -23,7 +21,7 @@ AIDA wants to provide a **common language and tooling** for both worlds.
 
 ## Features
 
-- **AI Detection**: Configurable heuristics to identify AI-assisted commits
+- **AI Detection**: Identifies AI-assisted commits from Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium via commit messages, trailers, and `Co-Authored-By`
 - **Merge Ratio**: Track what percentage of AI commits make it to production
 - **Persistence**: Measure how long AI-generated code survives in your codebase
 - **Fast & Deterministic**: Built for production use with stable JSON schemas
@@ -49,7 +47,7 @@ pnpm build
 
 ## Core Metrics
 
-The first version of AIDA will focus on four key metrics:
+### Implemented
 
 1. **Merge Ratio**  
    Percentage of AI-generated code that actually gets merged into the main branch.
@@ -57,13 +55,15 @@ The first version of AIDA will focus on four key metrics:
 2. **Persistence**  
    How long AI-generated code survives in the codebase before being rewritten or removed.
 
-3. **Value per LOC**  
-   Share of AI code contributing to released features (requires linking commits to tickets/issues).
+### Planned
 
-4. **Hours Saved (estimated)**  
-   A rough productivity delta: time estimated with AI vs without AI for comparable tasks.
+- **Value per LOC**  
+  Share of AI code contributing to released features (requires linking commits to tickets/issues).
 
-> ⚠️ These metrics are **experimental**. The goal is not perfect precision, but providing **a baseline for discussion and analysis**.
+- **Hours Saved (estimated)**  
+  A rough productivity delta: time estimated with AI vs without AI for comparable tasks.
+
+> ⚠️ Metrics are **evolving**. The goal is not perfect precision, but providing **a baseline for discussion and analysis**.
 
 ## Quick Start
 
@@ -180,7 +180,7 @@ AIDA uses configurable heuristics to identify AI-assisted commits:
 Add your own detection patterns:
 
 ```bash
-aida collect --ai-pattern "claude" --ai-pattern "chatgpt"
+aida collect --ai-pattern "my-internal-tool" --ai-pattern "custom-agent"
 ```
 
 ## Metrics
@@ -251,7 +251,7 @@ The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 │   ├── core/          # @aida-dev/core
 │   └── metrics/       # @aida-dev/metrics
 ├── .github/workflows/ # CI/CD automation
-└── docs/             # Documentation
+└── docs/             # Landing page (GitHub Pages)
 ```
 
 ## Roadmap
