@@ -138,7 +138,7 @@ aida analyze --out-dir ./aida-output
 Generate human-readable reports:
 
 ```bash
-aida report --format both --out-dir ./aida-output
+aida report --out-dir ./aida-output
 ```
 
 ### Options
@@ -161,7 +161,6 @@ aida report --format both --out-dir ./aida-output
 #### `aida report`
 
 - `--out-dir <path>` - Output directory (default: ./aida-output)
-- `--format <format>` - Output format: json, md, both (default: both)
 - `--verbose` - Verbose logging
 
 ## AI Detection
@@ -200,7 +199,6 @@ File-level proxy for how long AI-modified files survive before being changed aga
 
 - `commit-stream.json` - Normalized commit data with AI tagging
 - `metrics.json` - Calculated metrics with merge ratio and persistence
-- `report.json` - JSON report (mirrors metrics.json)
 - `report.md` - Human-readable Markdown report
 
 ## CI/CD Integration

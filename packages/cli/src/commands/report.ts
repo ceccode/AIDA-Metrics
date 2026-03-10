@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { readJSON, writeJSON, createLogger } from '@aida-dev/core';
+import { readJSON, createLogger } from '@aida-dev/core';
 import { Metrics } from '@aida-dev/metrics';
 import { join } from 'path';
 import { promises as fs } from 'fs';
@@ -38,7 +38,6 @@ export function createReportCommand(): Command {
   return new Command('report')
     .description('Generate report from metrics.json')
     .option('--out-dir <path>', 'Output directory', './aida-output')
-    .option('--format <format>', 'Output format: json, md, both', 'both')
     .option('--verbose', 'Verbose logging', false)
     .action(async (options) => {
       const config = CLIConfig.parse(options);
@@ -50,18 +49,10 @@ export function createReportCommand(): Command {
         const inputPath = join(config.outDir, 'metrics.json');
         const metrics: Metrics = await readJSON(inputPath);
 
-        if (config.format === 'json' || config.format === 'both') {
-          const jsonPath = join(config.outDir, 'report.json');
-          await writeJSON(jsonPath, metrics);
-          logger.info(`JSON report written to: ${jsonPath}`);
-        }
-
-        if (config.format === 'md' || config.format === 'both') {
-          const markdown = generateMarkdownReport(metrics);
-          const mdPath = join(config.outDir, 'report.md');
-          await fs.writeFile(mdPath, markdown, 'utf-8');
-          logger.info(`Markdown report written to: ${mdPath}`);
-        }
+        const markdown = generateMarkdownReport(metrics);
+        const mdPath = join(config.outDir, 'report.md');
+        await fs.writeFile(mdPath, markdown, 'utf-8');
+        logger.info(`Markdown report written to: ${mdPath}`);
 
         logger.info('Report generation completed');
       } catch (error) {
