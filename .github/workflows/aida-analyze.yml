@@ -33,7 +33,7 @@ jobs:
         run: |
           node packages/cli/dist/index.js collect --since 90d --out-dir ./.aida
           node packages/cli/dist/index.js analyze --out-dir ./.aida
-          node packages/cli/dist/index.js report --out-dir ./.aida --format both
+          node packages/cli/dist/index.js report --out-dir ./.aida
 
       - name: Upload AIDA artifacts
         uses: actions/upload-artifact@v4
@@ -42,5 +42,4 @@ jobs:
           path: |
             ./.aida/commit-stream.json
             ./.aida/metrics.json
-            ./.aida/report.json
             ./.aida/report.md
