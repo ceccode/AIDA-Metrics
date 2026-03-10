@@ -21,7 +21,7 @@ describe('Merge Ratio Calculation', () => {
           message: 'AI: automated commit',
           parents: [],
           inDefaultBranchAncestry: true,
-          tags: { ai: true, sources: ['message_pattern'] },
+          tags: { ai: true, aiConfidence: 'high' as const, sources: ['message_pattern'] },
           stats: { totalAdditions: 10, totalDeletions: 5, files: [] },
         },
         {
@@ -35,7 +35,7 @@ describe('Merge Ratio Calculation', () => {
           message: 'regular commit',
           parents: [],
           inDefaultBranchAncestry: true,
-          tags: { ai: false, sources: [] },
+          tags: { ai: false, aiConfidence: 'none' as const, sources: [] },
           stats: { totalAdditions: 5, totalDeletions: 2, files: [] },
         },
       ],

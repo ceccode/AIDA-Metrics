@@ -1,5 +1,6 @@
 export interface AITagResult {
   ai: boolean;
+  aiConfidence: 'high' | 'low' | 'none';
   sources: string[];
 }
 
@@ -8,9 +9,12 @@ export interface AITagConfig {
 }
 
 const DEFAULT_PATTERNS = [
-  '\\b(ai|copilot|cursor|windsurf|codeium|claude|chatgpt|gemini)\\b',
+  '\\b(copilot|cursor|windsurf|codeium|claude|chatgpt|gemini)\\b',
   '\\[ai\\]',
 ];
+
+// Patterns that indicate high confidence when matched in message body
+const HIGH_CONFIDENCE_MESSAGE_PATTERNS = new Set([1]); // index of \[ai\]
 
 const DEFAULT_TRAILER_PATTERNS = [
   '^AI:\\s*true$',
@@ -29,23 +33,29 @@ export function createAITagger(
   return (message: string): AITagResult => {
     const sources: string[] = [];
     let ai = false;
+    let hasHighConfidence = false;
 
     // Check message patterns
     for (let i = 0; i < messageRegexes.length; i++) {
       if (messageRegexes[i].test(message)) {
         ai = true;
         sources.push(`message_pattern:${allPatterns[i]}`);
+        if (HIGH_CONFIDENCE_MESSAGE_PATTERNS.has(i)) {
+          hasHighConfidence = true;
+        }
       }
     }
 
-    // Check trailer patterns
+    // Check trailer patterns (always high confidence)
     for (let i = 0; i < trailerRegexes.length; i++) {
       if (trailerRegexes[i].test(message)) {
         ai = true;
+        hasHighConfidence = true;
         sources.push(`trailer_pattern:${DEFAULT_TRAILER_PATTERNS[i]}`);
       }
     }
 
-    return { ai, sources };
+    const aiConfidence = ai ? (hasHighConfidence ? 'high' : 'low') : 'none';
+    return { ai, aiConfidence, sources };
   };
 }

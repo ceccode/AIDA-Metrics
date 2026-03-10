@@ -6,7 +6,6 @@ describe('AI Tagging', () => {
 
   it('should detect AI patterns in commit messages', () => {
     const testCases = [
-      { message: 'feat: add AI-powered search', expected: true },
       { message: 'fix: copilot suggestions', expected: true },
       { message: 'refactor: cursor improvements', expected: true },
       { message: '[AI] automated code generation', expected: true },
@@ -25,17 +24,32 @@ describe('AI Tagging', () => {
     });
   });
 
-  it('should detect AI trailers', () => {
+  it('should not match bare "ai" keyword (false positive prevention)', () => {
+    const falsePositives = [
+      'chore: add AI attribution manifest',
+      'docs: update AI detection patterns',
+      'feat: add AI-powered search',
+      'docs: update roadmap with AI classification',
+    ];
+
+    falsePositives.forEach((message) => {
+      const result = tagger(message);
+      expect(result.ai).toBe(false);
+    });
+  });
+
+  it('should detect AI trailers with high confidence', () => {
     const messageWithTrailer = `feat: new feature
 
 AI: true`;
 
     const result = tagger(messageWithTrailer);
     expect(result.ai).toBe(true);
+    expect(result.aiConfidence).toBe('high');
     expect(result.sources.some((s) => s.includes('trailer_pattern'))).toBe(true);
   });
 
-  it('should detect Claude Code co-authored commits', () => {
+  it('should detect Claude Code co-authored commits with high confidence', () => {
     const claudeCommit = `fix: resolve authentication bug in login flow
 
 Generated with Claude Code
@@ -43,6 +57,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
     const result = tagger(claudeCommit);
     expect(result.ai).toBe(true);
+    expect(result.aiConfidence).toBe('high');
     expect(result.sources.some((s) => s.includes('message_pattern'))).toBe(true);
     expect(result.sources.some((s) => s.includes('trailer_pattern'))).toBe(true);
   });
@@ -59,6 +74,24 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       const result = tagger(message);
       expect(result.ai).toBe(expected);
     });
+  });
+
+  it('should assign low confidence to keyword-only matches', () => {
+    const result = tagger('fix: copilot suggestions');
+    expect(result.ai).toBe(true);
+    expect(result.aiConfidence).toBe('low');
+  });
+
+  it('should assign high confidence to [AI] tag', () => {
+    const result = tagger('[AI] automated code generation');
+    expect(result.ai).toBe(true);
+    expect(result.aiConfidence).toBe('high');
+  });
+
+  it('should assign none confidence when no match', () => {
+    const result = tagger('regular commit message');
+    expect(result.ai).toBe(false);
+    expect(result.aiConfidence).toBe('none');
   });
 
   it('should handle custom patterns', () => {
