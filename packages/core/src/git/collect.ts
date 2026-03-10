@@ -64,23 +64,38 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
   );
 
-  // Build log arguments
-  const logArgs: string[] = [defaultBranch];
+  // Build log arguments — collect from ALL branches
+  const logArgs: string[] = ['--all'];
   if (sinceDate) {
     logArgs.push(`--after=${sinceDate.toISOString()}`);
   }
   logArgs.push(`--before=${untilDate.toISOString()}`);
 
-  // Get commits
+  // Get commits from all branches
   const logResult = await git.log(logArgs);
-  logger?.info(`Found ${logResult.all.length} commits`);
+  logger?.info(`Found ${logResult.all.length} commits (all branches)`);
+
+  // Get the set of commit hashes reachable from the default branch
+  const revListArgs = [defaultBranch];
+  if (sinceDate) {
+    revListArgs.push(`--after=${sinceDate.toISOString()}`);
+  }
+  revListArgs.push(`--before=${untilDate.toISOString()}`);
+  const defaultBranchHashes = new Set(
+    (await git.raw(['rev-list', ...revListArgs])).trim().split('\n').filter(Boolean)
+  );
+  logger?.info(`Default branch commits: ${defaultBranchHashes.size}`);
 
   // Create AI tagger
   const aiTagger = createAITagger({ patterns: aiPatterns });
 
-  // Process commits
+  // Deduplicate commits (same hash can appear from multiple branches)
+  const seen = new Set<string>();
   const commits: Commit[] = [];
   for (const gitCommit of logResult.all) {
+    if (seen.has(gitCommit.hash)) continue;
+    seen.add(gitCommit.hash);
+
     logger?.debug(`Processing commit ${gitCommit.hash}`);
 
     // Get diff stats
@@ -97,6 +112,8 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       ? (gitCommit as any).parents.split(' ').filter((p: string) => p)
       : [];
 
+    const inDefaultBranchAncestry = defaultBranchHashes.has(gitCommit.hash);
+
     const commit: Commit = {
       hash: gitCommit.hash,
       authorName: gitCommit.author_name,
@@ -108,7 +125,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       message: gitCommit.message,
       parents,
       branch: defaultBranch,
-      inDefaultBranchAncestry: true, // All commits are from default branch in MVP
+      inDefaultBranchAncestry,
       tags: aiTag,
       stats,
     };

@@ -13,7 +13,7 @@ export function calculateMetrics(commitStream: CommitStream): Metrics {
 
   const caveats = [
     'Persistence is file-level, not line-level.',
-    'Merge ratio computed on default branch only for MVP.',
+    'Merge ratio: commits from all branches checked against default branch ancestry. Squash merges may undercount unmerged commits.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
   ];
 
