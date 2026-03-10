@@ -14,7 +14,33 @@ export async function getDiffStats(repoPath: string, commitHash: string): Promis
   const git = simpleGit(repoPath);
 
   try {
-    // Get numstat for the commit
+    // Get exact file statuses from git
+    const nameStatus = await git.raw(['show', '--name-status', '--format=', commitHash]);
+    const statusMap = new Map<string, FileChangeType['status']>();
+
+    for (const line of nameStatus.trim().split('\n').filter((l) => l.trim())) {
+      const parts = line.split('\t');
+      if (parts.length >= 2) {
+        const code = parts[0].charAt(0);
+        const path = parts[parts.length - 1]; // last element handles renames (old\tnew)
+        switch (code) {
+          case 'A':
+            statusMap.set(path, 'added');
+            break;
+          case 'D':
+            statusMap.set(path, 'deleted');
+            break;
+          case 'R':
+            statusMap.set(path, 'renamed');
+            break;
+          default:
+            statusMap.set(path, 'modified');
+            break;
+        }
+      }
+    }
+
+    // Get line counts from numstat
     const numstat = await git.raw(['show', '--numstat', '--format=', commitHash]);
 
     const files: FileChangeType[] = [];
@@ -31,7 +57,7 @@ export async function getDiffStats(repoPath: string, commitHash: string): Promis
       if (parts.length >= 3) {
         const additions = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
         const deletions = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
-        const path = parts[2];
+        const path = parts[parts.length - 1];
 
         // Skip binary files (marked with -)
         if (parts[0] === '-' && parts[1] === '-') {
@@ -41,17 +67,9 @@ export async function getDiffStats(repoPath: string, commitHash: string): Promis
         totalAdditions += additions;
         totalDeletions += deletions;
 
-        // Determine status (simplified)
-        let status: FileChangeType['status'] = 'modified';
-        if (additions > 0 && deletions === 0) {
-          status = 'added';
-        } else if (additions === 0 && deletions > 0) {
-          status = 'deleted';
-        }
-
         files.push({
           path,
-          status,
+          status: statusMap.get(path) || 'modified',
           additions,
           deletions,
         });
