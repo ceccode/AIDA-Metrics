@@ -21,7 +21,7 @@ export const Commit = z.object({
   inDefaultBranchAncestry: z.boolean(), // set during collect
   tags: z.object({
     ai: z.boolean(),
-    aiConfidence: z.enum(['high', 'low', 'none']),
+    level: z.enum(['explicit', 'implicit', 'mention', 'none']),
     sources: z.array(z.string()), // which heuristic matched
   }),
   stats: z.object({
