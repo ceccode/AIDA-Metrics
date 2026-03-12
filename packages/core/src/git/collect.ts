@@ -10,6 +10,8 @@ export interface CollectOptions {
   since?: string;
   until?: string;
   aiPatterns?: string[];
+  aiTools?: string[];
+  aiTrailerDomains?: string[];
   defaultBranch?: string;
   logger?: Logger;
 }
@@ -46,6 +48,8 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     since,
     until,
     aiPatterns = [],
+    aiTools = [],
+    aiTrailerDomains = [],
     defaultBranch: providedDefaultBranch,
     logger,
   } = options;
@@ -87,7 +91,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   logger?.info(`Default branch commits: ${defaultBranchHashes.size}`);
 
   // Create AI tagger
-  const aiTagger = createAITagger({ patterns: aiPatterns });
+  const aiTagger = createAITagger({ patterns: aiPatterns, tools: aiTools, trailerDomains: aiTrailerDomains });
 
   // Deduplicate commits (same hash can appear from multiple branches)
   const seen = new Set<string>();

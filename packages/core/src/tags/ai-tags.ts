@@ -8,50 +8,59 @@ export interface AITagResult {
 
 export interface AITagConfig {
   patterns: string[];
+  tools?: string[];
+  trailerDomains?: string[];
 }
 
-const AI_TOOLS = 'copilot|cursor|windsurf|codeium|claude|chatgpt|gemini';
+export const DEFAULT_TOOLS = ['copilot', 'cursor', 'windsurf', 'codeium', 'claude', 'chatgpt', 'gemini'];
+const DEFAULT_TRAILER_DOMAINS = ['anthropic', 'openai', 'github\\.com'];
 
-// Level 1: Explicit attribution — clear statement of AI authorship
-const EXPLICIT_TAG_PATTERN = '\\[ai\\]';
-const EXPLICIT_VERB_PATTERNS = [
-  `(generated|created|written|built|authored|produced)\\s+(by|with|using)\\s+\\b(${AI_TOOLS})\\b`,
-  `\\b(${AI_TOOLS})\\b\\s+(generated|created|wrote|built|authored|produced)`,
-];
-
-const TRAILER_PATTERNS = [
-  '^AI:\\s*true$',
-  '^X-AI:\\s*true$',
-  '^Co-authored-by:.*bot.*$',
-  '^Co-authored-by:.*\\b(anthropic|openai|github\\.com)\\b.*$',
-];
-
-// Level 2: Implicit attribution — suggests AI involvement
-const IMPLICIT_PATTERNS = [
-  `\\b(${AI_TOOLS})\\b\\s+(suggestions?|assisted|helped|recommended|review)`,
-  `(suggested|assisted|helped|reviewed|recommended)\\s+(by|with|from)\\s+\\b(${AI_TOOLS})\\b`,
-  `(with\\s+help\\s+from|with\\s+assistance\\s+from)\\s+\\b(${AI_TOOLS})\\b`,
-];
-
-// Level 3: Mention context — tool name in non-attribution context
-const MENTION_CONTEXT_PATTERNS = [
-  `(fix|add|remove|disable|enable|configure|update|install|setup|document|test)\\b.*\\b(${AI_TOOLS})\\b`,
-  `\\b(${AI_TOOLS})\\b\\s+(support|integration|config|configuration|setup|plugin|extension|bug|issue|error|detection|pattern|rule)`,
-];
-
-// Bare tool name match (used as fallback → mention)
-const TOOL_NAME_PATTERN = `\\b(${AI_TOOLS})\\b`;
+function buildPatterns(tools: string, domains: string) {
+  return {
+    explicitTag: '\\[ai\\]',
+    explicitVerbs: [
+      `(generated|created|written|built|authored|produced)\\s+(by|with|using)\\s+\\b(${tools})\\b`,
+      `\\b(${tools})\\b\\s+(generated|created|wrote|built|authored|produced)`,
+    ],
+    trailers: [
+      '^AI:\\s*true$',
+      '^X-AI:\\s*true$',
+      '^Co-authored-by:.*bot.*$',
+      `^Co-authored-by:.*\\b(${domains})\\b.*$`,
+    ],
+    implicit: [
+      `\\b(${tools})\\b\\s+(suggestions?|assisted|helped|recommended|review)`,
+      `(suggested|assisted|helped|reviewed|recommended)\\s+(by|with|from)\\s+\\b(${tools})\\b`,
+      `(with\\s+help\\s+from|with\\s+assistance\\s+from)\\s+\\b(${tools})\\b`,
+    ],
+    mentionContext: [
+      `(fix|add|remove|disable|enable|configure|update|install|setup|document|test)\\b.*\\b(${tools})\\b`,
+      `\\b(${tools})\\b\\s+(support|integration|config|configuration|setup|plugin|extension|bug|issue|error|detection|pattern|rule)`,
+    ],
+    toolName: `\\b(${tools})\\b`,
+  };
+}
 
 export function createAITagger(
   config: AITagConfig = { patterns: [] }
 ): (message: string) => AITagResult {
-  const explicitTagRegex = new RegExp(EXPLICIT_TAG_PATTERN, 'im');
-  const explicitVerbRegexes = EXPLICIT_VERB_PATTERNS.map((p) => new RegExp(p, 'im'));
-  const trailerRegexes = TRAILER_PATTERNS.map((p) => new RegExp(p, 'mi'));
-  const implicitRegexes = IMPLICIT_PATTERNS.map((p) => new RegExp(p, 'im'));
-  const mentionContextRegexes = MENTION_CONTEXT_PATTERNS.map((p) => new RegExp(p, 'im'));
-  const toolNameRegex = new RegExp(TOOL_NAME_PATTERN, 'im');
-  const customRegexes = config.patterns.map((p) => new RegExp(p, 'im'));
+  // Merge default tools with user-provided tools
+  const allTools = [...DEFAULT_TOOLS, ...(config.tools || [])];
+  const toolsPattern = allTools.join('|');
+
+  // Merge default trailer domains with user-provided domains
+  const allDomains = [...DEFAULT_TRAILER_DOMAINS, ...(config.trailerDomains || [])];
+  const domainsPattern = allDomains.join('|');
+
+  const p = buildPatterns(toolsPattern, domainsPattern);
+
+  const explicitTagRegex = new RegExp(p.explicitTag, 'im');
+  const explicitVerbRegexes = p.explicitVerbs.map((s) => new RegExp(s, 'im'));
+  const trailerRegexes = p.trailers.map((s) => new RegExp(s, 'mi'));
+  const implicitRegexes = p.implicit.map((s) => new RegExp(s, 'im'));
+  const mentionContextRegexes = p.mentionContext.map((s) => new RegExp(s, 'im'));
+  const toolNameRegex = new RegExp(p.toolName, 'im');
+  const customRegexes = config.patterns.map((s) => new RegExp(s, 'im'));
 
   return (message: string): AITagResult => {
     const sources: string[] = [];
@@ -61,7 +70,7 @@ export function createAITagger(
     for (let i = 0; i < trailerRegexes.length; i++) {
       if (trailerRegexes[i].test(message)) {
         level = 'explicit';
-        sources.push(`trailer:${TRAILER_PATTERNS[i]}`);
+        sources.push(`trailer:${p.trailers[i]}`);
       }
     }
 

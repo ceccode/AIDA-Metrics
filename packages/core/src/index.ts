@@ -1,3 +1,4 @@
+export * from './schema/aida-config.js';
 export * from './schema/commit.js';
 export * from './schema/stream.js';
 export * from './git/collect.js';

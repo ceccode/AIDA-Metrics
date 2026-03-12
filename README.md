@@ -148,7 +148,9 @@ aida report --out-dir ./aida-output
 - `--repo <path>` - Repository path (default: current directory)
 - `--since <date>` - Start date (ISO or relative like 90d)
 - `--until <date>` - End date (ISO or relative)
-- `--ai-pattern <pattern>` - Custom AI detection pattern (repeatable)
+- `--ai-pattern <pattern>` - Custom AI detection regex (repeatable)
+- `--ai-tool <name>` - Additional AI tool name (repeatable, benefits from 4-level classification)
+- `--ai-trailer-domain <domain>` - Additional Co-authored-by domain (repeatable)
 - `--default-branch <name>` - Default branch name (auto-detect if omitted)
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
@@ -190,16 +192,36 @@ AIDA classifies commits into four attribution levels:
 - Tool name in non-attribution context: "fix copilot bug", "add cursor support"
 - Bare tool name without verb context
 
-### Supported Tools
+### Supported Tools (built-in)
 
 `copilot`, `cursor`, `windsurf`, `codeium`, `claude`, `chatgpt`, `gemini`
 
-### Custom Patterns
+### Configuration File (`.aida.json`)
 
-Add your own detection patterns (treated as explicit):
+Place a `.aida.json` file in your project root to add custom tools, trailer domains, and patterns:
+
+```json
+{
+  "tools": ["devbot", "codyai", "internal-copilot"],
+  "trailerDomains": ["mycompany\\.com"],
+  "patterns": ["my-custom-regex"]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `tools` | Additional AI tool names — benefits from all 4 classification levels |
+| `trailerDomains` | Additional domains for `Co-authored-by` trailer matching |
+| `patterns` | Raw regex patterns (treated as explicit) |
+
+### CLI Flags
+
+Override or supplement `.aida.json` via CLI:
 
 ```bash
-aida collect --ai-pattern "my-internal-tool" --ai-pattern "custom-agent"
+aida collect --ai-tool "devbot" --ai-tool "codyai"
+aida collect --ai-trailer-domain "mycompany\\.com"
+aida collect --ai-pattern "my-custom-regex"
 ```
 
 ## Metrics
