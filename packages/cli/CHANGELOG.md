@@ -1,5 +1,21 @@
 # @aida/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- 194723a: 4-level AI attribution classification (explicit/implicit/mention/none). Only explicit and implicit commits are counted as AI-assisted, reducing false positives from tool mentions.
+
+  Configurable AI tools via `.aida.json` config file and new CLI flags (`--ai-tool`, `--ai-trailer-domain`). Custom tools benefit from all 4 classification levels.
+
+  Fix: `--ai-pattern` CLI flag was silently ignored due to Commander naming mismatch.
+
+### Patch Changes
+
+- Updated dependencies [194723a]
+  - @aida-dev/core@0.6.0
+  - @aida-dev/metrics@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes
