@@ -1,32 +1,48 @@
-# AIDA Metrics
+<h1 align="center">📊 AIDA Metrics</h1>
 
-**AI Development Accounting** - Track and measure AI-assisted development in your repositories.
+<p align="center">
+  <strong>AI Development Accounting — Track and measure AI-assisted development in your repositories.</strong><br/>
+  Move beyond AI hype. Measure what actually ships to production.<br/>
+</p>
 
-AIDA is an open-source framework to measure the real impact of AI coding agents in software development.  
+<p align="center">
+  <a href="https://www.npmjs.com/package/@aida-dev/cli"><img src="https://img.shields.io/npm/v/@aida-dev/cli?label=cli&color=blue" alt="npm cli"></a>
+  <a href="https://www.npmjs.com/package/@aida-dev/core"><img src="https://img.shields.io/npm/v/@aida-dev/core?label=core&color=blue" alt="npm core"></a>
+  <a href="https://github.com/ceccode/AIDA-Metrics/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ceccode/AIDA-Metrics" alt="license"></a>
+  <a href="https://github.com/ceccode/AIDA-Metrics/stargazers"><img src="https://img.shields.io/github/stars/ceccode/AIDA-Metrics?style=social" alt="stars"></a>
+</p>
 
-The goal is to move beyond "AI hype" and provide **tangible, auditable metrics** to distinguish between **AI noise** (suggestions discarded, unstable code) and **AI value** (stable, production-ready contributions).
+<p align="center">
+  <a href="#why-aida">Why AIDA</a> •
+  <a href="#features">Features</a> •
+  <a href="#installation">Install</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#ai-detection">AI Detection</a> •
+  <a href="#metrics">Metrics</a> •
+  <a href="#cicd-integration">CI/CD</a> •
+  <a href="https://ceccode.github.io/AIDA-Metrics/">Demo</a>
+</p>
 
-📖 **[Documentation & Demo](https://ceccode.github.io/AIDA-Metrics/)**
+---
 
 ## Why AIDA?
 
-AI coding assistants (Copilot, Cursor, Windsurf, Claude Code, ChatGPT, Gemini, etc.) are increasingly part of the development workflow.  
+AI coding assistants (Copilot, Cursor, Windsurf, Claude Code, ChatGPT, Gemini, etc.) are increasingly part of the development workflow — but today we lack a structured way to **quantify their real contribution**.
 
-But today we lack a structured way to **quantify their real contribution**.
+- **CFOs and finance teams** ask: *what part of AI costs can be capitalized as real development effort?*
+- **CTOs and engineers** ask: *is AI really saving time and delivering stable code?*
 
-- CFOs and finance teams ask: *what part of AI costs can be capitalized as real development effort?*  
-- CTOs and engineers ask: *is AI really saving time and delivering stable code?*  
-
-AIDA wants to provide a **common language and tooling** for both worlds.
+AIDA provides **tangible, auditable metrics** to distinguish between **AI noise** (suggestions discarded, unstable code) and **AI value** (stable, production-ready contributions).
 
 ## Features
 
-- **AI Detection**: Identifies AI-assisted commits from Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium via commit messages, trailers, and `Co-Authored-By`
-- **Merge Ratio**: Track what percentage of AI commits make it to production
-- **Persistence**: Measure how long AI-generated code survives in your codebase
-- **Fast & Deterministic**: Built for production use with stable JSON schemas
-- **CLI-First**: Simple commands for collection, analysis, and reporting
-- **GitHub Actions**: Automated analysis on every push
+- **4-Level AI Detection** — Classifies commits as explicit, implicit, mention, or none across Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium
+- **Configurable Tools** — Add custom AI tools via `.aida.json` or CLI flags
+- **Merge Ratio** — Track what percentage of AI commits make it to production
+- **Persistence** — Measure how long AI-generated code survives in your codebase
+- **Fast & Deterministic** — Built for production use with stable JSON schemas
+- **CLI-First** — Simple commands for collection, analysis, and reporting
+- **CI/CD Ready** — GitHub Actions integration out of the box
 
 ## Installation
 
