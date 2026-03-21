@@ -293,6 +293,17 @@ File-level proxy for how long AI-modified files survive before being changed aga
 
 Use `--dry-run` to print the report to stdout without posting.
 
+### Choosing `--since` for CI
+
+| Approach | `--since` | Best for |
+|----------|-----------|----------|
+| Per-PR | `7d` | Frequent PRs, team awareness |
+| Sprint report | `14d` or `30d` | Sprint retrospectives, scheduled runs |
+| Monthly audit | `90d` | Management/finance reporting |
+| Full history | *(omit)* | One-time baseline analysis |
+
+> PR-scoped analysis (`--pr` flag) is planned — see [#18](https://github.com/ceccode/AIDA-Metrics/issues/18).
+
 ### GitLab CI
 
 ```yaml
