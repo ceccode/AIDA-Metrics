@@ -32,6 +32,7 @@
             <div class="nav-links">
                 <a href="#features">Features</a>
                 <a href="#install">Install</a>
+                <a href="#ci">CI/CD</a>
                 <a href="https://github.com/ceccode/aida-metrics#readme" target="_blank">Docs</a>
                 <a href="https://github.com/ceccode/aida-metrics" target="_blank">GitHub</a>
             </div>
@@ -97,6 +98,12 @@
                         <div class="terminal-line output">
                             ✓ Reports generated in ./aida-output/
                         </div>
+                        <div class="terminal-line">
+                            <span class="prompt">$</span> aida comment
+                        </div>
+                        <div class="terminal-line output">
+                            ✓ AIDA report posted to PR #42
+                        </div>
                     </div>
                 </div>
             </div>
@@ -122,9 +129,14 @@
                         <p>4-level attribution classification (explicit, implicit, mention, none) for Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium and more.</p>
                     </div>
                     <div class="feature-card">
+                        <div class="feature-icon">�</div>
+                        <h3>PR Comments</h3>
+                        <p>Post AIDA reports directly on pull requests. Auto-detects GitHub Actions with GitLab and Bitbucket coming soon.</p>
+                    </div>
+                    <div class="feature-card">
                         <div class="feature-icon">🚀</div>
                         <h3>CI/CD Ready</h3>
-                        <p>Seamless integration with GitHub Actions, GitLab CI, and other pipelines.</p>
+                        <p>One workflow file, zero configuration. Runs on every PR and updates the comment automatically.</p>
                     </div>
                 </div>
             </div>
@@ -172,6 +184,41 @@
                     <div class="tool-badge">Gemini</div>
                     <div class="tool-badge">Codeium</div>
                     <div class="tool-badge">+ Custom tools via .aida.json</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="ci" class="ci-integration">
+            <div class="container">
+                <h2>CI/CD Integration</h2>
+                <p class="section-subtitle">Add one workflow file to your repo and get AI metrics on every pull request.</p>
+                <div class="ci-example">
+                    <div class="terminal">
+                        <div class="terminal-header">
+                            <div class="terminal-controls">
+                                <span class="control red"></span>
+                                <span class="control yellow"></span>
+                                <span class="control green"></span>
+                            </div>
+                            <span class="terminal-title">.github/workflows/aida.yml</span>
+                        </div>
+                        <div class="terminal-body">
+                            <div class="terminal-line"><span class="yaml-key">name:</span> AIDA Analysis</div>
+                            <div class="terminal-line"><span class="yaml-key">on:</span> [pull_request]</div>
+                            <div class="terminal-line">&nbsp;</div>
+                            <div class="terminal-line"><span class="yaml-key">jobs:</span></div>
+                            <div class="terminal-line">&nbsp; <span class="yaml-key">aida:</span></div>
+                            <div class="terminal-line">&nbsp; &nbsp; <span class="yaml-key">runs-on:</span> ubuntu-latest</div>
+                            <div class="terminal-line">&nbsp; &nbsp; <span class="yaml-key">steps:</span></div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; - <span class="yaml-key">uses:</span> actions/checkout@v4</div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">with:</span></div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">fetch-depth:</span> 0</div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; - <span class="yaml-key">run:</span> npm i -g @aida-dev/cli</div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; - <span class="yaml-key">run:</span> aida collect && aida analyze && aida report && aida comment</div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">env:</span></div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">GITHUB_TOKEN:</span> ${{ secrets.GITHUB_TOKEN }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

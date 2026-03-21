@@ -181,6 +181,12 @@ aida report --out-dir ./aida-output
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
 
+#### `aida comment`
+
+- `--out-dir <path>` - Output directory (default: ./aida-output)
+- `--dry-run` - Print report to stdout instead of posting
+- `--verbose` - Verbose logging
+
 ## AI Detection
 
 AIDA classifies commits into four attribution levels:
@@ -261,7 +267,7 @@ File-level proxy for how long AI-modified files survive before being changed aga
 
 ## CI/CD Integration
 
-### GitHub Actions
+### GitHub Actions (with PR comments)
 
 ```yaml
 - name: Install AIDA
@@ -272,6 +278,9 @@ File-level proxy for how long AI-modified files survive before being changed aga
     aida collect --since 30d
     aida analyze
     aida report
+    aida comment
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 - name: Upload Reports
   uses: actions/upload-artifact@v4
@@ -279,6 +288,10 @@ File-level proxy for how long AI-modified files survive before being changed aga
     name: aida-reports
     path: aida-output/
 ```
+
+`aida comment` auto-detects the CI provider and posts the report as a PR comment. On subsequent pushes, it **updates** the existing comment instead of creating duplicates.
+
+Use `--dry-run` to print the report to stdout without posting.
 
 ### GitLab CI
 
@@ -292,11 +305,7 @@ aida_analysis:
       - aida-output/
 ```
 
-The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
-
-1. Runs AIDA analysis on every push to main/master
-2. Uploads artifacts with commit stream, metrics, and reports
-3. Provides historical tracking of AI development patterns
+> GitLab MR comments coming soon — see [#16](https://github.com/ceccode/AIDA-Metrics/issues/16). Bitbucket: [#17](https://github.com/ceccode/AIDA-Metrics/issues/17).
 
 ## Repository Structure
 
@@ -315,9 +324,10 @@ The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 - **v0.1** ✅ Git-based metrics (Merge Ratio + Persistence).  
 - **v0.2** ✅ AI detection for Claude Code, ChatGPT, Gemini, Copilot, Cursor, Windsurf, Codeium.  
 - **v0.3** ✅ Attribution classification: explicit / implicit / mention / none ([#7](https://github.com/ceccode/AIDA-Metrics/issues/7)).  
-- **v0.4** → Retroactive AI tagging via `aida-attribution.json` manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
-- **v0.4** → LLM-based commit intent classification ([#12](https://github.com/ceccode/AIDA-Metrics/issues/12)).  
-- **v0.5** → Connect to issue trackers (GitHub Issues, Jira) for Value per LOC.  
+- **v0.4** ✅ PR comment integration for GitHub Actions.  
+- **v0.5** → Retroactive AI tagging via `aida-attribution.json` manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
+- **v0.5** → LLM-based commit intent classification ([#12](https://github.com/ceccode/AIDA-Metrics/issues/12)).  
+- **v0.5** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 
 ## Contributing
@@ -325,7 +335,7 @@ The included workflow (`.github/workflows/aida-analyze.yml`) automatically:
 This is just the starting point. We are looking for contributors who can help with:  
 
 - Designing robust metrics  
-- Building integrations (Copilot, Cursor, etc.)  
+- Building integrations
 - Improving analysis pipelines  
 - Validating approaches with real-world projects  
 

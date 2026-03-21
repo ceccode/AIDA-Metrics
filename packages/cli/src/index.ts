@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { createCollectCommand } from './commands/collect.js';
 import { createAnalyzeCommand } from './commands/analyze.js';
 import { createReportCommand } from './commands/report.js';
+import { createCommentCommand } from './commands/comment.js';
 
 const program = new Command();
 
@@ -16,5 +17,6 @@ program
 program.addCommand(createCollectCommand());
 program.addCommand(createAnalyzeCommand());
 program.addCommand(createReportCommand());
+program.addCommand(createCommentCommand());
 
 program.parse();
