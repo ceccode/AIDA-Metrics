@@ -9,6 +9,7 @@ export interface CollectOptions {
   repoPath: string;
   since?: string;
   until?: string;
+  diffBase?: string;
   aiPatterns?: string[];
   aiTools?: string[];
   aiTrailerDomains?: string[];
@@ -47,6 +48,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     repoPath,
     since,
     until,
+    diffBase,
     aiPatterns = [],
     aiTools = [],
     aiTrailerDomains = [],
@@ -60,34 +62,56 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const defaultBranch = providedDefaultBranch || (await detectDefaultBranch(git));
   logger?.info(`Using default branch: ${defaultBranch}`);
 
-  // Parse date range
-  const sinceDate = since ? parseRelativeDate(since) : undefined;
-  const untilDate = until ? parseRelativeDate(until) : new Date();
+  let logResult;
 
-  logger?.info(
-    `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
-  );
+  if (diffBase) {
+    // PR-scoped mode: collect only commits between diffBase and HEAD
+    logger?.info(`PR-scoped analysis: ${diffBase}..HEAD`);
+    
+    // Use rev-list style range: diffBase..HEAD
+    logResult = await git.log([`${diffBase}..HEAD`]);
+    logger?.info(`Found ${logResult.all.length} commits in PR`);
+  } else {
+    // Standard mode: collect from all branches within date range
+    const sinceDate = since ? parseRelativeDate(since) : undefined;
+    const untilDate = until ? parseRelativeDate(until) : new Date();
 
-  // Build log arguments — collect from ALL branches
-  const logArgs: string[] = ['--all'];
-  if (sinceDate) {
-    logArgs.push(`--after=${sinceDate.toISOString()}`);
+    logger?.info(
+      `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
+    );
+
+    // Build log arguments — collect from ALL branches
+    const logArgs: string[] = ['--all'];
+    if (sinceDate) {
+      logArgs.push(`--after=${sinceDate.toISOString()}`);
+    }
+    logArgs.push(`--before=${untilDate.toISOString()}`);
+
+    // Get commits from all branches
+    logResult = await git.log(logArgs);
+    logger?.info(`Found ${logResult.all.length} commits (all branches)`);
   }
-  logArgs.push(`--before=${untilDate.toISOString()}`);
-
-  // Get commits from all branches
-  const logResult = await git.log(logArgs);
-  logger?.info(`Found ${logResult.all.length} commits (all branches)`);
 
   // Get the set of commit hashes reachable from the default branch
-  const revListArgs = [defaultBranch];
-  if (sinceDate) {
-    revListArgs.push(`--after=${sinceDate.toISOString()}`);
+  let defaultBranchHashes: Set<string>;
+  if (diffBase) {
+    // In PR mode, check if commits are in the default branch ancestry
+    // by seeing if they're reachable from the default branch
+    const allDefaultBranchHashes = (await git.raw(['rev-list', defaultBranch])).trim().split('\n').filter(Boolean);
+    defaultBranchHashes = new Set(allDefaultBranchHashes);
+  } else {
+    // Standard mode: use date filters
+    const sinceDate = since ? parseRelativeDate(since) : undefined;
+    const untilDate = until ? parseRelativeDate(until) : new Date();
+    const revListArgs = [defaultBranch];
+    if (sinceDate) {
+      revListArgs.push(`--after=${sinceDate.toISOString()}`);
+    }
+    revListArgs.push(`--before=${untilDate.toISOString()}`);
+    defaultBranchHashes = new Set(
+      (await git.raw(['rev-list', ...revListArgs])).trim().split('\n').filter(Boolean)
+    );
   }
-  revListArgs.push(`--before=${untilDate.toISOString()}`);
-  const defaultBranchHashes = new Set(
-    (await git.raw(['rev-list', ...revListArgs])).trim().split('\n').filter(Boolean)
-  );
   logger?.info(`Default branch commits: ${defaultBranchHashes.size}`);
 
   // Create AI tagger

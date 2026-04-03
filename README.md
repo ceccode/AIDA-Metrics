@@ -164,6 +164,8 @@ aida report --out-dir ./aida-output
 - `--repo <path>` - Repository path (default: current directory)
 - `--since <date>` - Start date (ISO or relative like 90d)
 - `--until <date>` - End date (ISO or relative)
+- `--pr` - PR-scoped analysis (auto-detect base ref from CI env vars)
+- `--diff-base <ref>` - Explicit base ref for PR-scoped analysis (e.g., `origin/main`)
 - `--ai-pattern <pattern>` - Custom AI detection regex (repeatable)
 - `--ai-tool <name>` - Additional AI tool name (repeatable, benefits from 4-level classification)
 - `--ai-trailer-domain <domain>` - Additional Co-authored-by domain (repeatable)
@@ -275,7 +277,7 @@ File-level proxy for how long AI-modified files survive before being changed aga
 
 - name: Run AIDA Analysis
   run: |
-    aida collect --since 30d
+    aida collect --pr
     aida analyze
     aida report
     aida comment
@@ -293,16 +295,23 @@ File-level proxy for how long AI-modified files survive before being changed aga
 
 Use `--dry-run` to print the report to stdout without posting.
 
-### Choosing `--since` for CI
+### PR-Scoped vs Time-Based Analysis
+
+Use `--pr` for PR-specific metrics (analyzes only commits in the current PR):
+
+```bash
+aida collect --pr              # Auto-detect base ref from CI env vars
+aida collect --diff-base origin/main  # Explicit base ref
+```
+
+Or use `--since` for time-based analysis:
 
 | Approach | `--since` | Best for |
 |----------|-----------|----------|
-| Per-PR | `7d` | Frequent PRs, team awareness |
+| Per-PR | `--pr` | PR-specific metrics (recommended) |
 | Sprint report | `14d` or `30d` | Sprint retrospectives, scheduled runs |
 | Monthly audit | `90d` | Management/finance reporting |
 | Full history | *(omit)* | One-time baseline analysis |
-
-> PR-scoped analysis (`--pr` flag) is planned — see [#18](https://github.com/ceccode/AIDA-Metrics/issues/18).
 
 ### GitLab CI
 
@@ -336,9 +345,10 @@ aida_analysis:
 - **v0.2** ✅ AI detection for Claude Code, ChatGPT, Gemini, Copilot, Cursor, Windsurf, Codeium.  
 - **v0.3** ✅ Attribution classification: explicit / implicit / mention / none ([#7](https://github.com/ceccode/AIDA-Metrics/issues/7)).  
 - **v0.4** ✅ PR comment integration for GitHub Actions.  
-- **v0.5** → Retroactive AI tagging via `aida-attribution.json` manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
-- **v0.5** → LLM-based commit intent classification ([#12](https://github.com/ceccode/AIDA-Metrics/issues/12)).  
-- **v0.5** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
+- **v0.5** ✅ PR-scoped analysis with `--pr` and `--diff-base` flags ([#18](https://github.com/ceccode/AIDA-Metrics/issues/18)).  
+- **v0.6** → Retroactive AI tagging via `aida-attribution.json` manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
+- **v0.6** → LLM-based commit intent classification ([#12](https://github.com/ceccode/AIDA-Metrics/issues/12)).  
+- **v0.6** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 
 ## Contributing

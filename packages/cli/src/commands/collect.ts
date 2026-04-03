@@ -3,6 +3,7 @@ import { collectCommits, writeJSON, createLogger, AidaConfig } from '@aida-dev/c
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { CLIConfig } from '../schema/config.js';
+import { detectPRBaseRef } from '../providers/pr-base.js';
 
 async function loadAidaConfig(repoPath: string): Promise<Partial<AidaConfig>> {
   try {
@@ -23,6 +24,8 @@ export function createCollectCommand(): Command {
     .option('--repo <path>', 'Repository path', process.cwd())
     .option('--since <date>', 'Start date (ISO or relative like 90d)')
     .option('--until <date>', 'End date (ISO or relative)')
+    .option('--pr', 'PR-scoped analysis (auto-detect base ref from CI env vars)')
+    .option('--diff-base <ref>', 'Explicit base ref for PR-scoped analysis (e.g., origin/main)')
     .option('--ai-pattern <pattern>', 'AI detection regex (repeatable)', collectRepeatable, [])
     .option('--ai-tool <name>', 'Additional AI tool name (repeatable)', collectRepeatable, [])
     .option('--ai-trailer-domain <domain>', 'Additional Co-authored-by domain (repeatable)', collectRepeatable, [])
@@ -50,12 +53,24 @@ export function createCollectCommand(): Command {
         if (aiTools.length > 0) logger.info(`Custom AI tools: ${aiTools.join(', ')}`);
         if (aiTrailerDomains.length > 0) logger.info(`Custom trailer domains: ${aiTrailerDomains.join(', ')}`);
 
+        // Determine diffBase for PR-scoped analysis
+        let diffBase: string | undefined = options.diffBase;
+        if (options.pr && !diffBase) {
+          diffBase = detectPRBaseRef() ?? undefined;
+          if (diffBase) {
+            logger.info(`PR mode: detected base ref ${diffBase}`);
+          } else {
+            logger.warn('--pr flag used but no PR context detected. Falling back to --since mode.');
+          }
+        }
+
         logger.info('Starting commit collection...');
 
         const commitStream = await collectCommits({
           repoPath: config.repo,
-          since: config.since,
-          until: config.until,
+          since: diffBase ? undefined : config.since,
+          until: diffBase ? undefined : config.until,
+          diffBase,
           aiPatterns,
           aiTools,
           aiTrailerDomains,
