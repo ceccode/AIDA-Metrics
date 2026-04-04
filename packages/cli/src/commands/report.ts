@@ -47,7 +47,7 @@ export function createReportCommand(): Command {
         logger.info('Generating report...');
 
         const inputPath = join(config.outDir, 'metrics.json');
-        const metrics: Metrics = await readJSON(inputPath);
+        const metrics = await readJSON(inputPath, Metrics);
 
         const markdown = generateMarkdownReport(metrics);
         const mdPath = join(config.outDir, 'report.md');

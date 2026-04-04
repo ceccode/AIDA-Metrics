@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { readJSON, writeJSON, createLogger } from '@aida-dev/core';
+import { readJSON, writeJSON, createLogger, CommitStream } from '@aida-dev/core';
 import { calculateMetrics } from '@aida-dev/metrics';
 import { join } from 'path';
 import { CLIConfig } from '../schema/config.js';
@@ -17,7 +17,7 @@ export function createAnalyzeCommand(): Command {
         logger.info('Starting metrics analysis...');
 
         const inputPath = join(config.outDir, 'commit-stream.json');
-        const commitStream = await readJSON(inputPath);
+        const commitStream = await readJSON(inputPath, CommitStream);
 
         logger.info(`Analyzing ${commitStream.commits.length} commits`);
 

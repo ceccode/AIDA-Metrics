@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
+import type { ZodType } from 'zod';
 
 export async function ensureDir(dirPath: string): Promise<void> {
   try {
@@ -12,14 +13,18 @@ export async function ensureDir(dirPath: string): Promise<void> {
   }
 }
 
-export async function writeJSON(filePath: string, data: any): Promise<void> {
+export async function writeJSON(filePath: string, data: unknown): Promise<void> {
   await ensureDir(dirname(filePath));
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
 }
 
-export async function readJSON<T>(filePath: string): Promise<T> {
+export async function readJSON<T>(filePath: string, schema?: ZodType<T>): Promise<T> {
   const content = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(content) as T;
+  const data = JSON.parse(content);
+  if (schema) {
+    return schema.parse(data);
+  }
+  return data as T;
 }
 
 export async function fileExists(filePath: string): Promise<boolean> {

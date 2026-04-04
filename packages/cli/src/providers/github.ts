@@ -3,6 +3,20 @@ import { readFileSync } from 'fs';
 
 const MARKER = '<!-- aida-metrics-report -->';
 
+function sanitizeErrorBody(text: string, maxLength = 200): string {
+  // Strip potential tokens, auth headers, and URLs with credentials
+  let sanitized = text
+    .replace(/ghp_[A-Za-z0-9_]+/g, '[REDACTED]')
+    .replace(/gho_[A-Za-z0-9_]+/g, '[REDACTED]')
+    .replace(/github_pat_[A-Za-z0-9_]+/g, '[REDACTED]')
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [REDACTED]')
+    .replace(/token\s+[A-Za-z0-9._-]+/gi, 'token [REDACTED]');
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.slice(0, maxLength) + '...(truncated)';
+  }
+  return sanitized;
+}
+
 interface GitHubEvent {
   pull_request?: {
     number: number;
@@ -102,7 +116,7 @@ export class GitHubProvider implements CIProvider {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Failed to create GitHub comment: ${response.status} ${error}`);
+      throw new Error(`Failed to create GitHub comment: ${response.status} ${sanitizeErrorBody(error)}`);
     }
   }
 
@@ -121,7 +135,7 @@ export class GitHubProvider implements CIProvider {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Failed to update GitHub comment: ${response.status} ${error}`);
+      throw new Error(`Failed to update GitHub comment: ${response.status} ${sanitizeErrorBody(error)}`);
     }
   }
 }

@@ -1,4 +1,4 @@
-import { simpleGit } from 'simple-git';
+import { simpleGit, type SimpleGit } from 'simple-git';
 import { FileChange } from '../schema/commit.js';
 import type { z } from 'zod';
 
@@ -10,8 +10,8 @@ export interface DiffStats {
   files: FileChangeType[];
 }
 
-export async function getDiffStats(repoPath: string, commitHash: string): Promise<DiffStats> {
-  const git = simpleGit(repoPath);
+export async function getDiffStats(repoPathOrGit: string | SimpleGit, commitHash: string): Promise<DiffStats> {
+  const git = typeof repoPathOrGit === 'string' ? simpleGit(repoPathOrGit) : repoPathOrGit;
 
   try {
     // Get exact file statuses from git

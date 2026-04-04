@@ -62,32 +62,29 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const defaultBranch = providedDefaultBranch || (await detectDefaultBranch(git));
   logger?.info(`Using default branch: ${defaultBranch}`);
 
+  // Parse dates once (avoids duplicate parsing and timestamp drift)
+  const sinceDate = since ? parseRelativeDate(since) : undefined;
+  const untilDate = until ? parseRelativeDate(until) : new Date();
+
   let logResult;
 
   if (diffBase) {
     // PR-scoped mode: collect only commits between diffBase and HEAD
     logger?.info(`PR-scoped analysis: ${diffBase}..HEAD`);
-    
-    // Use rev-list style range: diffBase..HEAD
     logResult = await git.log([`${diffBase}..HEAD`]);
     logger?.info(`Found ${logResult.all.length} commits in PR`);
   } else {
     // Standard mode: collect from all branches within date range
-    const sinceDate = since ? parseRelativeDate(since) : undefined;
-    const untilDate = until ? parseRelativeDate(until) : new Date();
-
     logger?.info(
       `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
     );
 
-    // Build log arguments — collect from ALL branches
     const logArgs: string[] = ['--all'];
     if (sinceDate) {
       logArgs.push(`--after=${sinceDate.toISOString()}`);
     }
     logArgs.push(`--before=${untilDate.toISOString()}`);
 
-    // Get commits from all branches
     logResult = await git.log(logArgs);
     logger?.info(`Found ${logResult.all.length} commits (all branches)`);
   }
@@ -95,14 +92,20 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   // Get the set of commit hashes reachable from the default branch
   let defaultBranchHashes: Set<string>;
   if (diffBase) {
-    // In PR mode, check if commits are in the default branch ancestry
-    // by seeing if they're reachable from the default branch
-    const allDefaultBranchHashes = (await git.raw(['rev-list', defaultBranch])).trim().split('\n').filter(Boolean);
-    defaultBranchHashes = new Set(allDefaultBranchHashes);
+    // In PR mode, use merge-base to bound the rev-list instead of fetching entire history
+    try {
+      const mergeBase = (await git.raw(['merge-base', defaultBranch, 'HEAD'])).trim();
+      const bounded = (await git.raw(['rev-list', `${mergeBase}..${defaultBranch}`])).trim().split('\n').filter(Boolean);
+      // Include merge-base itself
+      bounded.push(mergeBase);
+      defaultBranchHashes = new Set(bounded);
+    } catch {
+      // Fallback: full rev-list if merge-base fails (e.g., unrelated histories)
+      const all = (await git.raw(['rev-list', defaultBranch])).trim().split('\n').filter(Boolean);
+      defaultBranchHashes = new Set(all);
+    }
   } else {
     // Standard mode: use date filters
-    const sinceDate = since ? parseRelativeDate(since) : undefined;
-    const untilDate = until ? parseRelativeDate(until) : new Date();
     const revListArgs = [defaultBranch];
     if (sinceDate) {
       revListArgs.push(`--after=${sinceDate.toISOString()}`);
@@ -113,6 +116,26 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     );
   }
   logger?.info(`Default branch commits: ${defaultBranchHashes.size}`);
+
+  // Batch-fetch parent hashes for all commits in a single git call
+  const parentMap = new Map<string, string[]>();
+  if (logResult.all.length > 0) {
+    try {
+      const parentArgs = diffBase
+        ? ['rev-list', '--parents', `${diffBase}..HEAD`]
+        : ['log', '--format=%H %P', '--all',
+          ...(sinceDate ? [`--after=${sinceDate.toISOString()}`] : []),
+          `--before=${untilDate.toISOString()}`];
+      const parentOutput = await git.raw(parentArgs);
+      for (const line of parentOutput.trim().split('\n').filter(Boolean)) {
+        const parts = line.split(' ').filter(Boolean);
+        const [hash, ...parents] = parts;
+        parentMap.set(hash, parents);
+      }
+    } catch {
+      // Fallback: parent map will be empty, parents default to []
+    }
+  }
 
   // Create AI tagger
   const aiTagger = createAITagger({ patterns: aiPatterns, tools: aiTools, trailerDomains: aiTrailerDomains });
@@ -127,18 +150,16 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     logger?.debug(`Processing commit ${gitCommit.hash}`);
 
     // Get diff stats
-    const stats = await getDiffStats(repoPath, gitCommit.hash);
+    const stats = await getDiffStats(git, gitCommit.hash);
 
     // Tag AI (include body for trailer detection like Co-Authored-By)
-    const fullMessage = (gitCommit as any).body
-      ? `${gitCommit.message}\n\n${(gitCommit as any).body}`
+    const fullMessage = gitCommit.body
+      ? `${gitCommit.message}\n\n${gitCommit.body}`
       : gitCommit.message;
     const aiTag = aiTagger(fullMessage);
 
-    // Parse parents
-    const parents = (gitCommit as any).parents
-      ? (gitCommit as any).parents.split(' ').filter((p: string) => p)
-      : [];
+    // Get parents from batch-fetched map
+    const parents = parentMap.get(gitCommit.hash) || [];
 
     const inDefaultBranchAncestry = defaultBranchHashes.has(gitCommit.hash);
 
