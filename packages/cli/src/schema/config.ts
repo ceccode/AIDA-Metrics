@@ -9,7 +9,6 @@ export const CLIConfig = z.object({
   aiTrailerDomains: z.array(z.string()).default([]),
   defaultBranch: z.string().optional(),
   outDir: z.string().default('./aida-output'),
-  format: z.enum(['json', 'md', 'both']).default('both').optional(),
   verbose: z.boolean().default(false),
 });
 

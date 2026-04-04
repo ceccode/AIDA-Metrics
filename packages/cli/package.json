@@ -1,6 +1,7 @@
 {
   "name": "@aida-dev/cli",
   "version": "0.2.0",
+  "description": "CLI for AIDA (AI Development Accounting) - Track and measure AI-assisted development",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -10,6 +11,30 @@
   ],
   "bin": {
     "aida": "dist/index.js"
+  },
+  "keywords": [
+    "ai",
+    "development",
+    "metrics",
+    "git",
+    "cli",
+    "copilot",
+    "cursor",
+    "claude"
+  ],
+  "author": "Francesco Falanga <falanga.fra@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/ceccode/aida-metrics#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ceccode/aida-metrics.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/ceccode/aida-metrics/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "publishConfig": {
     "access": "public"

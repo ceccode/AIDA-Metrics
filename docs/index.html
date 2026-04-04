@@ -129,7 +129,7 @@
                         <p>4-level attribution classification (explicit, implicit, mention, none) for Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium and more.</p>
                     </div>
                     <div class="feature-card">
-                        <div class="feature-icon">�</div>
+                        <div class="feature-icon">💬</div>
                         <h3>PR Comments</h3>
                         <p>Post AIDA reports directly on pull requests. Auto-detects GitHub Actions with GitLab and Bitbucket coming soon.</p>
                     </div>
@@ -214,7 +214,7 @@
                             <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">with:</span></div>
                             <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">fetch-depth:</span> 0</div>
                             <div class="terminal-line">&nbsp; &nbsp; &nbsp; - <span class="yaml-key">run:</span> npm i -g @aida-dev/cli</div>
-                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; - <span class="yaml-key">run:</span> aida collect && aida analyze && aida report && aida comment</div>
+                            <div class="terminal-line">&nbsp; &nbsp; &nbsp; - <span class="yaml-key">run:</span> aida collect --pr && aida analyze && aida report && aida comment</div>
                             <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">env:</span></div>
                             <div class="terminal-line">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <span class="yaml-key">GITHUB_TOKEN:</span> ${{ secrets.GITHUB_TOKEN }}</div>
                         </div>

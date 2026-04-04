@@ -1,6 +1,7 @@
 {
   "name": "@aida-dev/metrics",
   "version": "0.1.7",
+  "description": "Metrics engine for AIDA (AI Development Accounting) - Merge ratio, persistence, and AI impact analysis",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -26,6 +27,27 @@
     "prettier": "^3.2.5",
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^2.0.0"
+  },
+  "keywords": [
+    "ai",
+    "development",
+    "metrics",
+    "git",
+    "analysis"
+  ],
+  "author": "Francesco Falanga <falanga.fra@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/ceccode/aida-metrics#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ceccode/aida-metrics.git",
+    "directory": "packages/metrics"
+  },
+  "bugs": {
+    "url": "https://github.com/ceccode/aida-metrics/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "publishConfig": {
     "access": "public"
