@@ -1,6 +1,6 @@
 {
   "name": "@aida-dev/metrics",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "Metrics engine for AIDA (AI Development Accounting) - Merge ratio, persistence, and AI impact analysis",
   "type": "module",
   "main": "dist/index.js",

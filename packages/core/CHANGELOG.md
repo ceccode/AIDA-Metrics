@@ -1,5 +1,19 @@
 # @aida/core
 
+## 0.7.0
+
+### Minor Changes
+
+- ### Performance & Quality Improvements
+  - **Fix N+1 git operations**: `getDiffStats` now reuses a shared `SimpleGit` instance instead of spawning one per commit
+  - **Remove unsafe `any` casts**: typed `gitCommit.body` directly, batch-fetch parents in single git call
+  - **Bound rev-list in PR mode**: use `git merge-base` to limit scope instead of fetching entire branch history
+  - **Add Zod validation to `readJSON`**: optional schema param for runtime validation at file I/O boundaries
+  - **Sanitize GitHub API error messages**: strip tokens and credentials from error output
+  - **Add tests**: 19 new tests for `parseRelativeDate`, `getDiffStats`, and `calculatePersistence` (36 total)
+  - **Package metadata**: added description, author, license, homepage, repository, keywords, engines to all packages
+  - **Remove dead `format` field** from CLIConfig schema
+
 ## 0.6.0
 
 ### Minor Changes

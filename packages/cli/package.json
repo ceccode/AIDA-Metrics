@@ -1,6 +1,6 @@
 {
   "name": "@aida-dev/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI for AIDA (AI Development Accounting) - Track and measure AI-assisted development",
   "type": "module",
   "main": "dist/index.js",
