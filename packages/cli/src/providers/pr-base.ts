@@ -40,10 +40,3 @@ export function detectPRBaseRef(): string | null {
 
   return null;
 }
-
-/**
- * Check if we're currently running in a PR/MR context.
- */
-export function isInPRContext(): boolean {
-  return detectPRBaseRef() !== null;
-}

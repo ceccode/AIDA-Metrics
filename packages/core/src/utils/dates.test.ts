@@ -49,6 +49,10 @@ describe('parseRelativeDate', () => {
   it('throws on unsupported unit', () => {
     expect(() => parseRelativeDate('10x')).toThrow('Invalid date format');
   });
+
+  it('throws on invalid ISO-like strings (e.g. "not-a-date")', () => {
+    expect(() => parseRelativeDate('not-a-date')).toThrow('Invalid date format');
+  });
 });
 
 describe('daysBetween', () => {

@@ -3,7 +3,11 @@ export function parseRelativeDate(input: string): Date {
 
   // Handle ISO dates
   if (input.includes('-') || input.includes('T')) {
-    return new Date(input);
+    const date = new Date(input);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date format: ${input}`);
+    }
+    return date;
   }
 
   // Handle relative dates like "90d", "30d", etc.
