@@ -1,5 +1,11 @@
 # @aida/metrics
 
+## 0.3.0
+
+### Minor Changes
+
+- Add comparative baseline metrics: compute merge ratio and persistence for both AI and non-AI commits, with baseline and delta in metrics.json and a side-by-side comparison table in report.md.
+
 ## 0.2.0
 
 ### Minor Changes
