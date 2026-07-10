@@ -2,7 +2,8 @@ name: AIDA Analyze
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main]
+  pull_request:
 
 jobs:
   analyze:
@@ -11,11 +12,12 @@ jobs:
       contents: read
       actions: read
       checks: write
+      pull-requests: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # need history for metrics
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v3
         with:
@@ -29,11 +31,22 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -w build
 
-      - name: Run AIDA (collect/analyze/report)
+      - name: Run AIDA (full history on main)
+        if: github.event_name == 'push'
         run: |
-          node packages/cli/dist/index.js collect --since 90d --out-dir ./.aida
+          node packages/cli/dist/index.js collect --out-dir ./.aida
           node packages/cli/dist/index.js analyze --out-dir ./.aida
           node packages/cli/dist/index.js report --out-dir ./.aida
+
+      - name: Run AIDA (PR-scoped)
+        if: github.event_name == 'pull_request'
+        run: |
+          node packages/cli/dist/index.js collect --pr --out-dir ./.aida
+          node packages/cli/dist/index.js analyze --out-dir ./.aida
+          node packages/cli/dist/index.js report --out-dir ./.aida
+          node packages/cli/dist/index.js comment --out-dir ./.aida
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload AIDA artifacts
         uses: actions/upload-artifact@v4
