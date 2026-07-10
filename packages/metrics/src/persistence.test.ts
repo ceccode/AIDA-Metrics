@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculatePersistence } from './persistence.js';
+import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
 import type { CommitStream } from '@aida-dev/core';
 
 function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStream['commits'][0] {
@@ -151,6 +151,42 @@ describe('calculatePersistence', () => {
     ]);
     const result = calculatePersistence(stream);
     // File was deleted, so persistence should be 0 days (only the first AI commit date)
+    expect(result.avgDays).toBe(0);
+  });
+});
+
+describe('calculateBaselinePersistence', () => {
+  it('measures persistence over non-AI commits only, ignoring AI commits', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'h1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: { ai: false, level: 'none', sources: [] },
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'ai1',
+        authorDate: '2024-01-06T00:00:00.000Z',
+        tags: { ai: true, level: 'explicit', sources: ['tag:[ai]'] },
+        stats: { totalAdditions: 2, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 2, deletions: 0, status: 'modified' }] },
+      }),
+    ]);
+    const result = calculateBaselinePersistence(stream);
+    // 1 non-AI commit; foo.ts first seen at h1 (Jan 1), last seen at ai1 (Jan 6) → 5 days
+    expect(result.commitsConsidered).toBe(1);
+    expect(result.avgDays).toBe(5);
+  });
+
+  it('returns zeros when there are no non-AI commits', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'ai1',
+        tags: { ai: true, level: 'explicit', sources: ['tag:[ai]'] },
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'x.ts', additions: 1, deletions: 0 }] },
+      }),
+    ]);
+    const result = calculateBaselinePersistence(stream);
+    expect(result.commitsConsidered).toBe(0);
     expect(result.avgDays).toBe(0);
   });
 });
