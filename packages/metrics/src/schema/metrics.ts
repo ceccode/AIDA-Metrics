@@ -19,6 +19,23 @@ export const Persistence = z.object({
   }),
 });
 
+export const CohortMergeRatio = z.object({
+  commitsTotal: z.number().int().nonnegative(),
+  commitsMerged: z.number().int().nonnegative(),
+  mergeRatio: z.number().min(0).max(1),
+});
+
+export const Baseline = z.object({
+  mergeRatio: CohortMergeRatio,
+  persistence: Persistence,
+});
+
+export const Delta = z.object({
+  mergeRatio: z.number(),
+  avgPersistenceDays: z.number(),
+  medianPersistenceDays: z.number(),
+});
+
 export const Metrics = z.object({
   generatedAt: z.string().datetime(),
   window: z.object({
@@ -29,9 +46,14 @@ export const Metrics = z.object({
   defaultBranch: z.string(),
   mergeRatio: MergeRatio,
   persistence: Persistence,
+  baseline: Baseline,
+  delta: Delta,
   caveats: z.array(z.string()),
 });
 
 export type MergeRatio = z.infer<typeof MergeRatio>;
 export type Persistence = z.infer<typeof Persistence>;
+export type CohortMergeRatio = z.infer<typeof CohortMergeRatio>;
+export type Baseline = z.infer<typeof Baseline>;
+export type Delta = z.infer<typeof Delta>;
 export type Metrics = z.infer<typeof Metrics>;

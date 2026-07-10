@@ -1,17 +1,20 @@
-import { CommitStream, daysBetween } from '@aida-dev/core';
+import { Commit, CommitStream, daysBetween } from '@aida-dev/core';
 import { Persistence } from './schema/metrics.js';
 
 interface FileLifecycle {
   path: string;
-  firstAICommitDate: Date;
+  firstTargetCommitDate: Date;
   lastSeenDate: Date;
   persistenceDays: number;
 }
 
-export function calculatePersistence(commitStream: CommitStream): Persistence {
-  const aiCommits = commitStream.commits.filter((commit) => commit.tags.ai);
+export function calculatePersistence(
+  commitStream: CommitStream,
+  isTarget: (commit: Commit) => boolean = (commit) => commit.tags.ai
+): Persistence {
+  const targetCommits = commitStream.commits.filter(isTarget);
 
-  if (aiCommits.length === 0) {
+  if (targetCommits.length === 0) {
     return {
       commitsConsidered: 0,
       avgDays: 0,
@@ -34,16 +37,16 @@ export function calculatePersistence(commitStream: CommitStream): Persistence {
     (a, b) => new Date(a.authorDate).getTime() - new Date(b.authorDate).getTime()
   );
 
-  // Track first AI commit per file
+  // Track first target commit per file
   for (const commit of sortedCommits) {
-    if (commit.tags.ai) {
+    if (isTarget(commit)) {
       const commitDate = new Date(commit.authorDate);
 
       for (const file of commit.stats.files) {
         if (!fileLifecycles.has(file.path)) {
           fileLifecycles.set(file.path, {
             path: file.path,
-            firstAICommitDate: commitDate,
+            firstTargetCommitDate: commitDate,
             lastSeenDate: commitDate,
             persistenceDays: 0,
           });
@@ -71,7 +74,7 @@ export function calculatePersistence(commitStream: CommitStream): Persistence {
   const persistenceDays: number[] = [];
 
   for (const lifecycle of fileLifecycles.values()) {
-    lifecycle.persistenceDays = daysBetween(lifecycle.firstAICommitDate, lifecycle.lastSeenDate);
+    lifecycle.persistenceDays = daysBetween(lifecycle.firstTargetCommitDate, lifecycle.lastSeenDate);
     persistenceDays.push(lifecycle.persistenceDays);
   }
 
@@ -99,9 +102,13 @@ export function calculatePersistence(commitStream: CommitStream): Persistence {
   };
 
   return {
-    commitsConsidered: aiCommits.length,
+    commitsConsidered: targetCommits.length,
     avgDays: Math.round(avgDays * 100) / 100, // Round to 2 decimal places
     medianDays: Math.round(medianDays * 100) / 100,
     buckets,
   };
+}
+
+export function calculateBaselinePersistence(commitStream: CommitStream): Persistence {
+  return calculatePersistence(commitStream, (commit) => !commit.tags.ai);
 }
