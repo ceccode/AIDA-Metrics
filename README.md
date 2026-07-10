@@ -36,10 +36,11 @@ AIDA provides **tangible, auditable metrics** to distinguish between **AI noise*
 
 ## Features
 
-- **4-Level AI Detection** — Classifies commits as explicit, implicit, mention, or none across Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium
+- **4-Level AI Detection** — Classifies commits as explicit, implicit, mention, or none across Claude Code, Copilot, ChatGPT, Cursor, Windsurf/Devin, Gemini, Codeium
 - **Configurable Tools** — Add custom AI tools via `.aida.json` or CLI flags
 - **Merge Ratio** — Track what percentage of AI commits make it to production
 - **Persistence** — Measure how long AI-generated code survives in your codebase
+- **Comparative Baseline** — AI vs non-AI side-by-side with delta, so metrics are interpretable
 - **Fast & Deterministic** — Built for production use with stable JSON schemas
 - **CLI-First** — Simple commands for collection, analysis, and reporting
 - **CI/CD Ready** — GitHub Actions integration out of the box
@@ -63,21 +64,23 @@ pnpm build
 
 ## Core Metrics
 
-### Implemented
-
 1. **Merge Ratio**  
    Percentage of AI-generated code that actually gets merged into the main branch.
 
 2. **Persistence**  
-   How long AI-generated code survives in the codebase before being rewritten or removed.
+   How long AI-generated code survives in the codebase before being rewritten or removed (file-level proxy).
 
-### Planned
+3. **Comparative Baseline**  
+   The same metrics computed for non-AI commits, with a signed delta. Turns raw numbers into interpretable signal — e.g. "AI code is rewritten 17 days sooner than human code in the same repo."
 
-- **Value per LOC**  
-  Share of AI code contributing to released features (requires linking commits to tickets/issues).
+The report outputs a side-by-side table:
 
-- **Hours Saved (estimated)**  
-  A rough productivity delta: time estimated with AI vs without AI for comparable tasks.
+```markdown
+| Metric                  | AI commits | Non-AI baseline | Delta   |
+|-------------------------|------------|-----------------|---------|
+| Merge ratio             | 73.2%      | 81.4%           | −8.2 pp |
+| Avg persistence (days)  | 45.3       | 62.1            | −16.8   |
+```
 
 > ⚠️ Metrics are **evolving**. The goal is not perfect precision, but providing **a baseline for discussion and analysis**.
 
@@ -261,11 +264,17 @@ File-level proxy for how long AI-modified files survive before being changed aga
 - Buckets: 0-1d, 2-7d, 8-30d, 31-90d, 90d+
 - Provides average and median survival times
 
+### Comparative Baseline
+
+Both merge ratio and persistence are computed for non-AI commits as well.  
+The `metrics.json` output includes `baseline` (non-AI cohort) and `delta` (AI minus non-AI) sections.  
+The markdown report renders a side-by-side comparison table at the top.
+
 ## Output Files
 
 - `commit-stream.json` - Normalized commit data with AI tagging
-- `metrics.json` - Calculated metrics with merge ratio and persistence
-- `report.md` - Human-readable Markdown report
+- `metrics.json` - Calculated metrics with merge ratio, persistence, baseline (non-AI), and delta
+- `report.md` - Human-readable Markdown report with AI vs non-AI comparison table
 
 ## CI/CD Integration
 
@@ -346,9 +355,11 @@ aida_analysis:
 - **v0.3** ✅ Attribution classification: explicit / implicit / mention / none ([#7](https://github.com/ceccode/AIDA-Metrics/issues/7)).  
 - **v0.4** ✅ PR comment integration for GitHub Actions.  
 - **v0.5** ✅ PR-scoped analysis with `--pr` and `--diff-base` flags ([#18](https://github.com/ceccode/AIDA-Metrics/issues/18)).  
-- **v0.6** → Retroactive AI tagging via `aida-attribution.json` manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
-- **v0.6** → LLM-based commit intent classification ([#12](https://github.com/ceccode/AIDA-Metrics/issues/12)).  
-- **v0.6** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
+- **v0.6** ✅ Comparative baseline — AI vs non-AI metrics with delta ([#19](https://github.com/ceccode/AIDA-Metrics/issues/19)).  
+- **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), exclude non-AI bots from detection ([#21](https://github.com/ceccode/AIDA-Metrics/issues/21)).  
+- **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
+- **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
+- **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 
 ## Contributing
