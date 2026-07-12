@@ -13,6 +13,7 @@ export interface CollectOptions {
   aiPatterns?: string[];
   aiTools?: string[];
   aiTrailerDomains?: string[];
+  aiBotBlocklist?: string[];
   defaultBranch?: string;
   logger?: Logger;
 }
@@ -52,6 +53,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     aiPatterns = [],
     aiTools = [],
     aiTrailerDomains = [],
+    aiBotBlocklist = [],
     defaultBranch: providedDefaultBranch,
     logger,
   } = options;
@@ -92,16 +94,18 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   // Get the set of commit hashes reachable from the default branch
   let defaultBranchHashes: Set<string>;
   if (diffBase) {
-    // In PR mode, use merge-base to bound the rev-list instead of fetching entire history
+    // In PR mode compare against diffBase (e.g. `origin/main`), not the bare
+    // default-branch name — a PR checkout only has the remote-tracking ref, so
+    // `main` is unresolvable while `origin/main` exists.
     try {
-      const mergeBase = (await git.raw(['merge-base', defaultBranch, 'HEAD'])).trim();
-      const bounded = (await git.raw(['rev-list', `${mergeBase}..${defaultBranch}`])).trim().split('\n').filter(Boolean);
+      const mergeBase = (await git.raw(['merge-base', diffBase, 'HEAD'])).trim();
+      const bounded = (await git.raw(['rev-list', `${mergeBase}..${diffBase}`])).trim().split('\n').filter(Boolean);
       // Include merge-base itself
       bounded.push(mergeBase);
       defaultBranchHashes = new Set(bounded);
     } catch {
       // Fallback: full rev-list if merge-base fails (e.g., unrelated histories)
-      const all = (await git.raw(['rev-list', defaultBranch])).trim().split('\n').filter(Boolean);
+      const all = (await git.raw(['rev-list', diffBase])).trim().split('\n').filter(Boolean);
       defaultBranchHashes = new Set(all);
     }
   } else {
@@ -138,7 +142,12 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   }
 
   // Create AI tagger
-  const aiTagger = createAITagger({ patterns: aiPatterns, tools: aiTools, trailerDomains: aiTrailerDomains });
+  const aiTagger = createAITagger({
+    patterns: aiPatterns,
+    tools: aiTools,
+    trailerDomains: aiTrailerDomains,
+    botBlocklist: aiBotBlocklist,
+  });
 
   // Deduplicate commits (same hash can appear from multiple branches)
   const seen = new Set<string>();
