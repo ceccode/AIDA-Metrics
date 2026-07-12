@@ -10,10 +10,25 @@ export interface AITagConfig {
   patterns: string[];
   tools?: string[];
   trailerDomains?: string[];
+  botBlocklist?: string[];
 }
 
 export const DEFAULT_TOOLS = ['copilot', 'cursor', 'windsurf', 'codeium', 'claude', 'chatgpt', 'gemini'];
 const DEFAULT_TRAILER_DOMAINS = ['anthropic', 'openai', 'github\\.com'];
+
+// Known non-AI automation bots. Their `Co-authored-by` trailers must not be
+// counted as AI contributions even though they match the generic `.*bot.*`
+// pattern (or a github.com domain, in dependabot's case).
+export const DEFAULT_BOT_BLOCKLIST = [
+  'dependabot',
+  'renovate',
+  'github-actions',
+  'greenkeeper',
+  'snyk-bot',
+  'mergify',
+  'imgbot',
+  'allcontributors',
+];
 
 function buildPatterns(tools: string, domains: string) {
   return {
@@ -52,6 +67,12 @@ export function createAITagger(
   const allDomains = [...DEFAULT_TRAILER_DOMAINS, ...(config.trailerDomains || [])];
   const domainsPattern = allDomains.join('|');
 
+  // Merge default bot blocklist with user-provided entries
+  const allBlocked = [...DEFAULT_BOT_BLOCKLIST, ...(config.botBlocklist || [])];
+  const blockedLineRegex = allBlocked.length
+    ? new RegExp(`^Co-authored-by:.*\\b(${allBlocked.join('|')})\\b`, 'i')
+    : null;
+
   const p = buildPatterns(toolsPattern, domainsPattern);
 
   const explicitTagRegex = new RegExp(p.explicitTag, 'im');
@@ -66,9 +87,18 @@ export function createAITagger(
     const sources: string[] = [];
     let level: AILevel = 'none';
 
+    // Strip Co-authored-by lines from blocklisted non-AI bots so they can't
+    // trigger explicit classification via the generic bot/domain trailers.
+    const trailerText = blockedLineRegex
+      ? message
+          .split('\n')
+          .filter((line) => !blockedLineRegex.test(line))
+          .join('\n')
+      : message;
+
     // 1. Check trailers (always explicit)
     for (let i = 0; i < trailerRegexes.length; i++) {
-      if (trailerRegexes[i].test(message)) {
+      if (trailerRegexes[i].test(trailerText)) {
         level = 'explicit';
         sources.push(`trailer:${p.trailers[i]}`);
       }

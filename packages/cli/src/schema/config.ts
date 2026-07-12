@@ -7,6 +7,7 @@ export const CLIConfig = z.object({
   aiPatterns: z.array(z.string()).default([]),
   aiTools: z.array(z.string()).default([]),
   aiTrailerDomains: z.array(z.string()).default([]),
+  aiBotBlocklist: z.array(z.string()).default([]),
   defaultBranch: z.string().optional(),
   outDir: z.string().default('./aida-output'),
   verbose: z.boolean().default(false),

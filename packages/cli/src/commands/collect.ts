@@ -29,6 +29,7 @@ export function createCollectCommand(): Command {
     .option('--ai-pattern <pattern>', 'AI detection regex (repeatable)', collectRepeatable, [])
     .option('--ai-tool <name>', 'Additional AI tool name (repeatable)', collectRepeatable, [])
     .option('--ai-trailer-domain <domain>', 'Additional Co-authored-by domain (repeatable)', collectRepeatable, [])
+    .option('--ai-bot-blocklist <name>', 'Non-AI bot to exclude from trailer matching (repeatable)', collectRepeatable, [])
     .option('--default-branch <name>', 'Default branch name')
     .option('--out-dir <path>', 'Output directory', './aida-output')
     .option('--verbose', 'Verbose logging', false)
@@ -39,6 +40,7 @@ export function createCollectCommand(): Command {
         aiPatterns: options.aiPattern || [],
         aiTools: options.aiTool || [],
         aiTrailerDomains: options.aiTrailerDomain || [],
+        aiBotBlocklist: options.aiBotBlocklist || [],
       };
       const config = CLIConfig.parse(mapped);
       const logger = createLogger(config.verbose);
@@ -49,9 +51,11 @@ export function createCollectCommand(): Command {
         const aiPatterns = [...(fileConfig.patterns || []), ...config.aiPatterns];
         const aiTools = [...(fileConfig.tools || []), ...config.aiTools];
         const aiTrailerDomains = [...(fileConfig.trailerDomains || []), ...config.aiTrailerDomains];
+        const aiBotBlocklist = [...(fileConfig.botBlocklist || []), ...config.aiBotBlocklist];
 
         if (aiTools.length > 0) logger.info(`Custom AI tools: ${aiTools.join(', ')}`);
         if (aiTrailerDomains.length > 0) logger.info(`Custom trailer domains: ${aiTrailerDomains.join(', ')}`);
+        if (aiBotBlocklist.length > 0) logger.info(`Custom bot blocklist: ${aiBotBlocklist.join(', ')}`);
 
         // Determine diffBase for PR-scoped analysis
         let diffBase: string | undefined = options.diffBase;
@@ -74,6 +78,7 @@ export function createCollectCommand(): Command {
           aiPatterns,
           aiTools,
           aiTrailerDomains,
+          aiBotBlocklist,
           defaultBranch: config.defaultBranch,
           logger,
         });

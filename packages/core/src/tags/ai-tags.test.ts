@@ -142,6 +142,50 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     });
   });
 
+  describe('bot blocklist', () => {
+    it('should not classify non-AI bot trailers as AI', () => {
+      const cases = [
+        'chore(deps): bump lodash\n\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>',
+        'chore(deps): update deps\n\nCo-authored-by: renovate[bot] <renovate@whitesourcesoftware.com>',
+        'ci: retry\n\nCo-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>',
+      ];
+
+      cases.forEach((message) => {
+        const result = tagger(message);
+        expect(result.ai).toBe(false);
+        expect(result.level).toBe('none');
+      });
+    });
+
+    it('should still classify AI bot trailers as explicit', () => {
+      const result = tagger(
+        'feat: new feature\n\nCo-authored-by: copilot[bot] <copilot@github.com>'
+      );
+      expect(result.ai).toBe(true);
+      expect(result.level).toBe('explicit');
+    });
+
+    it('should support extending the blocklist via config', () => {
+      const customTagger = createAITagger({ patterns: [], botBlocklist: ['acme-bot'] });
+      const result = customTagger(
+        'chore: automated\n\nCo-authored-by: acme-bot <bot@github.com>'
+      );
+      expect(result.ai).toBe(false);
+      expect(result.level).toBe('none');
+    });
+
+    it('should still detect a real AI co-author alongside a blocklisted bot', () => {
+      const result = tagger(
+        `feat: thing
+
+Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+Co-authored-by: Claude <noreply@anthropic.com>`
+      );
+      expect(result.ai).toBe(true);
+      expect(result.level).toBe('explicit');
+    });
+  });
+
   describe('configurable tools', () => {
     it('should detect custom tool names across all levels', () => {
       const customTagger = createAITagger({ patterns: [], tools: ['devbot'] });
