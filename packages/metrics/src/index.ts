@@ -27,6 +27,7 @@ export function calculateMetrics(commitStream: CommitStream): Metrics {
   const caveats = [
     'Persistence is file-level, not line-level.',
     'Merge ratio: commits from all branches checked against default branch ancestry. Squash merges may undercount unmerged commits.',
+    'Time-windowed collection (--since) also windows the ancestry check: commits merged into the default branch before the window may appear unmerged.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
     'Baseline covers all non-AI-tagged commits; undetected AI usage may leak into the baseline.',
   ];

@@ -17,7 +17,6 @@ export const Commit = z.object({
   committerDate: z.string().datetime(),
   message: z.string(),
   parents: z.array(z.string()),
-  branch: z.string().optional(), // best-effort if known
   inDefaultBranchAncestry: z.boolean(), // set during collect
   tags: z.object({
     ai: z.boolean(),

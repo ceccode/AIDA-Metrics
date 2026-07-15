@@ -1,7 +1,7 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Commit, CommitStream } from '../schema/commit.js';
 import { createAITagger } from '../tags/ai-tags.js';
-import { getDiffStats } from './diff.js';
+import { logWithStats } from './log.js';
 import { parseRelativeDate, formatISODate } from '../utils/dates.js';
 import { Logger } from '../utils/log.js';
 
@@ -68,28 +68,27 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const sinceDate = since ? parseRelativeDate(since) : undefined;
   const untilDate = until ? parseRelativeDate(until) : new Date();
 
-  let logResult;
+  let rangeArgs: string[];
 
   if (diffBase) {
     // PR-scoped mode: collect only commits between diffBase and HEAD
     logger?.info(`PR-scoped analysis: ${diffBase}..HEAD`);
-    logResult = await git.log([`${diffBase}..HEAD`]);
-    logger?.info(`Found ${logResult.all.length} commits in PR`);
+    rangeArgs = [`${diffBase}..HEAD`];
   } else {
     // Standard mode: collect from all branches within date range
     logger?.info(
       `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
     );
-
-    const logArgs: string[] = ['--all'];
+    rangeArgs = ['--all'];
     if (sinceDate) {
-      logArgs.push(`--after=${sinceDate.toISOString()}`);
+      rangeArgs.push(`--after=${sinceDate.toISOString()}`);
     }
-    logArgs.push(`--before=${untilDate.toISOString()}`);
-
-    logResult = await git.log(logArgs);
-    logger?.info(`Found ${logResult.all.length} commits (all branches)`);
+    rangeArgs.push(`--before=${untilDate.toISOString()}`);
   }
+
+  // Single batched pass: metadata, parents, and diff stats for all commits
+  const rawCommits = await logWithStats(git, rangeArgs);
+  logger?.info(`Found ${rawCommits.length} commits${diffBase ? ' in PR' : ' (all branches)'}`);
 
   // Get the set of commit hashes reachable from the default branch
   let defaultBranchHashes: Set<string>;
@@ -121,26 +120,6 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   }
   logger?.info(`Default branch commits: ${defaultBranchHashes.size}`);
 
-  // Batch-fetch parent hashes for all commits in a single git call
-  const parentMap = new Map<string, string[]>();
-  if (logResult.all.length > 0) {
-    try {
-      const parentArgs = diffBase
-        ? ['rev-list', '--parents', `${diffBase}..HEAD`]
-        : ['log', '--format=%H %P', '--all',
-          ...(sinceDate ? [`--after=${sinceDate.toISOString()}`] : []),
-          `--before=${untilDate.toISOString()}`];
-      const parentOutput = await git.raw(parentArgs);
-      for (const line of parentOutput.trim().split('\n').filter(Boolean)) {
-        const parts = line.split(' ').filter(Boolean);
-        const [hash, ...parents] = parts;
-        parentMap.set(hash, parents);
-      }
-    } catch {
-      // Fallback: parent map will be empty, parents default to []
-    }
-  }
-
   // Create AI tagger
   const aiTagger = createAITagger({
     patterns: aiPatterns,
@@ -152,40 +131,28 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   // Deduplicate commits (same hash can appear from multiple branches)
   const seen = new Set<string>();
   const commits: Commit[] = [];
-  for (const gitCommit of logResult.all) {
-    if (seen.has(gitCommit.hash)) continue;
-    seen.add(gitCommit.hash);
+  for (const rawCommit of rawCommits) {
+    if (seen.has(rawCommit.hash)) continue;
+    seen.add(rawCommit.hash);
 
-    logger?.debug(`Processing commit ${gitCommit.hash}`);
+    logger?.debug(`Processing commit ${rawCommit.hash}`);
 
-    // Get diff stats
-    const stats = await getDiffStats(git, gitCommit.hash);
-
-    // Tag AI (include body for trailer detection like Co-Authored-By)
-    const fullMessage = gitCommit.body
-      ? `${gitCommit.message}\n\n${gitCommit.body}`
-      : gitCommit.message;
-    const aiTag = aiTagger(fullMessage);
-
-    // Get parents from batch-fetched map
-    const parents = parentMap.get(gitCommit.hash) || [];
-
-    const inDefaultBranchAncestry = defaultBranchHashes.has(gitCommit.hash);
+    // Tag AI on the full message (body included, for trailers like Co-Authored-By)
+    const aiTag = aiTagger(rawCommit.message);
 
     const commit: Commit = {
-      hash: gitCommit.hash,
-      authorName: gitCommit.author_name,
-      authorEmail: gitCommit.author_email,
-      authorDate: new Date(gitCommit.date).toISOString(),
-      committerName: gitCommit.author_name, // Simple-git doesn't separate these easily
-      committerEmail: gitCommit.author_email,
-      committerDate: new Date(gitCommit.date).toISOString(),
-      message: gitCommit.message,
-      parents,
-      branch: defaultBranch,
-      inDefaultBranchAncestry,
+      hash: rawCommit.hash,
+      authorName: rawCommit.authorName,
+      authorEmail: rawCommit.authorEmail,
+      authorDate: new Date(rawCommit.authorDate).toISOString(),
+      committerName: rawCommit.committerName,
+      committerEmail: rawCommit.committerEmail,
+      committerDate: new Date(rawCommit.committerDate).toISOString(),
+      message: rawCommit.message.split('\n')[0],
+      parents: rawCommit.parents,
+      inDefaultBranchAncestry: defaultBranchHashes.has(rawCommit.hash),
       tags: aiTag,
-      stats,
+      stats: rawCommit.stats,
     };
 
     commits.push(commit);
