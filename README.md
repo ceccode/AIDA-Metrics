@@ -362,11 +362,21 @@ aida_analysis:
 - **v0.4** ✅ PR comment integration for GitHub Actions.  
 - **v0.5** ✅ PR-scoped analysis with `--pr` and `--diff-base` flags ([#18](https://github.com/ceccode/AIDA-Metrics/issues/18)).  
 - **v0.6** ✅ Comparative baseline — AI vs non-AI metrics with delta ([#19](https://github.com/ceccode/AIDA-Metrics/issues/19)).  
-- **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), exclude non-AI bots from detection ([#21](https://github.com/ceccode/AIDA-Metrics/issues/21)).  
+- **v0.7** ✅ Exclude non-AI bots (dependabot, renovate, …) from trailer matching, with configurable blocklist ([#21](https://github.com/ceccode/AIDA-Metrics/issues/21)).  
+- **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), git data accuracy ([#24](https://github.com/ceccode/AIDA-Metrics/issues/24)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
 - **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
+
+### Direction: from AI detection to AI accountability
+
+In an AI-first world, "was this commit written by AI?" is becoming the wrong question — the honest answer trends toward "yes, mostly". AIDA's direction reflects that:
+
+- **Three-state attribution** — `ai` / `human` / `unknown` instead of forcing unattributed commits into a binary bucket. Attribution **coverage** becomes a first-class metric ("62% attributed · 38% unknown" is a data-quality signal, not something to hide inside a default). A configurable `defaultAttribution` prior will let AI-first teams opt into "AI unless stated otherwise" — consciously, instead of the tool silently assuming either way.
+- **Quality over adoption** — the durable question is not "how much code is AI?" but "does AI code hold up?": rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level survival ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).
+- **Autonomy over the binary** — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)) is the axis that will replace AI/non-AI.
+- **Shrink the unknown at the source** — commit-time stamping via git hooks and the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)) make attribution deterministic instead of heuristic.
 
 ## Contributing
 
