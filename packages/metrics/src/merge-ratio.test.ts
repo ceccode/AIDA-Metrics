@@ -21,7 +21,7 @@ describe('Merge Ratio Calculation', () => {
           message: 'AI: automated commit',
           parents: [],
           inDefaultBranchAncestry: true,
-          tags: { ai: true, level: 'explicit' as const, sources: ['trailer:AI: true'] },
+          tags: { ai: true, attribution: 'ai' as const, level: 'explicit' as const, sources: ['trailer:AI: true'] },
           stats: { totalAdditions: 10, totalDeletions: 5, files: [] },
         },
         {
@@ -35,7 +35,7 @@ describe('Merge Ratio Calculation', () => {
           message: 'regular commit',
           parents: [],
           inDefaultBranchAncestry: true,
-          tags: { ai: false, level: 'none' as const, sources: [] },
+          tags: { ai: false, attribution: 'unknown' as const, level: 'none' as const, sources: [] },
           stats: { totalAdditions: 5, totalDeletions: 2, files: [] },
         },
       ],
@@ -77,7 +77,7 @@ describe('Baseline Merge Ratio Calculation', () => {
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
   };
 
-  it('should calculate baseline merge ratio over non-AI commits only', () => {
+  it('should calculate baseline merge ratio over human-attributed commits only', () => {
     const mockCommitStream: CommitStream = {
       repoPath: '/test/repo',
       defaultBranch: 'main',
@@ -89,21 +89,21 @@ describe('Baseline Merge Ratio Calculation', () => {
           hash: 'ai1',
           message: 'AI: automated commit',
           inDefaultBranchAncestry: true,
-          tags: { ai: true, level: 'explicit' as const, sources: ['trailer:AI: true'] },
+          tags: { ai: true, attribution: 'ai' as const, level: 'explicit' as const, sources: ['trailer:AI: true'] },
         },
         {
           ...baseCommit,
           hash: 'human1',
           message: 'regular commit merged',
           inDefaultBranchAncestry: true,
-          tags: { ai: false, level: 'none' as const, sources: [] },
+          tags: { ai: false, attribution: 'human' as const, level: 'none' as const, sources: [] },
         },
         {
           ...baseCommit,
           hash: 'human2',
           message: 'regular commit unmerged',
           inDefaultBranchAncestry: false,
-          tags: { ai: false, level: 'none' as const, sources: [] },
+          tags: { ai: false, attribution: 'human' as const, level: 'none' as const, sources: [] },
         },
       ],
     };
@@ -127,7 +127,7 @@ describe('Baseline Merge Ratio Calculation', () => {
           hash: 'ai1',
           message: 'AI: automated commit',
           inDefaultBranchAncestry: true,
-          tags: { ai: true, level: 'explicit' as const, sources: ['trailer:AI: true'] },
+          tags: { ai: true, attribution: 'ai' as const, level: 'explicit' as const, sources: ['trailer:AI: true'] },
         },
       ],
     };
