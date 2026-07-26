@@ -11,8 +11,11 @@ function computeMergeRatio(commits: Commit[]): CohortMergeRatio {
   };
 }
 
-export function calculateMergeRatio(commitStream: CommitStream): MergeRatio {
-  const aiCommits = commitStream.commits.filter((commit) => commit.tags.ai);
+export function calculateMergeRatio(
+  commitStream: CommitStream,
+  isTarget: (commit: Commit) => boolean = (commit) => commit.tags.attribution === 'ai'
+): MergeRatio {
+  const aiCommits = commitStream.commits.filter(isTarget);
   const result = computeMergeRatio(aiCommits);
 
   return {
@@ -22,7 +25,10 @@ export function calculateMergeRatio(commitStream: CommitStream): MergeRatio {
   };
 }
 
-export function calculateBaselineMergeRatio(commitStream: CommitStream): CohortMergeRatio {
-  const nonAICommits = commitStream.commits.filter((commit) => !commit.tags.ai);
-  return computeMergeRatio(nonAICommits);
+export function calculateBaselineMergeRatio(
+  commitStream: CommitStream,
+  isTarget: (commit: Commit) => boolean = (commit) => commit.tags.attribution === 'human'
+): CohortMergeRatio {
+  const baselineCommits = commitStream.commits.filter(isTarget);
+  return computeMergeRatio(baselineCommits);
 }

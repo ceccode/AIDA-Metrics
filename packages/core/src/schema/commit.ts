@@ -20,6 +20,9 @@ export const Commit = z.object({
   inDefaultBranchAncestry: z.boolean(), // set during collect
   tags: z.object({
     ai: z.boolean(),
+    // Three-state attribution (#34). Heuristics emit 'ai' or 'unknown';
+    // 'human' requires an explicit declaration (manifest, #10).
+    attribution: z.enum(['ai', 'human', 'unknown']),
     level: z.enum(['explicit', 'implicit', 'mention', 'none']),
     sources: z.array(z.string()), // which heuristic matched
   }),

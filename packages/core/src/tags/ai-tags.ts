@@ -1,7 +1,14 @@
 export type AILevel = 'explicit' | 'implicit' | 'mention' | 'none';
 
+// Three-state attribution (#34). Message heuristics can only ever produce
+// 'ai' or 'unknown': the absence of an AI signal is not evidence of human
+// authorship. 'human' requires an explicit declaration (e.g. attribution
+// manifest, #10) or the defaultAttribution prior applied at analysis time.
+export type Attribution = 'ai' | 'human' | 'unknown';
+
 export interface AITagResult {
   ai: boolean;
+  attribution: Attribution;
   level: AILevel;
   sources: string[];
 }
@@ -163,6 +170,6 @@ export function createAITagger(
 
     // ai: true only for explicit and implicit
     const ai = level === 'explicit' || level === 'implicit';
-    return { ai, level, sources };
+    return { ai, attribution: ai ? 'ai' : 'unknown', level, sources };
   };
 }

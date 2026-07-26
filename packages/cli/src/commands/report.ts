@@ -12,8 +12,47 @@ function formatDelta(value: number, suffix: string): string {
 
 function generateMarkdownReport(metrics: Metrics): string {
   const mergeRatioPct = (metrics.mergeRatio.mergeRatio * 100).toFixed(1);
-  const baselineMergeRatioPct = (metrics.baseline.mergeRatio.mergeRatio * 100).toFixed(1);
-  const deltaMergeRatioPp = Math.round(metrics.delta.mergeRatio * 1000) / 10;
+  const a = metrics.attribution;
+  const coveragePct = (a.coverage * 100).toFixed(1);
+  const unknownPct = a.commitsTotal > 0 ? ((a.unknown / a.commitsTotal) * 100).toFixed(1) : '0.0';
+
+  const coverageWarning = a.belowThreshold
+    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%.** Most of this history has unknown provenance: every metric below is low-confidence. Tag AI commits (trailers, \`[AI]\`) or set \`defaultAttribution\` in \`.aida.json\`.\n`
+    : '';
+
+  const priorNote =
+    a.defaultAttribution !== 'unknown'
+      ? `\nUnattributed commits are **assumed \`${a.defaultAttribution}\`** via \`defaultAttribution\` — this is a prior, not observed data.\n`
+      : '';
+
+  const baselineLabel = metrics.baseline?.assumed
+    ? 'Human baseline (assumed)'
+    : 'Human baseline';
+
+  const comparisonSection = metrics.baseline && metrics.delta
+    ? `## AI vs Baseline
+
+| Metric | AI commits | ${baselineLabel} | Delta |
+|---|---:|---:|---:|
+| Commits | ${metrics.mergeRatio.aiCommitsTotal} | ${metrics.baseline.mergeRatio.commitsTotal} | — |
+| Merge ratio | ${mergeRatioPct}% | ${(metrics.baseline.mergeRatio.mergeRatio * 100).toFixed(1)}% | ${formatDelta(Math.round(metrics.delta.mergeRatio * 1000) / 10, ' pp')} |
+| Avg persistence (days) | ${metrics.persistence.avgDays} | ${metrics.baseline.persistence.avgDays} | ${formatDelta(metrics.delta.avgPersistenceDays, '')} |
+| Median persistence (days) | ${metrics.persistence.medianDays} | ${metrics.baseline.persistence.medianDays} | ${formatDelta(metrics.delta.medianPersistenceDays, '')} |
+`
+    : `## AI vs Baseline
+
+**No baseline available** — no commits are attributed as human, so there is nothing honest to compare against. If unattributed commits in this repo are human-authored, set \`"defaultAttribution": "human"\` in \`.aida.json\`.
+`;
+
+  const baselineDetail = metrics.baseline
+    ? `## ${baselineLabel}
+- Commits (total): ${metrics.baseline.mergeRatio.commitsTotal}
+- Commits merged: ${metrics.baseline.mergeRatio.commitsMerged}
+- **Merge Ratio:** ${(metrics.baseline.mergeRatio.mergeRatio * 100).toFixed(1)}%
+- Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
+
+`
+    : '';
 
   return `# AIDA Report
 
@@ -22,15 +61,11 @@ function generateMarkdownReport(metrics: Metrics): string {
 **Window:** ${metrics.window.since || 'beginning'} → ${metrics.window.until || 'now'}  
 **Generated:** ${metrics.generatedAt}
 
-## AI vs Baseline
+## Attribution Coverage
 
-| Metric | AI commits | Non-AI baseline | Delta |
-|---|---:|---:|---:|
-| Commits | ${metrics.mergeRatio.aiCommitsTotal} | ${metrics.baseline.mergeRatio.commitsTotal} | — |
-| Merge ratio | ${mergeRatioPct}% | ${baselineMergeRatioPct}% | ${formatDelta(deltaMergeRatioPp, ' pp')} |
-| Avg persistence (days) | ${metrics.persistence.avgDays} | ${metrics.baseline.persistence.avgDays} | ${formatDelta(metrics.delta.avgPersistenceDays, '')} |
-| Median persistence (days) | ${metrics.persistence.medianDays} | ${metrics.baseline.persistence.medianDays} | ${formatDelta(metrics.delta.medianPersistenceDays, '')} |
-
+**${coveragePct}% of commits have known provenance** — ai: ${a.ai} · human: ${a.human} · unknown: ${a.unknown} (${unknownPct}%)
+${coverageWarning}${priorNote}
+${comparisonSection}
 ## Merge Ratio
 - AI-tagged commits (total): ${metrics.mergeRatio.aiCommitsTotal}
 - AI-tagged commits merged: ${metrics.mergeRatio.aiCommitsMerged}
@@ -45,13 +80,7 @@ function generateMarkdownReport(metrics: Metrics): string {
 |---:|---:|---:|---:|---:|
 | ${metrics.persistence.buckets.d0_1} | ${metrics.persistence.buckets.d2_7} | ${metrics.persistence.buckets.d8_30} | ${metrics.persistence.buckets.d31_90} | ${metrics.persistence.buckets.d90_plus} |
 
-## Baseline (non-AI commits)
-- Commits (total): ${metrics.baseline.mergeRatio.commitsTotal}
-- Commits merged: ${metrics.baseline.mergeRatio.commitsMerged}
-- **Merge Ratio:** ${baselineMergeRatioPct}%
-- Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
-
-### Caveats
+${baselineDetail}### Caveats
 ${metrics.caveats.map((caveat) => `- ${caveat}`).join('\n')}
 `;
 }

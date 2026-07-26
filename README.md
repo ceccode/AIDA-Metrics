@@ -235,7 +235,9 @@ Place a `.aida.json` file in your project root to add custom tools, trailer doma
   "tools": ["devbot", "codyai", "internal-copilot"],
   "trailerDomains": ["mycompany\\.com"],
   "botBlocklist": ["acme-ci-bot"],
-  "patterns": ["my-custom-regex"]
+  "patterns": ["my-custom-regex"],
+  "defaultAttribution": "unknown",
+  "coverageThreshold": 0.7
 }
 ```
 
@@ -245,6 +247,8 @@ Place a `.aida.json` file in your project root to add custom tools, trailer doma
 | `trailerDomains` | Additional domains for `Co-authored-by` trailer matching |
 | `botBlocklist` | Additional non-AI bots to exclude from `Co-authored-by` trailer matching |
 | `patterns` | Raw regex patterns (treated as explicit) |
+| `defaultAttribution` | Prior applied to unattributed commits at analysis time: `ai`, `human`, or `unknown` (default). With `unknown`, unattributed commits join no cohort — AIDA does not invent a comparison. This repo sets `ai`: it is AI-written with human review. |
+| `coverageThreshold` | Attribution coverage below this fraction (default `0.7`) flags all metrics as low-confidence |
 
 ### CLI Flags
 
@@ -255,9 +259,18 @@ aida collect --ai-tool "devbot" --ai-tool "codyai"
 aida collect --ai-trailer-domain "mycompany\\.com"
 aida collect --ai-bot-blocklist "acme-ci-bot"
 aida collect --ai-pattern "my-custom-regex"
+aida analyze --default-attribution human --coverage-threshold 0.8
 ```
 
 ## Metrics
+
+### Attribution Coverage
+
+The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). Every commit gets a three-state attribution: `ai` (explicit/implicit detection), `human` (explicit declaration — coming with the attribution manifest, [#10](https://github.com/ceccode/AIDA-Metrics/issues/10)), or `unknown` (no signal — the absence of an AI tag is *not* evidence of human authorship).
+
+**Coverage** = share of commits with known provenance. It is reported first in every output, because every other number is only as trustworthy as coverage says it is. Below `coverageThreshold` (default 70%), the report carries a low-confidence warning.
+
+`defaultAttribution` lets a team consciously assign unattributed commits to a cohort (`human` for traditional repos, `ai` for AI-first ones). The prior affects cohort metrics but never coverage: unknown stays unknown in the attribution block, and an assumed baseline is labeled as such.
 
 ### Merge Ratio
 
@@ -272,15 +285,16 @@ File-level proxy for how long AI-modified files survive before being changed aga
 
 ### Comparative Baseline
 
-Both merge ratio and persistence are computed for non-AI commits as well.  
-The `metrics.json` output includes `baseline` (non-AI cohort) and `delta` (AI minus non-AI) sections.  
-The markdown report renders a side-by-side comparison table at the top.
+Both merge ratio and persistence are computed for the human cohort as well.  
+The `metrics.json` output includes `baseline` (human cohort) and `delta` (AI minus human) sections.  
+The markdown report renders a side-by-side comparison table at the top.  
+If no commits are attributed `human` and no `defaultAttribution` prior assigns the unknowns, `baseline` and `delta` are `null`: AIDA does not invent a comparison cohort.
 
 ### Known Limits
 
 These metrics are honest approximations, not ground truth. Read the numbers with these caveats in mind:
 
-- **Detection is voluntary** — AIDA only sees what commits admit to. Untagged AI code counts as human today; three-state attribution with a coverage metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)) will surface this gap instead of hiding it.
+- **Detection is voluntary** — AIDA only sees what commits admit to. Untagged AI code lands in the `unknown` bucket, and attribution coverage ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)) reports how big that bucket is instead of hiding it — but the tool still cannot see through a commit that lies.
 - **Squash merges break merge ratio** — branch commits disappear from history, inflating the ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).
 - **Persistence is file-level** — one AI-touched line marks the whole file as AI-touched; line-level tracking via `git blame` is planned ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
 - **Cohort age skews persistence** — older commits have had more time to accumulate survival; comparisons need age normalization ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
@@ -373,9 +387,10 @@ aida_analysis:
 - **v0.5** ✅ PR-scoped analysis with `--pr` and `--diff-base` flags ([#18](https://github.com/ceccode/AIDA-Metrics/issues/18)).  
 - **v0.6** ✅ Comparative baseline — AI vs non-AI metrics with delta ([#19](https://github.com/ceccode/AIDA-Metrics/issues/19)).  
 - **v0.7** ✅ Exclude non-AI bots (dependabot, renovate, …) from trailer matching, with configurable blocklist ([#21](https://github.com/ceccode/AIDA-Metrics/issues/21)).  
-- **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), attribution coverage as headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)).  
+- **v0.8** ✅ Attribution coverage as headline metric — three-state `ai`/`human`/`unknown`, `defaultAttribution` prior, nullable baseline ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)).  
+- **Next** → Attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)), fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).  
 - **Next** → Anti-leaderboard hardening: author redaction in outputs ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)), task-mix stratification by file category ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).  
-- **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
+- **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  

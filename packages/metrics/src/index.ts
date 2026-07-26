@@ -1,36 +1,100 @@
-import { CommitStream, formatISODate } from '@aida-dev/core';
+import { Commit, CommitStream, formatISODate } from '@aida-dev/core';
 import { calculateBaselineMergeRatio, calculateMergeRatio } from './merge-ratio.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
-import { Metrics } from './schema/metrics.js';
+import { Attribution, Metrics } from './schema/metrics.js';
 
 export * from './schema/metrics.js';
 export * from './merge-ratio.js';
 export * from './persistence.js';
+
+export interface MetricsOptions {
+  // Prior applied to 'unknown' commits: which cohort (if any) they join.
+  defaultAttribution?: 'ai' | 'human' | 'unknown';
+  coverageThreshold?: number;
+}
 
 function round(value: number, decimals: number): number {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
 }
 
-export function calculateMetrics(commitStream: CommitStream): Metrics {
-  const mergeRatio = calculateMergeRatio(commitStream);
-  const persistence = calculatePersistence(commitStream);
-  const baselineMergeRatio = calculateBaselineMergeRatio(commitStream);
-  const baselinePersistence = calculateBaselinePersistence(commitStream);
+export function calculateMetrics(
+  commitStream: CommitStream,
+  options: MetricsOptions = {}
+): Metrics {
+  const { defaultAttribution = 'unknown', coverageThreshold = 0.7 } = options;
 
-  const delta = {
-    mergeRatio: round(mergeRatio.mergeRatio - baselineMergeRatio.mergeRatio, 4),
-    avgPersistenceDays: round(persistence.avgDays - baselinePersistence.avgDays, 2),
-    medianPersistenceDays: round(persistence.medianDays - baselinePersistence.medianDays, 2),
+  const counts = { ai: 0, human: 0, unknown: 0 };
+  for (const commit of commitStream.commits) {
+    counts[commit.tags.attribution]++;
+  }
+  const total = commitStream.commits.length;
+  const coverage = total > 0 ? (counts.ai + counts.human) / total : 0;
+
+  const attribution: Attribution = {
+    commitsTotal: total,
+    ai: counts.ai,
+    human: counts.human,
+    unknown: counts.unknown,
+    coverage: round(coverage, 4),
+    defaultAttribution,
+    coverageThreshold,
+    belowThreshold: coverage < coverageThreshold,
   };
 
+  // Cohort membership: unknown commits join a cohort only via the prior.
+  const isAI = (commit: Commit) =>
+    commit.tags.attribution === 'ai' ||
+    (defaultAttribution === 'ai' && commit.tags.attribution === 'unknown');
+  const isBaseline = (commit: Commit) =>
+    commit.tags.attribution === 'human' ||
+    (defaultAttribution === 'human' && commit.tags.attribution === 'unknown');
+
+  const mergeRatio = calculateMergeRatio(commitStream, isAI);
+  const persistence = calculatePersistence(commitStream, isAI);
+
+  // No baseline cohort → no baseline, no delta. AIDA does not invent a
+  // comparison out of unattributed commits.
+  const baselineSize = commitStream.commits.filter(isBaseline).length;
+  const baselineAssumed = defaultAttribution === 'human' && counts.unknown > 0;
+
+  const baseline =
+    baselineSize > 0
+      ? {
+          assumed: baselineAssumed,
+          mergeRatio: calculateBaselineMergeRatio(commitStream, isBaseline),
+          persistence: calculateBaselinePersistence(commitStream, isBaseline),
+        }
+      : null;
+
+  const delta = baseline
+    ? {
+        mergeRatio: round(mergeRatio.mergeRatio - baseline.mergeRatio.mergeRatio, 4),
+        avgPersistenceDays: round(persistence.avgDays - baseline.persistence.avgDays, 2),
+        medianPersistenceDays: round(
+          persistence.medianDays - baseline.persistence.medianDays,
+          2
+        ),
+      }
+    : null;
+
   const caveats = [
+    `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
     'Persistence is file-level, not line-level.',
     'Merge ratio: commits from all branches checked against default branch ancestry. Squash merges may undercount unmerged commits.',
     'Time-windowed collection (--since) also windows the ancestry check: commits merged into the default branch before the window may appear unmerged.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
-    'Baseline covers all non-AI-tagged commits; undetected AI usage may leak into the baseline.',
   ];
+  if (baseline?.assumed) {
+    caveats.push(
+      `Baseline includes ${counts.unknown} unattributed commit(s) assumed human via defaultAttribution — undetected AI usage may leak into it.`
+    );
+  }
+  if (!baseline) {
+    caveats.push(
+      'No baseline: no commits are attributed as human. Set defaultAttribution to "human" in .aida.json if unattributed commits in this repo are human-authored.'
+    );
+  }
 
   return {
     generatedAt: formatISODate(new Date()),
@@ -40,12 +104,10 @@ export function calculateMetrics(commitStream: CommitStream): Metrics {
     },
     repoPath: commitStream.repoPath,
     defaultBranch: commitStream.defaultBranch,
+    attribution,
     mergeRatio,
     persistence,
-    baseline: {
-      mergeRatio: baselineMergeRatio,
-      persistence: baselinePersistence,
-    },
+    baseline,
     delta,
     caveats,
   };

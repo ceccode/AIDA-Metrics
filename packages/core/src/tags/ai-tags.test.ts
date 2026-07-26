@@ -212,4 +212,16 @@ Co-authored-by: Claude <noreply@anthropic.com>`
       expect(result.level).toBe('explicit');
     });
   });
+
+  describe('three-state attribution', () => {
+    it('maps explicit and implicit levels to attribution: ai', () => {
+      expect(tagger('[AI] automated change').attribution).toBe('ai');
+      expect(tagger('feat: copilot suggestions applied').attribution).toBe('ai');
+    });
+
+    it('maps mention and none levels to attribution: unknown, never human', () => {
+      expect(tagger('fix: update claude detection pattern').attribution).toBe('unknown');
+      expect(tagger('regular commit with no AI signal').attribution).toBe('unknown');
+    });
+  });
 });

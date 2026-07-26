@@ -10,7 +10,7 @@ interface FileLifecycle {
 
 export function calculatePersistence(
   commitStream: CommitStream,
-  isTarget: (commit: Commit) => boolean = (commit) => commit.tags.ai
+  isTarget: (commit: Commit) => boolean = (commit) => commit.tags.attribution === 'ai'
 ): Persistence {
   const targetCommits = commitStream.commits.filter(isTarget);
 
@@ -109,6 +109,9 @@ export function calculatePersistence(
   };
 }
 
-export function calculateBaselinePersistence(commitStream: CommitStream): Persistence {
-  return calculatePersistence(commitStream, (commit) => !commit.tags.ai);
+export function calculateBaselinePersistence(
+  commitStream: CommitStream,
+  isTarget: (commit: Commit) => boolean = (commit) => commit.tags.attribution === 'human'
+): Persistence {
+  return calculatePersistence(commitStream, isTarget);
 }

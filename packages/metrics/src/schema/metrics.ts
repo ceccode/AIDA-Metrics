@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+// Attribution coverage (#34): the headline metric. Every other number in this
+// file is only as trustworthy as this block says it is.
+export const Attribution = z.object({
+  commitsTotal: z.number().int().nonnegative(),
+  ai: z.number().int().nonnegative(),
+  human: z.number().int().nonnegative(),
+  unknown: z.number().int().nonnegative(),
+  coverage: z.number().min(0).max(1), // (ai + human) / total
+  defaultAttribution: z.enum(['ai', 'human', 'unknown']), // prior applied to unknown commits
+  coverageThreshold: z.number().min(0).max(1),
+  belowThreshold: z.boolean(),
+});
+
 export const MergeRatio = z.object({
   aiCommitsTotal: z.number().int().nonnegative(),
   aiCommitsMerged: z.number().int().nonnegative(),
@@ -26,6 +39,9 @@ export const CohortMergeRatio = z.object({
 });
 
 export const Baseline = z.object({
+  // True when the cohort includes 'unknown' commits via defaultAttribution:
+  // the baseline is an assumption, not observed attribution.
+  assumed: z.boolean(),
   mergeRatio: CohortMergeRatio,
   persistence: Persistence,
 });
@@ -44,13 +60,17 @@ export const Metrics = z.object({
   }),
   repoPath: z.string(),
   defaultBranch: z.string(),
+  attribution: Attribution,
   mergeRatio: MergeRatio,
   persistence: Persistence,
-  baseline: Baseline,
-  delta: Delta,
+  // Null when no commit is attributed 'human' and no defaultAttribution prior
+  // assigns the unknowns: AIDA does not invent a comparison cohort.
+  baseline: Baseline.nullable(),
+  delta: Delta.nullable(),
   caveats: z.array(z.string()),
 });
 
+export type Attribution = z.infer<typeof Attribution>;
 export type MergeRatio = z.infer<typeof MergeRatio>;
 export type Persistence = z.infer<typeof Persistence>;
 export type CohortMergeRatio = z.infer<typeof CohortMergeRatio>;
