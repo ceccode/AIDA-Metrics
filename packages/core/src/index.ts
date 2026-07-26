@@ -5,6 +5,7 @@ export * from './git/collect.js';
 export * from './git/diff.js';
 export * from './git/log.js';
 export * from './tags/ai-tags.js';
+export * from './tags/attribution-manifest.js';
 export * from './io/fs.js';
 export * from './utils/dates.js';
 export * from './utils/log.js';

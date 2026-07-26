@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "description": "Retroactive AI attribution for commits made before automated Co-Authored-By tracking was enabled.",
-  "note": "This repository was built with ~80% AI assistance using Windsurf (Claude Opus). These commits predate the adoption of Co-Authored-By trailers.",
+  "note": "This repository is AI-written with human review. Early commits were made with Windsurf (Claude Opus) before Co-Authored-By trailers were adopted; later untagged commits (CI tweaks, docs, squash-merged features) were added retroactively. Merge commits and changesets release commits are excluded: they are automation, not authored code.",
   "tool": "windsurf",
   "model": "claude-opus",
   "ai_assisted_commits": [
@@ -68,13 +68,61 @@
     {
       "hash": "76f5bda5255734abf874cc8b7e10ce559872e19d",
       "message": "chore: add changeset for AI detection improvements"
+    },
+    {
+      "hash": "5025f0b9f61d908004aba86f7c391d7730241ca3",
+      "message": "update gitignore"
+    },
+    {
+      "hash": "d108ed6cd869d58965894677f5db11182b7401a8",
+      "message": "feat: add comparative baseline metrics (AI vs non-AI)"
+    },
+    {
+      "hash": "54a508b112eefcef9a8f142de705ca31f5bb078b",
+      "message": "feat: add comparative baseline metrics (AI vs non-AI) (#28)"
+    },
+    {
+      "hash": "1948d709c39d1e3c2e8ca3ce29a9f58545baa4b0",
+      "message": "docs: update README and landing page with comparative baseline feature"
+    },
+    {
+      "hash": "76311033a4b38febeaadb8fcd00fce58b25d79ac",
+      "message": "ci: run AIDA on PRs with comment, dogfood on own repo"
+    },
+    {
+      "hash": "2e22b88ff23c6dcba925b76269c5eee16ae62dce",
+      "message": "fix: exclude non-AI bots from trailer matching (#21)"
+    },
+    {
+      "hash": "a529073e36a13896907d2ed784d44d55a44b54bf",
+      "message": "fix: use diff base ref for default-branch commit set in PR mode"
+    },
+    {
+      "hash": "938a72dd8f9e21f19a0df41b5d7fd5cf2bf04373",
+      "message": "fix: exclude non-AI bots from trailer matching (#21) (#30)"
+    },
+    {
+      "hash": "c22d1a7c1ea7b9d2f0a36d3ccf88b70708e54dd4",
+      "message": "ci: bump actions to Node 24 runtime (checkout@v5, setup-node@v5, pnpm/action-setup@v4)"
+    },
+    {
+      "hash": "7612e2bd879488a471cc713eb579c1998e50ed4e",
+      "message": "ci: drop pnpm version from action-setup, defer to packageManager"
+    },
+    {
+      "hash": "d477c3a4bbb4d5f6a5949736f0c7b04e296e4e18",
+      "message": "ci: drop pnpm version from action-setup, defer to packageManager"
+    },
+    {
+      "hash": "d92f0089b83bd6a51403339dae1d0c088ea2cd95",
+      "message": "docs: add Known Limits section, link community-driven issues #34-#36"
     }
   ],
   "excluded_commits": [
     {
       "hash": "38b8007ef656b27194e90952b6a676068868299b",
       "message": "feat: initial AIDA metrics implementation with AI-powered analysis"
-    },    
+    },
     {
       "hash": "300d0f153b39b29d5624df6880aa07cedc2ab37a",
       "message": "docs: add Contributor Covenant Code of Conduct",
@@ -87,6 +135,116 @@
     },
     {
       "hash": "a424c3327700f82d41164769c3a956a2586c5e0e",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "0c62dda15dd807cef874c63f5d60c3c68cebb412",
+      "message": "Merge pull request #1 from ceccode/feat/core",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "c41e4deb6f1bf8a9449058bf2e54b3a972ea9bf3",
+      "message": "Merge pull request #2 from ceccode/feat/docs",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "ee85792010dd521ff1b152fbbeda5c079a6e9a28",
+      "message": "Merge pull request #3 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "2532f4ff997f64aba73fdb106a97c1f4a826bb5b",
+      "message": "Merge branch 'main' of github.com:ceccode/AIDA-Metrics",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "55051d0a383bbfe50e3e1b5cdea3e9153e7fc892",
+      "message": "Merge pull request #5 from ceccode/fix/since-until-flags",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "87c0afd9caeccf71ed41ea2da990e3b14c5542dc",
+      "message": "Merge pull request #6 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "d59126d50b75ec3904767f1c1da0cc99975ac933",
+      "message": "Merge branch 'main' of github.com:ceccode/AIDA-Metrics",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "dfc4acabb92847538aac16b8be08fd38dbbceabc",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "44e7f19cdec0f20af6c91111028262c2107597f5",
+      "message": "Merge pull request #8 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "55e9e22092243f6f0c99de73c2685f951014a400",
+      "message": "Merge branch 'main' of github.com:ceccode/AIDA-Metrics",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "c8ebafd56d635725e5678735a3bbe0c49e312151",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "dfc3d0ee21094caa5c82e8385a03bac68506bfb8",
+      "message": "Merge pull request #9 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "4b1ec053d67ab27e619f312f5801d0e0ad9110c9",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "0adc293b9776f73ca070c57ad5f14e06b3700fdb",
+      "message": "Merge pull request #11 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "b6d07a2a0857cd4e9dc3c37390368d9db571a470",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "a19a55c22091c0c59c2e85417823fa32dd337663",
+      "message": "Merge pull request #13 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "63c4ff040c6899dbe8b0f41a94b217cea434ca95",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "ae76233c60276e9956a81deee6c114b9c57dd9ef",
+      "message": "Merge pull request #14 from ceccode/changeset-release/main",
+      "reason": "Merge commit"
+    },
+    {
+      "hash": "10ae380d3dca8df548546a21126b1cfc277e22e7",
+      "message": "chore: release @aida-dev/metrics@0.3.0, @aida-dev/cli@0.4.0",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "d76c62aede1c151895ffa75ec176ce8c0da654b9",
+      "message": "chore: release packages (#31)",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "a34fe47b5441e27db0133f7db7bfb393bf8b9689",
+      "message": "chore: release packages",
+      "reason": "Automated by changesets"
+    },
+    {
+      "hash": "55b418b89652bd15122f8b294a21f2f626b35b17",
       "message": "chore: release packages",
       "reason": "Automated by changesets"
     }

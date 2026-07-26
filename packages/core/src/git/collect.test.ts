@@ -94,3 +94,71 @@ describe('collectCommits', () => {
     expect(head.tags.level).toBe('explicit');
   });
 });
+
+describe('collectCommits with attribution manifest', () => {
+  let manifestRepoPath: string;
+
+  function runIn(cmd: string) {
+    execSync(cmd, { cwd: manifestRepoPath });
+  }
+
+  function commitIn(message: string): string {
+    const escaped = message.replace(/"/g, '\\"');
+    runIn(`git commit -q --allow-empty -m "${escaped}"`);
+    return execSync('git rev-parse HEAD', { cwd: manifestRepoPath }).toString().trim();
+  }
+
+  beforeAll(() => {
+    manifestRepoPath = mkdtempSync(join(tmpdir(), 'aida-manifest-collect-'));
+    execSync('git init -q -b main', { cwd: manifestRepoPath });
+    runIn('git config user.name test && git config user.email test@example.com');
+  });
+
+  afterAll(() => {
+    rmSync(manifestRepoPath, { recursive: true, force: true });
+  });
+
+  it('applies manifest declarations on top of heuristics end-to-end', async () => {
+    const untaggedAI = commitIn('feat: untagged but AI-assisted');
+    const humanCommit = commitIn('fix: hand-written fix');
+    const releaseCommit = commitIn(
+      'chore: release\n\nCo-authored-by: some-release-bot <bot@example.com>'
+    );
+    const plainCommit = commitIn('docs: not in manifest');
+
+    writeFileSync(
+      join(manifestRepoPath, 'aida-attribution.json'),
+      JSON.stringify({
+        version: '1.0',
+        ai_assisted_commits: [{ hash: untaggedAI }],
+        human_authored_commits: [{ hash: humanCommit }],
+        excluded_commits: [{ hash: releaseCommit, reason: 'Automated' }],
+      })
+    );
+
+    const stream = await collectCommits({ repoPath: manifestRepoPath });
+    const byHash = Object.fromEntries(stream.commits.map((c) => [c.hash, c.tags]));
+
+    expect(byHash[untaggedAI].attribution).toBe('ai');
+    expect(byHash[untaggedAI].level).toBe('explicit');
+    expect(byHash[untaggedAI].sources).toContain('manifest');
+
+    expect(byHash[humanCommit].attribution).toBe('human');
+    expect(byHash[humanCommit].sources).toContain('manifest');
+
+    // The bot trailer would tag this explicit ai; excluded forces unknown
+    expect(byHash[releaseCommit].attribution).toBe('unknown');
+    expect(byHash[releaseCommit].ai).toBe(false);
+    expect(byHash[releaseCommit].sources).toContain('manifest:excluded');
+
+    expect(byHash[plainCommit].attribution).toBe('unknown');
+    expect(byHash[plainCommit].sources).not.toContain('manifest');
+  });
+
+  it('does not fail collect when the manifest is invalid', async () => {
+    writeFileSync(join(manifestRepoPath, 'aida-attribution.json'), '{ broken');
+    const stream = await collectCommits({ repoPath: manifestRepoPath });
+    expect(stream.commits.length).toBeGreaterThan(0);
+    expect(stream.commits.every((c) => !c.tags.sources.includes('manifest'))).toBe(true);
+  });
+});

@@ -1,6 +1,12 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Commit, CommitStream } from '../schema/commit.js';
 import { createAITagger } from '../tags/ai-tags.js';
+import {
+  applyManifest,
+  indexManifest,
+  loadAttributionManifest,
+  unmatchedManifestHashes,
+} from '../tags/attribution-manifest.js';
 import { logWithStats } from './log.js';
 import { parseRelativeDate, formatISODate } from '../utils/dates.js';
 import { Logger } from '../utils/log.js';
@@ -128,6 +134,10 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     botBlocklist: aiBotBlocklist,
   });
 
+  // Optional retroactive attribution manifest at the repo root (#10)
+  const manifest = await loadAttributionManifest(repoPath, logger);
+  const manifestIndex = manifest ? indexManifest(manifest) : null;
+
   // Deduplicate commits (same hash can appear from multiple branches)
   const seen = new Set<string>();
   const commits: Commit[] = [];
@@ -138,7 +148,10 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     logger?.debug(`Processing commit ${rawCommit.hash}`);
 
     // Tag AI on the full message (body included, for trailers like Co-Authored-By)
-    const aiTag = aiTagger(rawCommit.message);
+    let aiTag = aiTagger(rawCommit.message);
+    if (manifestIndex) {
+      aiTag = applyManifest(aiTag, rawCommit.hash, manifestIndex, logger);
+    }
 
     const commit: Commit = {
       hash: rawCommit.hash,
@@ -156,6 +169,15 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     };
 
     commits.push(commit);
+  }
+
+  if (manifestIndex) {
+    const unmatched = unmatchedManifestHashes(manifestIndex);
+    if (unmatched.length > 0) {
+      logger?.info(
+        `Manifest: ${unmatched.length} hash(es) matched no collected commit (rebase, typo, or outside the --since window)`
+      );
+    }
   }
 
   return {
