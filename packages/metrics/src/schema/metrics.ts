@@ -32,6 +32,39 @@ export const Persistence = z.object({
   }),
 });
 
+// Cohort age (#29): context for judging whether a persistence comparison
+// between cohorts is fair — older cohorts accumulate survival by default.
+export const AgeStats = z.object({
+  commits: z.number().int().nonnegative(),
+  avgAgeDays: z.number().nonnegative(),
+  medianAgeDays: z.number().nonnegative(),
+});
+
+// Task mix (#36): what kind of files each cohort touched. A persistence
+// comparison is only meaningful when the mixes are similar.
+export const FileCategory = z.enum([
+  'source',
+  'tests',
+  'migrations',
+  'config',
+  'docs',
+  'generated',
+]);
+
+export const CategoryCounts = z.object({
+  source: z.number().int().nonnegative(),
+  tests: z.number().int().nonnegative(),
+  migrations: z.number().int().nonnegative(),
+  config: z.number().int().nonnegative(),
+  docs: z.number().int().nonnegative(),
+  generated: z.number().int().nonnegative(),
+});
+
+export const CohortContext = z.object({
+  age: AgeStats.nullable(),
+  taskMix: CategoryCounts.nullable(),
+});
+
 export const CohortMergeRatio = z.object({
   commitsTotal: z.number().int().nonnegative(),
   commitsMerged: z.number().int().nonnegative(),
@@ -63,6 +96,12 @@ export const Metrics = z.object({
   attribution: Attribution,
   mergeRatio: MergeRatio,
   persistence: Persistence,
+  // Fairness context (#29, #36): age and task mix per cohort, so consumers
+  // can judge whether the AI-vs-baseline comparison is apples-to-apples.
+  cohorts: z.object({
+    ai: CohortContext,
+    baseline: CohortContext,
+  }),
   // Null when no commit is attributed 'human' and no defaultAttribution prior
   // assigns the unknowns: AIDA does not invent a comparison cohort.
   baseline: Baseline.nullable(),
@@ -71,6 +110,10 @@ export const Metrics = z.object({
 });
 
 export type Attribution = z.infer<typeof Attribution>;
+export type AgeStats = z.infer<typeof AgeStats>;
+export type FileCategory = z.infer<typeof FileCategory>;
+export type CategoryCounts = z.infer<typeof CategoryCounts>;
+export type CohortContext = z.infer<typeof CohortContext>;
 export type MergeRatio = z.infer<typeof MergeRatio>;
 export type Persistence = z.infer<typeof Persistence>;
 export type CohortMergeRatio = z.infer<typeof CohortMergeRatio>;

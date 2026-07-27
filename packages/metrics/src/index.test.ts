@@ -123,6 +123,52 @@ describe('calculateMetrics baseline cohort', () => {
     expect(metrics.caveats.some((c) => c.includes('assumed human'))).toBe(true);
   });
 
+  it('never assigns manifest-excluded commits to a cohort, even with a prior', () => {
+    const excludedTags = {
+      ai: false,
+      attribution: 'unknown',
+      level: 'none',
+      sources: ['manifest:excluded'],
+    } as const;
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }),
+        makeCommit({ hash: 'x1', tags: excludedTags }),
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+      ]),
+      { defaultAttribution: 'ai' }
+    );
+
+    // prior pulls u1 into the AI cohort, but never x1
+    expect(metrics.mergeRatio.aiCommitsTotal).toBe(2);
+  });
+
+  it('reports cohort age and task mix per cohort, null when a cohort is empty', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          stats: {
+            totalAdditions: 2,
+            totalDeletions: 0,
+            files: [
+              { path: 'src/a.ts', additions: 1, deletions: 0 },
+              { path: 'src/a.test.ts', additions: 1, deletions: 0 },
+            ],
+          },
+        }),
+      ])
+    );
+
+    expect(metrics.cohorts.ai.age?.commits).toBe(1);
+    expect(metrics.cohorts.ai.age?.avgAgeDays).toBeGreaterThan(0);
+    expect(metrics.cohorts.ai.taskMix?.source).toBe(1);
+    expect(metrics.cohorts.ai.taskMix?.tests).toBe(1);
+    expect(metrics.cohorts.baseline.age).toBeNull();
+    expect(metrics.cohorts.baseline.taskMix).toBeNull();
+  });
+
   it('assigns unknown commits to the AI cohort with defaultAttribution: ai', () => {
     const metrics = calculateMetrics(
       makeStream([

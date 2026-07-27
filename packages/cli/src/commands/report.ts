@@ -44,6 +44,28 @@ function generateMarkdownReport(metrics: Metrics): string {
 **No baseline available** — no commits are attributed as human, so there is nothing honest to compare against. If unattributed commits in this repo are human-authored, set \`"defaultAttribution": "human"\` in \`.aida.json\`.
 `;
 
+  const categories = ['source', 'tests', 'migrations', 'config', 'docs', 'generated'] as const;
+
+  function mixCell(mix: Metrics['cohorts']['ai']['taskMix'], cat: (typeof categories)[number]) {
+    if (!mix) return '—';
+    const total = categories.reduce((sum, c) => sum + mix[c], 0);
+    return total > 0 ? `${mix[cat]} (${((mix[cat] / total) * 100).toFixed(0)}%)` : '0';
+  }
+
+  const aiCtx = metrics.cohorts.ai;
+  const baseCtx = metrics.cohorts.baseline;
+  const fairnessSection = `## Cohort Fairness
+
+Persistence comparisons are only meaningful between cohorts of similar **age** and **task mix**.
+
+| | AI cohort | Baseline cohort |
+|---|---:|---:|
+| Commits | ${aiCtx.age?.commits ?? 0} | ${baseCtx.age?.commits ?? 0} |
+| Avg age (days) | ${aiCtx.age?.avgAgeDays ?? '—'} | ${baseCtx.age?.avgAgeDays ?? '—'} |
+| Median age (days) | ${aiCtx.age?.medianAgeDays ?? '—'} | ${baseCtx.age?.medianAgeDays ?? '—'} |
+${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${mixCell(baseCtx.taskMix, cat)} |`).join('\n')}
+`;
+
   const baselineDetail = metrics.baseline
     ? `## ${baselineLabel}
 - Commits (total): ${metrics.baseline.mergeRatio.commitsTotal}
@@ -66,6 +88,7 @@ function generateMarkdownReport(metrics: Metrics): string {
 **${coveragePct}% of commits have known provenance** — ai: ${a.ai} · human: ${a.human} · unknown: ${a.unknown} (${unknownPct}%)
 ${coverageWarning}${priorNote}
 ${comparisonSection}
+${fairnessSection}
 ## Merge Ratio
 - AI-tagged commits (total): ${metrics.mergeRatio.aiCommitsTotal}
 - AI-tagged commits merged: ${metrics.mergeRatio.aiCommitsMerged}
