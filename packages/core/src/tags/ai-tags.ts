@@ -6,9 +6,41 @@ export type AILevel = 'explicit' | 'implicit' | 'mention' | 'none';
 // manifest, #10) or the defaultAttribution prior applied at analysis time.
 export type Attribution = 'ai' | 'human' | 'unknown';
 
+// Autonomy axis (#25): what level of AI participated. The durable dimension
+// in an AI-first world, where "was AI involved" trends toward "yes".
+export type AIMode = 'none' | 'autocomplete' | 'assisted' | 'agent' | 'unknown';
+
+// How we know the mode: 'declared' = explicit statement (manifest mode
+// field, future commit-time hooks); 'inferred' = derived from tool identity
+// via MODE_BY_TOOL — real signal, our conclusion; 'none' = no signal at all.
+export type ModeEvidence = 'declared' | 'inferred' | 'none';
+
+// Tool identity → coarse autonomy mode. Deliberately rough: a trailer names
+// the tool, not the session mode. First match wins; multi-word names before
+// their prefixes ('claude code' before 'claude').
+export const MODE_BY_TOOL: Array<[pattern: RegExp, mode: AIMode]> = [
+  [/\bclaude\s+code\b/i, 'agent'],
+  // Co-Authored-By: Claude <noreply@anthropic.com> is Claude Code's own
+  // commit convention → agent
+  [/\bclaude\b/i, 'agent'],
+  [/\bcopilot\b/i, 'autocomplete'],
+  [/\b(cursor|windsurf|codeium|chatgpt|gemini)\b/i, 'assisted'],
+];
+
+export function inferMode(message: string): AIMode {
+  for (const [pattern, mode] of MODE_BY_TOOL) {
+    if (pattern.test(message)) {
+      return mode;
+    }
+  }
+  return 'unknown';
+}
+
 export interface AITagResult {
   ai: boolean;
   attribution: Attribution;
+  mode: AIMode;
+  modeEvidence: ModeEvidence;
   level: AILevel;
   sources: string[];
 }
@@ -170,6 +202,15 @@ export function createAITagger(
 
     // ai: true only for explicit and implicit
     const ai = level === 'explicit' || level === 'implicit';
-    return { ai, attribution: ai ? 'ai' : 'unknown', level, sources };
+    // Mode inference only makes sense once AI involvement is established
+    const mode = ai ? inferMode(message) : 'unknown';
+    return {
+      ai,
+      attribution: ai ? 'ai' : 'unknown',
+      mode,
+      modeEvidence: mode === 'unknown' ? 'none' : 'inferred',
+      level,
+      sources,
+    };
   };
 }

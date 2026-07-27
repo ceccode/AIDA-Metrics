@@ -13,7 +13,7 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     message: 'commit',
     parents: [],
     inDefaultBranchAncestry: true,
-    tags: { ai: false, attribution: 'unknown', level: 'none', sources: [] },
+    tags: { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] },
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,
   };
@@ -29,9 +29,9 @@ function makeStream(commits: Commit[]): CommitStream {
   };
 }
 
-const aiTags = { ai: true, attribution: 'ai', level: 'explicit', sources: ['tag:[ai]'] } as const;
-const humanTags = { ai: false, attribution: 'human', level: 'none', sources: [] } as const;
-const unknownTags = { ai: false, attribution: 'unknown', level: 'none', sources: [] } as const;
+const aiTags = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] } as const;
+const humanTags = { ai: false, attribution: 'human', mode: 'none', modeEvidence: 'declared', level: 'none', sources: [] } as const;
+const unknownTags = { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] } as const;
 
 describe('calculateMetrics attribution coverage', () => {
   it('reports coverage as (ai + human) / total', () => {
@@ -127,6 +127,8 @@ describe('calculateMetrics baseline cohort', () => {
     const excludedTags = {
       ai: false,
       attribution: 'unknown',
+      mode: 'unknown',
+      modeEvidence: 'none',
       level: 'none',
       sources: ['manifest:excluded'],
     } as const;
