@@ -14,7 +14,7 @@ function makeCommit(authorDate: string, files: string[] = []): Commit {
     message: 'commit',
     parents: [],
     inDefaultBranchAncestry: true,
-    tags: { ai: false, attribution: 'unknown', level: 'none', sources: [] },
+    tags: { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] },
     stats: {
       totalAdditions: 1,
       totalDeletions: 0,

@@ -4,6 +4,7 @@
   "note": "This repository is AI-written with human review. Early commits were made with Windsurf (Claude Opus) before Co-Authored-By trailers were adopted; later untagged commits (CI tweaks, docs, squash-merged features) were added retroactively. Merge commits and changesets release commits are excluded: they are automation, not authored code.",
   "tool": "windsurf",
   "model": "claude-opus",
+  "mode": "agent",
   "ai_assisted_commits": [
     {
       "hash": "2f972ace3ff158fbe272d2850e879008abb0b197",

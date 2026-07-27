@@ -14,7 +14,7 @@ function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStrea
     message: 'test commit',
     parents: [],
     inDefaultBranchAncestry: true,
-    tags: { ai: false, attribution: 'unknown' as const, level: 'none', sources: [] },
+    tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
     stats: { totalAdditions: 10, totalDeletions: 0, files: [] },
     ...overrides,
   };
@@ -43,12 +43,12 @@ describe('calculatePersistence', () => {
     const stream = makeStream([
       makeCommit({
         hash: 'a1',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
       }),
       makeCommit({
         hash: 'a2',
-        tags: { ai: false, attribution: 'unknown' as const, level: 'none', sources: [] },
+        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
       }),
     ]);
     const result = calculatePersistence(stream);
@@ -60,7 +60,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -70,7 +70,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a2',
         authorDate: '2024-01-11T00:00:00.000Z',
-        tags: { ai: false, attribution: 'unknown' as const, level: 'none', sources: [] },
+        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
         stats: {
           totalAdditions: 2,
           totalDeletions: 1,
@@ -90,7 +90,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -101,7 +101,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a2',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -112,7 +112,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a3',
         authorDate: '2024-01-06T00:00:00.000Z',
-        tags: { ai: false, attribution: 'unknown' as const, level: 'none', sources: [] },
+        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
         stats: {
           totalAdditions: 2,
           totalDeletions: 0,
@@ -131,7 +131,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -141,7 +141,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a2',
         authorDate: '2024-01-20T00:00:00.000Z',
-        tags: { ai: false, attribution: 'unknown' as const, level: 'none', sources: [] },
+        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
         stats: {
           totalAdditions: 0,
           totalDeletions: 5,
@@ -161,13 +161,13 @@ describe('calculateBaselinePersistence', () => {
       makeCommit({
         hash: 'h1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: false, attribution: 'human' as const, level: 'none', sources: [] },
+        tags: { ai: false, attribution: 'human' as const, mode: 'none' as const, modeEvidence: 'declared' as const, level: 'none', sources: [] },
         stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
       }),
       makeCommit({
         hash: 'ai1',
         authorDate: '2024-01-06T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: { totalAdditions: 2, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 2, deletions: 0, status: 'modified' }] },
       }),
     ]);
@@ -181,7 +181,7 @@ describe('calculateBaselinePersistence', () => {
     const stream = makeStream([
       makeCommit({
         hash: 'ai1',
-        tags: { ai: true, attribution: 'ai' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'x.ts', additions: 1, deletions: 0 }] },
       }),
     ]);

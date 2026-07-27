@@ -27,10 +27,12 @@ function makeIndex() {
   );
 }
 
-const unknownTag: AITagResult = { ai: false, attribution: 'unknown', level: 'none', sources: [] };
+const unknownTag: AITagResult = { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] };
 const aiTag: AITagResult = {
   ai: true,
   attribution: 'ai',
+  mode: 'unknown',
+  modeEvidence: 'none',
   level: 'explicit',
   sources: ['trailer:^AI:\\s*true$'],
 };
@@ -80,6 +82,43 @@ describe('applyManifest precedence', () => {
   it('leaves commits absent from the manifest untouched', () => {
     const result = applyManifest(unknownTag, HASH_ABSENT, makeIndex());
     expect(result).toEqual(unknownTag);
+  });
+
+  it('applies a manifest-level mode to ai entries as declared evidence', () => {
+    const index = indexManifest(
+      AttributionManifest.parse({
+        version: '1.0',
+        mode: 'agent',
+        ai_assisted_commits: [{ hash: HASH_AI }],
+      })
+    );
+    const result = applyManifest(unknownTag, HASH_AI, index);
+    expect(result.mode).toBe('agent');
+    expect(result.modeEvidence).toBe('declared');
+  });
+
+  it('lets an entry-level mode override the manifest-level default', () => {
+    const index = indexManifest(
+      AttributionManifest.parse({
+        version: '1.0',
+        mode: 'agent',
+        ai_assisted_commits: [{ hash: HASH_AI, mode: 'autocomplete' }],
+      })
+    );
+    expect(applyManifest(unknownTag, HASH_AI, index).mode).toBe('autocomplete');
+  });
+
+  it('keeps the heuristic inferred mode when the manifest declares none', () => {
+    const inferredTag: AITagResult = { ...aiTag, mode: 'agent', modeEvidence: 'inferred' };
+    const result = applyManifest(inferredTag, HASH_AI, makeIndex());
+    expect(result.mode).toBe('agent');
+    expect(result.modeEvidence).toBe('inferred');
+  });
+
+  it('declares mode none for human_authored commits', () => {
+    const result = applyManifest(unknownTag, HASH_HUMAN, makeIndex());
+    expect(result.mode).toBe('none');
+    expect(result.modeEvidence).toBe('declared');
   });
 
   it('reports manifest hashes that matched no collected commit', () => {
