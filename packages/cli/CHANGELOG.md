@@ -1,5 +1,40 @@
 # @aida/cli
 
+## 0.6.1
+
+### Patch Changes
+
+- 0f4fb0d: Attribution manifest support (#10)
+
+  `aida collect` now reads an optional `aida-attribution.json` at the repo root to apply retroactive, explicit attribution declarations on top of message heuristics:
+  - `ai_assisted_commits` → attribution `ai`, level `explicit`, source `manifest`
+  - `human_authored_commits` (new) → attribution `human` — the first way to build a real human baseline for the three-state model
+  - `excluded_commits` → forces attribution `unknown`, overriding heuristics (for automation such as release bots and merge commits)
+
+  Precedence: in-commit evidence beats retroactive declarations — a commit with an explicit AI signal stays `ai` even if declared human (with a warning); `excluded_commits` always wins. Invalid manifests log a warning and are ignored; they never fail `collect`. Manifest hashes that match no collected commit are reported informationally.
+
+- 690fc53: Autonomy mode collection (#25, step 1)
+
+  First step of the involvement × evidence model. Every commit now carries:
+  - **`tags.mode`**: `none` | `autocomplete` | `assisted` | `agent` | `unknown` — what level of AI participated. The durable axis in an AI-first world.
+  - **`tags.modeEvidence`**: `declared` (manifest `mode` field — top-level default or per-entry override) | `inferred` (derived from the tool named in trailers: Claude Code/Claude → agent, Copilot → autocomplete, Cursor/Windsurf/Codeium/ChatGPT/Gemini → assisted) | `none` (no signal).
+
+  Manifest-declared human commits get `mode: none, declared`. `metrics.json` reports per-mode and per-evidence counts in the attribution block; the report shows an Autonomy line under the coverage headline. Per-mode cohort metrics are step 2.
+
+- 027ff40: Cohort fairness context (#29 step 1, #36 step 1)
+
+  `metrics.json` gains a `cohorts` block with, per cohort (AI and baseline):
+  - **Age stats** (#29): commits, average and median age in days — older cohorts accumulate persistence by default, so comparing raw persistence across cohorts of different ages is misleading.
+  - **Task mix** (#36): file touches classified as source / tests / migrations / config / docs / generated via path heuristics — a good persistence number may reflect _what_ the cohort worked on, not how well.
+
+  The markdown report renders a "Cohort Fairness" table; a caveat warns to check it before reading the delta. Also fixed: manifest-excluded commits are never pulled into a cohort by the `defaultAttribution` prior — they were excluded precisely to stay out of both.
+
+- Updated dependencies [0f4fb0d]
+- Updated dependencies [690fc53]
+- Updated dependencies [027ff40]
+  - @aida-dev/core@0.10.0
+  - @aida-dev/metrics@0.5.0
+
 ## 0.6.0
 
 ### Minor Changes
