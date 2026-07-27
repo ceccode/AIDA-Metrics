@@ -11,6 +11,19 @@ export const Attribution = z.object({
   defaultAttribution: z.enum(['ai', 'human', 'unknown']), // prior applied to unknown commits
   coverageThreshold: z.number().min(0).max(1),
   belowThreshold: z.boolean(),
+  // Autonomy axis (#25): commit counts per mode and per mode-evidence level
+  modes: z.object({
+    none: z.number().int().nonnegative(),
+    autocomplete: z.number().int().nonnegative(),
+    assisted: z.number().int().nonnegative(),
+    agent: z.number().int().nonnegative(),
+    unknown: z.number().int().nonnegative(),
+  }),
+  modeEvidence: z.object({
+    declared: z.number().int().nonnegative(),
+    inferred: z.number().int().nonnegative(),
+    none: z.number().int().nonnegative(),
+  }),
 });
 
 export const MergeRatio = z.object({

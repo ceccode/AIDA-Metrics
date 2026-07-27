@@ -23,6 +23,9 @@ export const Commit = z.object({
     // Three-state attribution (#34). Heuristics emit 'ai' or 'unknown';
     // 'human' requires an explicit declaration (manifest, #10).
     attribution: z.enum(['ai', 'human', 'unknown']),
+    // Autonomy axis (#25): what level of AI participated, and how we know
+    mode: z.enum(['none', 'autocomplete', 'assisted', 'agent', 'unknown']),
+    modeEvidence: z.enum(['declared', 'inferred', 'none']),
     level: z.enum(['explicit', 'implicit', 'mention', 'none']),
     sources: z.array(z.string()), // which heuristic matched
   }),
