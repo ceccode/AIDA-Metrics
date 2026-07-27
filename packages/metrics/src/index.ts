@@ -109,6 +109,7 @@ export function calculateMetrics(
   const caveats = [
     `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
     'Persistence is file-level, not line-level.',
+    'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',
     'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',
     'Merge ratio: commits from all branches checked against default branch ancestry. Squash merges may undercount unmerged commits.',
     'Time-windowed collection (--since) also windows the ancestry check: commits merged into the default branch before the window may appear unmerged.',

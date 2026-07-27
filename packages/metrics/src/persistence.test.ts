@@ -121,9 +121,80 @@ describe('calculatePersistence', () => {
       }),
     ]);
     const result = calculatePersistence(stream);
-    // a.ts: 0 days, b.ts: 5 days
-    expect(result.buckets.d0_1).toBe(1);  // a.ts
-    expect(result.buckets.d2_7).toBe(1);  // b.ts
+    // b.ts: modified after 5 days → event, d2_7
+    // a.ts: never touched again → censored at stream end (2024-06-01, 152d) → d90_plus
+    expect(result.buckets.d2_7).toBe(1); // b.ts
+    expect(result.buckets.d90_plus).toBe(1); // a.ts, censored
+    expect(result.censored).toBe(1);
+    expect(result.filesConsidered).toBe(2);
+  });
+
+  it('censors files never modified again at the observation end, not zero', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        stats: {
+          totalAdditions: 5,
+          totalDeletions: 0,
+          files: [{ path: 'stable.ts', additions: 5, deletions: 0 }],
+        },
+      }),
+    ]);
+    const result = calculatePersistence(stream);
+    // stream generatedAt is 2024-06-01 → survived 152 days, the best outcome
+    expect(result.avgDays).toBe(152);
+    expect(result.censored).toBe(1);
+  });
+
+  it('ends the survival clock at the first subsequent touch, same cohort included', () => {
+    const aiTags = { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] };
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'a2',
+        authorDate: '2024-01-03T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 1, deletions: 0, status: 'modified' }] },
+      }),
+      makeCommit({
+        hash: 'a3',
+        authorDate: '2024-01-30T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 1, deletions: 0, status: 'modified' }] },
+      }),
+    ]);
+    const result = calculatePersistence(stream);
+    // survival ends at the FIRST subsequent touch (2 days), not the last (29)
+    expect(result.avgDays).toBe(2);
+  });
+
+  it('excludes migrations and generated files from persistence by default', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        stats: {
+          totalAdditions: 3,
+          totalDeletions: 0,
+          files: [
+            { path: 'db/migrations/001_init.sql', additions: 1, deletions: 0 },
+            { path: 'pnpm-lock.yaml', additions: 1, deletions: 0 },
+            { path: 'src/app.ts', additions: 1, deletions: 0 },
+          ],
+        },
+      }),
+    ]);
+    const result = calculatePersistence(stream);
+    expect(result.filesConsidered).toBe(1); // src/app.ts only
+    expect(result.filesExcluded).toBe(2);
   });
 
   it('handles deleted files by not extending persistence', () => {
@@ -150,8 +221,9 @@ describe('calculatePersistence', () => {
       }),
     ]);
     const result = calculatePersistence(stream);
-    // File was deleted, so persistence should be 0 days (only the first AI commit date)
-    expect(result.avgDays).toBe(0);
+    // Deletion is the first subsequent event: the file survived 19 days
+    expect(result.avgDays).toBe(19);
+    expect(result.censored).toBe(0);
   });
 });
 
