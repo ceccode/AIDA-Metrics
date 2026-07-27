@@ -1,5 +1,26 @@
 # @aida/core
 
+## 0.10.0
+
+### Minor Changes
+
+- 0f4fb0d: Attribution manifest support (#10)
+
+  `aida collect` now reads an optional `aida-attribution.json` at the repo root to apply retroactive, explicit attribution declarations on top of message heuristics:
+  - `ai_assisted_commits` → attribution `ai`, level `explicit`, source `manifest`
+  - `human_authored_commits` (new) → attribution `human` — the first way to build a real human baseline for the three-state model
+  - `excluded_commits` → forces attribution `unknown`, overriding heuristics (for automation such as release bots and merge commits)
+
+  Precedence: in-commit evidence beats retroactive declarations — a commit with an explicit AI signal stays `ai` even if declared human (with a warning); `excluded_commits` always wins. Invalid manifests log a warning and are ignored; they never fail `collect`. Manifest hashes that match no collected commit are reported informationally.
+
+- 690fc53: Autonomy mode collection (#25, step 1)
+
+  First step of the involvement × evidence model. Every commit now carries:
+  - **`tags.mode`**: `none` | `autocomplete` | `assisted` | `agent` | `unknown` — what level of AI participated. The durable axis in an AI-first world.
+  - **`tags.modeEvidence`**: `declared` (manifest `mode` field — top-level default or per-entry override) | `inferred` (derived from the tool named in trailers: Claude Code/Claude → agent, Copilot → autocomplete, Cursor/Windsurf/Codeium/ChatGPT/Gemini → assisted) | `none` (no signal).
+
+  Manifest-declared human commits get `mode: none, declared`. `metrics.json` reports per-mode and per-evidence counts in the attribution block; the report shows an Autonomy line under the coverage headline. Per-mode cohort metrics are step 2.
+
 ## 0.9.0
 
 ### Minor Changes
