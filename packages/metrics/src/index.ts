@@ -1,9 +1,11 @@
 import { Commit, CommitStream, formatISODate } from '@aida-dev/core';
+import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
 import { calculateBaselineMergeRatio, calculateMergeRatio } from './merge-ratio.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
 import { Attribution, Metrics } from './schema/metrics.js';
 
 export * from './schema/metrics.js';
+export * from './cohort.js';
 export * from './merge-ratio.js';
 export * from './persistence.js';
 
@@ -43,19 +45,39 @@ export function calculateMetrics(
   };
 
   // Cohort membership: unknown commits join a cohort only via the prior.
+  // Manifest-excluded commits (release bots, merges) never do — they were
+  // excluded precisely to stay out of both cohorts.
+  const isExcluded = (commit: Commit) => commit.tags.sources.includes('manifest:excluded');
   const isAI = (commit: Commit) =>
     commit.tags.attribution === 'ai' ||
-    (defaultAttribution === 'ai' && commit.tags.attribution === 'unknown');
+    (defaultAttribution === 'ai' && commit.tags.attribution === 'unknown' && !isExcluded(commit));
   const isBaseline = (commit: Commit) =>
     commit.tags.attribution === 'human' ||
-    (defaultAttribution === 'human' && commit.tags.attribution === 'unknown');
+    (defaultAttribution === 'human' &&
+      commit.tags.attribution === 'unknown' &&
+      !isExcluded(commit));
 
   const mergeRatio = calculateMergeRatio(commitStream, isAI);
   const persistence = calculatePersistence(commitStream, isAI);
 
+  // Fairness context (#29, #36): cohort age and task mix
+  const now = new Date();
+  const aiCommits = commitStream.commits.filter(isAI);
+  const baselineCommits = commitStream.commits.filter(isBaseline);
+  const cohorts = {
+    ai: {
+      age: calculateAgeStats(aiCommits, now),
+      taskMix: calculateCategoryCounts(aiCommits),
+    },
+    baseline: {
+      age: calculateAgeStats(baselineCommits, now),
+      taskMix: calculateCategoryCounts(baselineCommits),
+    },
+  };
+
   // No baseline cohort → no baseline, no delta. AIDA does not invent a
   // comparison out of unattributed commits.
-  const baselineSize = commitStream.commits.filter(isBaseline).length;
+  const baselineSize = baselineCommits.length;
   const baselineAssumed = defaultAttribution === 'human' && counts.unknown > 0;
 
   const baseline =
@@ -81,6 +103,7 @@ export function calculateMetrics(
   const caveats = [
     `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
     'Persistence is file-level, not line-level.',
+    'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',
     'Merge ratio: commits from all branches checked against default branch ancestry. Squash merges may undercount unmerged commits.',
     'Time-windowed collection (--since) also windows the ancestry check: commits merged into the default branch before the window may appear unmerged.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
@@ -107,6 +130,7 @@ export function calculateMetrics(
     attribution,
     mergeRatio,
     persistence,
+    cohorts,
     baseline,
     delta,
     caveats,

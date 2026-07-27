@@ -327,8 +327,8 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 - **Detection is voluntary** — AIDA only sees what commits admit to. Untagged AI code lands in the `unknown` bucket, and attribution coverage ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)) reports how big that bucket is instead of hiding it; the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)) lets you shrink it retroactively. But the tool still cannot see through a commit that lies.
 - **Squash merges break merge ratio** — branch commits disappear from history, inflating the ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).
 - **Persistence is file-level** — one AI-touched line marks the whole file as AI-touched; line-level tracking via `git blame` is planned ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
-- **Cohort age skews persistence** — older commits have had more time to accumulate survival; comparisons need age normalization ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
-- **Task mix skews persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. A good persistence number may reflect *what* AI was asked to do, not how well it did it. Comparisons are only meaningful when both cohorts worked on similar kinds of code ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
+- **Cohort age skews persistence** — older commits have had more time to accumulate survival. The report now shows each cohort's age so you can judge fairness; normalization is still open ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
+- **Task mix skews persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. The report now shows each cohort's file-category mix; within-category comparison is still open ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
 
 ## Output Files
 
@@ -419,7 +419,8 @@ aida_analysis:
 - **v0.7** ✅ Exclude non-AI bots (dependabot, renovate, …) from trailer matching, with configurable blocklist ([#21](https://github.com/ceccode/AIDA-Metrics/issues/21)).  
 - **v0.8** ✅ Attribution coverage as headline metric — three-state `ai`/`human`/`unknown`, `defaultAttribution` prior, nullable baseline ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)).  
 - **v0.9** ✅ Attribution manifest — retroactive `ai`/`human`/`excluded` declarations via `aida-attribution.json` ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
-- **Next** → Persistence age-normalization ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)), task-mix stratification by file category ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).  
+- **v0.10** ✅ Cohort fairness context — age stats ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29), step 1) and task mix by file category ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36), step 1) per cohort.  
+- **Next** → Autonomy levels, step 1: `mode` × `evidence` collection ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), `automated` attribution state ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39)).  
 - **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), anti-leaderboard hardening: author redaction in outputs ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
