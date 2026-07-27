@@ -32,8 +32,16 @@ export const MergeRatio = z.object({
   mergeRatio: z.number().min(0).max(1),
 });
 
+// Persistence = survival: days from first target-cohort touch of a file to
+// the first subsequent modification. Files never modified again are censored
+// at the observation end (they survived the window — the best outcome).
+// Migrations and generated files are excluded by default: their lifecycle is
+// convention-driven and carries no quality signal.
 export const Persistence = z.object({
   commitsConsidered: z.number().int().nonnegative(),
+  filesConsidered: z.number().int().nonnegative(),
+  filesExcluded: z.number().int().nonnegative(),
+  censored: z.number().int().nonnegative(), // files that survived the whole window
   avgDays: z.number().nonnegative(),
   medianDays: z.number().nonnegative(),
   buckets: z.object({

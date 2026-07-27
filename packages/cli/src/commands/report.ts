@@ -96,8 +96,9 @@ ${fairnessSection}
 - AI-tagged commits merged: ${metrics.mergeRatio.aiCommitsMerged}
 - **Merge Ratio:** ${mergeRatioPct}%
 
-## Persistence (file-level proxy)
+## Persistence (file-level survival)
 - Commits considered: ${metrics.persistence.commitsConsidered}
+- Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)
 - Average days: ${metrics.persistence.avgDays}
 - Median days: ${metrics.persistence.medianDays}
 

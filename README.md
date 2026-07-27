@@ -311,10 +311,12 @@ Percentage of AI-tagged commits that were merged into the default branch.
 
 ### Persistence (MVP)
 
-File-level proxy for how long AI-modified files survive before being changed again.
+File-level survival: days from the first target-cohort touch of a file until the **first subsequent modification** (or deletion) by any commit.
 
-- Buckets: 0-1d, 2-7d, 8-30d, 31-90d, 90d+
-- Provides average and median survival times
+- Files never modified again are **censored** at collection time — they survived the whole observation window, the best possible outcome (not zero). The report shows how many.
+- **Migrations and generated files** (lockfiles, changelogs, snapshots) are excluded by default: their lifecycle is convention-driven — append-only or churned on every release — and carries no quality signal either way. They still appear in the task-mix table.
+- Buckets: 0-1d, 2-7d, 8-30d, 31-90d, 90d+, with average and median survival times.
+- Known roughness: multi-commit sessions touching the same file produce short survivals (the clock starts at the first touch); line-level tracking ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) will refine this.
 
 ### Comparative Baseline
 
