@@ -64,7 +64,7 @@ export function createAnalyzeCommand(): Command {
 
         const a = metrics.attribution;
         logger.info(
-          `Attribution coverage: ${(a.coverage * 100).toFixed(1)}% (ai: ${a.ai}, human: ${a.human}, unknown: ${a.unknown})`
+          `Attribution coverage: ${(a.coverage * 100).toFixed(1)}% (ai: ${a.ai}, human: ${a.human}, automated: ${a.automated}, unknown: ${a.unknown})`
         );
         if (a.belowThreshold) {
           logger.warn(

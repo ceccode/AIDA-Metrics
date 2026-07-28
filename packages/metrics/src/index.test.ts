@@ -52,6 +52,30 @@ describe('calculateMetrics attribution coverage', () => {
     expect(metrics.attribution.belowThreshold).toBe(true); // default threshold 0.7
   });
 
+  it('counts automated commits toward coverage — their provenance is known', () => {
+    const automatedTags = {
+      ai: false,
+      attribution: 'automated',
+      mode: 'none',
+      modeEvidence: 'inferred',
+      level: 'none',
+      sources: ['automated:bot'],
+    } as const;
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }),
+        makeCommit({ hash: 'b1', tags: automatedTags }),
+        makeCommit({ hash: 'b2', tags: automatedTags }),
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+      ])
+    );
+
+    expect(metrics.attribution.automated).toBe(2);
+    expect(metrics.attribution.coverage).toBe(0.75); // (1 ai + 0 human + 2 automated) / 4
+    // automated joins no cohort
+    expect(metrics.mergeRatio.aiCommitsTotal).toBe(1);
+  });
+
   it('flags belowThreshold using a custom coverageThreshold', () => {
     const metrics = calculateMetrics(
       makeStream([
@@ -123,12 +147,12 @@ describe('calculateMetrics baseline cohort', () => {
     expect(metrics.caveats.some((c) => c.includes('assumed human'))).toBe(true);
   });
 
-  it('never assigns manifest-excluded commits to a cohort, even with a prior', () => {
+  it('never assigns automated commits to a cohort, even with a prior', () => {
     const excludedTags = {
       ai: false,
-      attribution: 'unknown',
-      mode: 'unknown',
-      modeEvidence: 'none',
+      attribution: 'automated',
+      mode: 'none',
+      modeEvidence: 'declared',
       level: 'none',
       sources: ['manifest:excluded'],
     } as const;

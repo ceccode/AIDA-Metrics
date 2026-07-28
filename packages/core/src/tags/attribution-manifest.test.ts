@@ -72,10 +72,12 @@ describe('applyManifest precedence', () => {
     expect(logger.warn).toHaveBeenCalledOnce();
   });
 
-  it('excluded overrides heuristics and forces unknown', () => {
+  it('excluded overrides heuristics and declares automation', () => {
     const result = applyManifest(aiTag, HASH_EXCLUDED, makeIndex());
-    expect(result.attribution).toBe('unknown');
+    expect(result.attribution).toBe('automated');
     expect(result.ai).toBe(false);
+    expect(result.mode).toBe('none');
+    expect(result.modeEvidence).toBe('declared');
     expect(result.sources).toContain('manifest:excluded');
   });
 

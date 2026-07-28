@@ -21,7 +21,7 @@ function generateMarkdownReport(metrics: Metrics): string {
     : '';
 
   const priorNote =
-    a.defaultAttribution !== 'unknown'
+    a.defaultAttribution !== 'unknown' && a.unknown > 0
       ? `\nUnattributed commits are **assumed \`${a.defaultAttribution}\`** via \`defaultAttribution\` — this is a prior, not observed data.\n`
       : '';
 
@@ -85,7 +85,7 @@ ${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${
 
 ## Attribution Coverage
 
-**${coveragePct}% of commits have known provenance** — ai: ${a.ai} · human: ${a.human} · unknown: ${a.unknown} (${unknownPct}%)
+**${coveragePct}% of commits have known provenance** — ai: ${a.ai} · human: ${a.human} · automated: ${a.automated} · unknown: ${a.unknown} (${unknownPct}%)
 
 **Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
 ${coverageWarning}${priorNote}

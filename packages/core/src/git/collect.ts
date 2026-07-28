@@ -1,6 +1,7 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Commit, CommitStream } from '../schema/commit.js';
 import { createAITagger } from '../tags/ai-tags.js';
+import { createAutomatedDetector } from '../tags/automated.js';
 import {
   applyManifest,
   indexManifest,
@@ -134,6 +135,9 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     botBlocklist: aiBotBlocklist,
   });
 
+  // Automated detection (#39): merge commits and bot authors
+  const detectAutomated = createAutomatedDetector(aiBotBlocklist);
+
   // Optional retroactive attribution manifest at the repo root (#10)
   const manifest = await loadAttributionManifest(repoPath, logger);
   const manifestIndex = manifest ? indexManifest(manifest) : null;
@@ -149,6 +153,22 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
 
     // Tag AI on the full message (body included, for trailers like Co-Authored-By)
     let aiTag = aiTagger(rawCommit.message);
+    // Automated detection only when heuristics found no AI signal:
+    // in-commit evidence wins over structural heuristics
+    if (aiTag.attribution === 'unknown') {
+      const automatedSource = detectAutomated(rawCommit);
+      if (automatedSource) {
+        aiTag = {
+          ai: false,
+          attribution: 'automated',
+          mode: 'none',
+          modeEvidence: 'inferred',
+          level: 'none',
+          sources: [...aiTag.sources, automatedSource],
+        };
+      }
+    }
+    // Manifest declarations beat structural heuristics
     if (manifestIndex) {
       aiTag = applyManifest(aiTag, rawCommit.hash, manifestIndex, logger);
     }

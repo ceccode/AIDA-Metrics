@@ -1,10 +1,12 @@
 export type AILevel = 'explicit' | 'implicit' | 'mention' | 'none';
 
-// Three-state attribution (#34). Message heuristics can only ever produce
-// 'ai' or 'unknown': the absence of an AI signal is not evidence of human
-// authorship. 'human' requires an explicit declaration (e.g. attribution
-// manifest, #10) or the defaultAttribution prior applied at analysis time.
-export type Attribution = 'ai' | 'human' | 'unknown';
+// Four-state attribution (#34, #39). Message heuristics can only ever
+// produce 'ai' or 'unknown': the absence of an AI signal is not evidence of
+// human authorship. 'human' requires an explicit declaration (manifest,
+// #10). 'automated' is provenance-known automation — merge commits, release
+// bots — detected at collect time or declared via the manifest; it counts
+// toward coverage but joins no cohort.
+export type Attribution = 'ai' | 'human' | 'automated' | 'unknown';
 
 // Autonomy axis (#25): what level of AI participated. The durable dimension
 // in an AI-first world, where "was AI involved" trends toward "yes".

@@ -6,8 +6,11 @@ export const Attribution = z.object({
   commitsTotal: z.number().int().nonnegative(),
   ai: z.number().int().nonnegative(),
   human: z.number().int().nonnegative(),
+  // Provenance-known automation (#39): merge commits, bots, manifest-excluded.
+  // Counts toward coverage, joins no cohort, untouched by priors.
+  automated: z.number().int().nonnegative(),
   unknown: z.number().int().nonnegative(),
-  coverage: z.number().min(0).max(1), // (ai + human) / total
+  coverage: z.number().min(0).max(1), // (ai + human + automated) / total
   defaultAttribution: z.enum(['ai', 'human', 'unknown']), // prior applied to unknown commits
   coverageThreshold: z.number().min(0).max(1),
   belowThreshold: z.boolean(),

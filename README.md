@@ -254,7 +254,7 @@ Heuristics only see what commit messages admit to. The manifest lets you declare
 |------|--------|
 | `ai_assisted_commits` | Attribution `ai`, level `explicit`, source `manifest` |
 | `human_authored_commits` | Attribution `human`, source `manifest` — the way to build a real human baseline |
-| `excluded_commits` | Forces attribution `unknown` (overrides heuristics) — for automation like release bots and merge commits |
+| `excluded_commits` | Declares attribution `automated` (overrides heuristics) — for automation the auto-detection misses (bots not in the blocklist, templates) |
 | `mode` (top-level or per-entry) | Declares the autonomy level of `ai_assisted_commits`: `autocomplete` \| `assisted` \| `agent` ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Per-entry beats top-level. A manifest mode is `declared` evidence; without one, AIDA infers a coarse mode from the tool named in trailers (`inferred`) |
 
 Precedence: in-commit evidence beats retroactive declarations. A commit with an explicit AI trailer stays `ai` even if the manifest declares it human (with a warning); `excluded_commits` always wins, since it exists to correct heuristic false positives. Full hashes are matched exactly (`message` is documentation only); an invalid manifest logs a warning and is ignored — it never fails `collect`.
@@ -299,9 +299,9 @@ aida analyze --default-attribution human --coverage-threshold 0.8
 
 ### Attribution Coverage
 
-The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). Every commit gets a three-state attribution: `ai` (explicit/implicit detection), `human` (explicit declaration — coming with the attribution manifest, [#10](https://github.com/ceccode/AIDA-Metrics/issues/10)), or `unknown` (no signal — the absence of an AI tag is *not* evidence of human authorship).
+The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). Every commit gets a four-state attribution: `ai` (explicit/implicit detection or manifest), `human` (explicit declaration via manifest), `automated` (provenance-known automation, [#39](https://github.com/ceccode/AIDA-Metrics/issues/39) — merge commits and known bots auto-detected at collect time, or manifest `excluded_commits`; counts toward coverage, joins no cohort), or `unknown` (no signal — the absence of an AI tag is *not* evidence of human authorship).
 
-**Coverage** = share of commits with known provenance. It is reported first in every output, because every other number is only as trustworthy as coverage says it is. Below `coverageThreshold` (default 70%), the report carries a low-confidence warning.
+**Coverage** = share of commits with known provenance (`ai` + `human` + `automated`). It is reported first in every output, because every other number is only as trustworthy as coverage says it is. Below `coverageThreshold` (default 70%), the report carries a low-confidence warning.
 
 `defaultAttribution` lets a team consciously assign unattributed commits to a cohort (`human` for traditional repos, `ai` for AI-first ones). The prior affects cohort metrics but never coverage: unknown stays unknown in the attribution block, and an assumed baseline is labeled as such.
 
@@ -426,7 +426,8 @@ aida_analysis:
 - **v0.9** ✅ Attribution manifest — retroactive `ai`/`human`/`excluded` declarations via `aida-attribution.json` ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)).  
 - **v0.10** ✅ Cohort fairness context — age stats ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29), step 1) and task mix by file category ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36), step 1) per cohort.  
 - **v0.11** ✅ Autonomy mode collection — `mode` × `evidence` per commit, manifest declarations, tool inference ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 1).  
-- **Next** → Per-mode cohort metrics ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 2), `automated` attribution state ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39)), synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
+- **v0.12** ✅ `automated` attribution state — merge commits and bots auto-detected, coverage counts known automation ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39)).  
+- **Next** → Per-mode cohort metrics ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 2), synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
 - **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), anti-leaderboard hardening: author redaction in outputs ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  

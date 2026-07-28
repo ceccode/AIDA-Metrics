@@ -100,9 +100,10 @@ export function applyManifest(
     index.matched.add(hash);
     return {
       ai: false,
-      attribution: 'unknown',
-      mode: 'unknown',
-      modeEvidence: 'none',
+      // Excluded = declared automation (#39): provenance known, no cohort
+      attribution: 'automated',
+      mode: 'none',
+      modeEvidence: 'declared',
       level: 'none',
       sources: [...heuristic.sources, 'manifest:excluded'],
     };

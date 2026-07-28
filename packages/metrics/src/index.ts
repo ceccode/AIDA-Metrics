@@ -26,7 +26,7 @@ export function calculateMetrics(
 ): Metrics {
   const { defaultAttribution = 'unknown', coverageThreshold = 0.7 } = options;
 
-  const counts = { ai: 0, human: 0, unknown: 0 };
+  const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
   const modes = { none: 0, autocomplete: 0, assisted: 0, agent: 0, unknown: 0 };
   const modeEvidence = { declared: 0, inferred: 0, none: 0 };
   for (const commit of commitStream.commits) {
@@ -35,12 +35,14 @@ export function calculateMetrics(
     modeEvidence[commit.tags.modeEvidence]++;
   }
   const total = commitStream.commits.length;
-  const coverage = total > 0 ? (counts.ai + counts.human) / total : 0;
+  // Automated commits have known provenance (#39): they count as covered
+  const coverage = total > 0 ? (counts.ai + counts.human + counts.automated) / total : 0;
 
   const attribution: Attribution = {
     commitsTotal: total,
     ai: counts.ai,
     human: counts.human,
+    automated: counts.automated,
     unknown: counts.unknown,
     coverage: round(coverage, 4),
     defaultAttribution,
@@ -51,17 +53,14 @@ export function calculateMetrics(
   };
 
   // Cohort membership: unknown commits join a cohort only via the prior.
-  // Manifest-excluded commits (release bots, merges) never do — they were
-  // excluded precisely to stay out of both cohorts.
-  const isExcluded = (commit: Commit) => commit.tags.sources.includes('manifest:excluded');
+  // 'automated' is its own state (#39): it joins no cohort and priors never
+  // touch it — automation is not authored code.
   const isAI = (commit: Commit) =>
     commit.tags.attribution === 'ai' ||
-    (defaultAttribution === 'ai' && commit.tags.attribution === 'unknown' && !isExcluded(commit));
+    (defaultAttribution === 'ai' && commit.tags.attribution === 'unknown');
   const isBaseline = (commit: Commit) =>
     commit.tags.attribution === 'human' ||
-    (defaultAttribution === 'human' &&
-      commit.tags.attribution === 'unknown' &&
-      !isExcluded(commit));
+    (defaultAttribution === 'human' && commit.tags.attribution === 'unknown');
 
   const mergeRatio = calculateMergeRatio(commitStream, isAI);
   const persistence = calculatePersistence(commitStream, isAI);

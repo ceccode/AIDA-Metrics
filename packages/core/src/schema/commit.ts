@@ -20,9 +20,10 @@ export const Commit = z.object({
   inDefaultBranchAncestry: z.boolean(), // set during collect
   tags: z.object({
     ai: z.boolean(),
-    // Three-state attribution (#34). Heuristics emit 'ai' or 'unknown';
-    // 'human' requires an explicit declaration (manifest, #10).
-    attribution: z.enum(['ai', 'human', 'unknown']),
+    // Four-state attribution (#34, #39). Heuristics emit 'ai' or 'unknown';
+    // 'human' requires an explicit declaration (manifest, #10); 'automated'
+    // is provenance-known automation (merge commits, bots, manifest-excluded).
+    attribution: z.enum(['ai', 'human', 'automated', 'unknown']),
     // Autonomy axis (#25): what level of AI participated, and how we know
     mode: z.enum(['none', 'autocomplete', 'assisted', 'agent', 'unknown']),
     modeEvidence: z.enum(['declared', 'inferred', 'none']),
