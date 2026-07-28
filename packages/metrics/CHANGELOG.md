@@ -1,5 +1,24 @@
 # @aida/metrics
 
+## 0.8.0
+
+### Minor Changes
+
+- 3d3fc0e: Per-mode cohort metrics (#25, step 2)
+
+  `metrics.json` gains a `byMode` block: merge ratio and persistence computed per autonomy level (`agent` / `assisted` / `autocomplete` / `none` / `unknown`), `null` for modes with no commits. Automated commits are excluded — automation is not authored code. The report renders a "By Autonomy Level" table.
+
+  This is the comparison that stays meaningful in an AI-first world: agent vs assisted vs autocomplete, instead of AI vs human.
+
+- fd7f8bf: Remove merge ratio (#20)
+
+  Git history structurally cannot measure "% of AI commits that land": squash merges erase branch commits (the known #20 bug), and deleted branches erase abandoned work entirely, so the ratio trends toward 100% for every repo and discriminates nothing. Patching squash handling would not fix the survivorship bias — the data source deletes the negative outcomes. Removed rather than patched.
+  - `metrics.json` no longer has `mergeRatio`; `baseline` is `{assumed, persistence}`, `delta` is persistence-only, `byMode` entries are `{commits, persistence}`.
+  - Report drops the Merge Ratio section and the merge-ratio rows/columns.
+  - `commit-stream.json` keeps `inDefaultBranchAncestry` (raw data stays available to consumers).
+
+  The honest successor is a PR acceptance rate built on forge APIs, where declined PRs are never deleted — tracked separately.
+
 ## 0.7.0
 
 ### Minor Changes
