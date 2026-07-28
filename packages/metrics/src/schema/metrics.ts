@@ -109,6 +109,24 @@ export const Delta = z.object({
   medianPersistenceDays: z.number(),
 });
 
+// Per-autonomy-level metrics (#25, step 2): the durable comparison in an
+// AI-first world is between autonomy levels, not AI vs human. Automated
+// commits are excluded — automation is not authored code. Null when the
+// mode has no commits.
+export const ModeStats = z.object({
+  commits: z.number().int().nonnegative(),
+  mergeRatio: CohortMergeRatio,
+  persistence: Persistence,
+});
+
+export const ByMode = z.object({
+  agent: ModeStats.nullable(),
+  assisted: ModeStats.nullable(),
+  autocomplete: ModeStats.nullable(),
+  none: ModeStats.nullable(),
+  unknown: ModeStats.nullable(),
+});
+
 export const Metrics = z.object({
   generatedAt: z.string().datetime(),
   window: z.object({
@@ -126,6 +144,7 @@ export const Metrics = z.object({
     ai: CohortContext,
     baseline: CohortContext,
   }),
+  byMode: ByMode,
   // Null when no commit is attributed 'human' and no defaultAttribution prior
   // assigns the unknowns: AIDA does not invent a comparison cohort.
   baseline: Baseline.nullable(),
@@ -138,6 +157,8 @@ export type AgeStats = z.infer<typeof AgeStats>;
 export type FileCategory = z.infer<typeof FileCategory>;
 export type CategoryCounts = z.infer<typeof CategoryCounts>;
 export type CohortContext = z.infer<typeof CohortContext>;
+export type ModeStats = z.infer<typeof ModeStats>;
+export type ByMode = z.infer<typeof ByMode>;
 export type MergeRatio = z.infer<typeof MergeRatio>;
 export type Persistence = z.infer<typeof Persistence>;
 export type CohortMergeRatio = z.infer<typeof CohortMergeRatio>;
