@@ -31,6 +31,10 @@ export function createCollectCommand(): Command {
     .option('--ai-trailer-domain <domain>', 'Additional Co-authored-by domain (repeatable)', collectRepeatable, [])
     .option('--ai-bot-blocklist <name>', 'Non-AI bot to exclude from trailer matching (repeatable)', collectRepeatable, [])
     .option('--default-branch <name>', 'Default branch name')
+    .option(
+      '--redact-authors',
+      'Replace author/committer identities with a per-run salted hash (recommended in CI)'
+    )
     .option('--out-dir <path>', 'Output directory', './aida-output')
     .option('--verbose', 'Verbose logging', false)
     .action(async (options) => {
@@ -80,6 +84,8 @@ export function createCollectCommand(): Command {
           aiTrailerDomains,
           aiBotBlocklist,
           defaultBranch: config.defaultBranch,
+          // CLI flag wins over .aida.json
+          redactAuthors: config.redactAuthors ?? fileConfig.redactAuthors ?? false,
           logger,
         });
 
