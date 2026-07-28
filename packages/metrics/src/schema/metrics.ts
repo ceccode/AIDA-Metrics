@@ -29,12 +29,6 @@ export const Attribution = z.object({
   }),
 });
 
-export const MergeRatio = z.object({
-  aiCommitsTotal: z.number().int().nonnegative(),
-  aiCommitsMerged: z.number().int().nonnegative(),
-  mergeRatio: z.number().min(0).max(1),
-});
-
 // Persistence = survival: days from first target-cohort touch of a file to
 // the first subsequent modification. Files never modified again are censored
 // at the observation end (they survived the window — the best outcome).
@@ -89,22 +83,14 @@ export const CohortContext = z.object({
   taskMix: CategoryCounts.nullable(),
 });
 
-export const CohortMergeRatio = z.object({
-  commitsTotal: z.number().int().nonnegative(),
-  commitsMerged: z.number().int().nonnegative(),
-  mergeRatio: z.number().min(0).max(1),
-});
-
 export const Baseline = z.object({
   // True when the cohort includes 'unknown' commits via defaultAttribution:
   // the baseline is an assumption, not observed attribution.
   assumed: z.boolean(),
-  mergeRatio: CohortMergeRatio,
   persistence: Persistence,
 });
 
 export const Delta = z.object({
-  mergeRatio: z.number(),
   avgPersistenceDays: z.number(),
   medianPersistenceDays: z.number(),
 });
@@ -115,7 +101,6 @@ export const Delta = z.object({
 // mode has no commits.
 export const ModeStats = z.object({
   commits: z.number().int().nonnegative(),
-  mergeRatio: CohortMergeRatio,
   persistence: Persistence,
 });
 
@@ -136,7 +121,6 @@ export const Metrics = z.object({
   repoPath: z.string(),
   defaultBranch: z.string(),
   attribution: Attribution,
-  mergeRatio: MergeRatio,
   persistence: Persistence,
   // Fairness context (#29, #36): age and task mix per cohort, so consumers
   // can judge whether the AI-vs-baseline comparison is apples-to-apples.
@@ -159,9 +143,7 @@ export type CategoryCounts = z.infer<typeof CategoryCounts>;
 export type CohortContext = z.infer<typeof CohortContext>;
 export type ModeStats = z.infer<typeof ModeStats>;
 export type ByMode = z.infer<typeof ByMode>;
-export type MergeRatio = z.infer<typeof MergeRatio>;
 export type Persistence = z.infer<typeof Persistence>;
-export type CohortMergeRatio = z.infer<typeof CohortMergeRatio>;
 export type Baseline = z.infer<typeof Baseline>;
 export type Delta = z.infer<typeof Delta>;
 export type Metrics = z.infer<typeof Metrics>;

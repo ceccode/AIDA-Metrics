@@ -71,7 +71,6 @@ export function createAnalyzeCommand(): Command {
             `Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%: metrics are low-confidence. Tag AI commits or set defaultAttribution.`
           );
         }
-        logger.info(`Merge ratio: ${(metrics.mergeRatio.mergeRatio * 100).toFixed(1)}%`);
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);
         if (!metrics.baseline) {
           logger.warn('No baseline cohort: no commits attributed as human (see caveats).');

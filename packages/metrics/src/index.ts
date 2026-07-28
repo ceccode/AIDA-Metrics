@@ -1,12 +1,10 @@
 import { Commit, CommitStream, formatISODate } from '@aida-dev/core';
 import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
-import { calculateBaselineMergeRatio, calculateMergeRatio } from './merge-ratio.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
 import { Attribution, ByMode, Metrics, ModeStats } from './schema/metrics.js';
 
 export * from './schema/metrics.js';
 export * from './cohort.js';
-export * from './merge-ratio.js';
 export * from './persistence.js';
 
 export interface MetricsOptions {
@@ -62,7 +60,6 @@ export function calculateMetrics(
     commit.tags.attribution === 'human' ||
     (defaultAttribution === 'human' && commit.tags.attribution === 'unknown');
 
-  const mergeRatio = calculateMergeRatio(commitStream, isAI);
   const persistence = calculatePersistence(commitStream, isAI);
 
   // Fairness context (#29, #36): cohort age and task mix
@@ -93,7 +90,6 @@ export function calculateMetrics(
       }
       const stats: ModeStats = {
         commits: modeCommits.length,
-        mergeRatio: calculateBaselineMergeRatio(commitStream, isMode),
         persistence: calculatePersistence(commitStream, isMode),
       };
       return [mode, stats];
@@ -109,14 +105,12 @@ export function calculateMetrics(
     baselineSize > 0
       ? {
           assumed: baselineAssumed,
-          mergeRatio: calculateBaselineMergeRatio(commitStream, isBaseline),
           persistence: calculateBaselinePersistence(commitStream, isBaseline),
         }
       : null;
 
   const delta = baseline
     ? {
-        mergeRatio: round(mergeRatio.mergeRatio - baseline.mergeRatio.mergeRatio, 4),
         avgPersistenceDays: round(persistence.avgDays - baseline.persistence.avgDays, 2),
         medianPersistenceDays: round(
           persistence.medianDays - baseline.persistence.medianDays,
@@ -130,8 +124,6 @@ export function calculateMetrics(
     'Persistence is file-level, not line-level.',
     'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',
     'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',
-    'Merge ratio: commits from all branches checked against default branch ancestry. Squash merges may undercount unmerged commits.',
-    'Time-windowed collection (--since) also windows the ancestry check: commits merged into the default branch before the window may appear unmerged.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
   ];
   if (baseline?.assumed) {
@@ -154,7 +146,6 @@ export function calculateMetrics(
     repoPath: commitStream.repoPath,
     defaultBranch: commitStream.defaultBranch,
     attribution,
-    mergeRatio,
     persistence,
     cohorts,
     byMode,

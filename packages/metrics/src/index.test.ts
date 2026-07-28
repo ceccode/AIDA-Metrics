@@ -73,7 +73,7 @@ describe('calculateMetrics attribution coverage', () => {
     expect(metrics.attribution.automated).toBe(2);
     expect(metrics.attribution.coverage).toBe(0.75); // (1 ai + 0 human + 2 automated) / 4
     // automated joins no cohort
-    expect(metrics.mergeRatio.aiCommitsTotal).toBe(1);
+    expect(metrics.persistence.commitsConsidered).toBe(1);
   });
 
   it('flags belowThreshold using a custom coverageThreshold', () => {
@@ -123,8 +123,7 @@ describe('calculateMetrics baseline cohort', () => {
 
     expect(metrics.baseline).not.toBeNull();
     expect(metrics.baseline!.assumed).toBe(false);
-    expect(metrics.baseline!.mergeRatio.commitsTotal).toBe(2); // unknown excluded
-    expect(metrics.baseline!.mergeRatio.mergeRatio).toBe(0.5);
+    expect(metrics.baseline!.persistence.commitsConsidered).toBe(2); // unknown excluded
     expect(metrics.delta).not.toBeNull();
   });
 
@@ -140,7 +139,7 @@ describe('calculateMetrics baseline cohort', () => {
 
     expect(metrics.baseline).not.toBeNull();
     expect(metrics.baseline!.assumed).toBe(true);
-    expect(metrics.baseline!.mergeRatio.commitsTotal).toBe(2);
+    expect(metrics.baseline!.persistence.commitsConsidered).toBe(2);
     // Coverage still reports the truth: unknown commits stay unknown
     expect(metrics.attribution.unknown).toBe(2);
     expect(metrics.attribution.coverage).toBeCloseTo(1 / 3);
@@ -166,7 +165,7 @@ describe('calculateMetrics baseline cohort', () => {
     );
 
     // prior pulls u1 into the AI cohort, but never x1
-    expect(metrics.mergeRatio.aiCommitsTotal).toBe(2);
+    expect(metrics.persistence.commitsConsidered).toBe(2);
   });
 
   it('reports cohort age and task mix per cohort, null when a cohort is empty', () => {
@@ -222,7 +221,6 @@ describe('calculateMetrics baseline cohort', () => {
     );
 
     expect(metrics.byMode.agent?.commits).toBe(2);
-    expect(metrics.byMode.agent?.mergeRatio.mergeRatio).toBe(0.5);
     expect(metrics.byMode.assisted?.commits).toBe(1);
     expect(metrics.byMode.none).toBeNull(); // the automated commit doesn't count
     expect(metrics.byMode.autocomplete).toBeNull();
@@ -238,8 +236,8 @@ describe('calculateMetrics baseline cohort', () => {
       { defaultAttribution: 'ai' }
     );
 
-    expect(metrics.mergeRatio.aiCommitsTotal).toBe(2); // ai + unknown
-    expect(metrics.baseline!.mergeRatio.commitsTotal).toBe(1); // human only
+    expect(metrics.persistence.commitsConsidered).toBe(2); // ai + unknown
+    expect(metrics.baseline!.persistence.commitsConsidered).toBe(1); // human only
     expect(metrics.baseline!.assumed).toBe(false);
   });
 });

@@ -38,7 +38,7 @@ AIDA provides **tangible, auditable metrics** to distinguish between **AI noise*
 
 - **4-Level AI Detection** — Classifies commits as explicit, implicit, mention, or none across Claude Code, Copilot, ChatGPT, Cursor, Windsurf/Devin, Gemini, Codeium
 - **Configurable Tools** — Add custom AI tools via `.aida.json` or CLI flags
-- **Merge Ratio** — Track what percentage of AI commits make it to production
+- **Attribution Coverage** — Four-state provenance (`ai`/`human`/`automated`/`unknown`) with coverage as the headline metric
 - **Persistence** — Measure how long AI-generated code survives in your codebase
 - **Comparative Baseline** — AI vs non-AI side-by-side with delta, so metrics are interpretable
 - **Fast & Deterministic** — Built for production use with stable JSON schemas
@@ -64,22 +64,21 @@ pnpm build
 
 ## Core Metrics
 
-1. **Merge Ratio**  
-   Percentage of AI-generated code that actually gets merged into the main branch.
+1. **Attribution Coverage**  
+   Share of commits with known provenance (`ai` / `human` / `automated`), reported first because every other number is only as trustworthy as this one.
 
 2. **Persistence**  
-   How long AI-generated code survives in the codebase before being rewritten or removed (file-level proxy).
+   How long AI-generated code survives in the codebase before being rewritten or removed (file-level survival with censoring).
 
 3. **Comparative Baseline**  
-   The same metrics computed for non-AI commits, with a signed delta. Turns raw numbers into interpretable signal — e.g. "AI code is rewritten 17 days sooner than human code in the same repo."
+   The same metrics computed per cohort (human baseline, autonomy levels), with a signed delta. Turns raw numbers into interpretable signal — e.g. "AI code is rewritten 17 days sooner than human code in the same repo."
 
 The report outputs a side-by-side table:
 
 ```markdown
-| Metric                  | AI commits | Non-AI baseline | Delta   |
-|-------------------------|------------|-----------------|---------|
-| Merge ratio             | 73.2%      | 81.4%           | −8.2 pp |
-| Avg persistence (days)  | 45.3       | 62.1            | −16.8   |
+| Metric                  | AI commits | Human baseline | Delta   |
+|-------------------------|------------|----------------|---------|
+| Avg persistence (days)  | 45.3       | 62.1           | −16.8   |
 ```
 
 > ⚠️ Metrics are **evolving**. The goal is not perfect precision, but providing **a baseline for discussion and analysis**.
@@ -129,7 +128,7 @@ node packages/cli/dist/index.js report
 This is a TypeScript monorepo with three main packages:
 
 - **`@aida-dev/core`** - Git collection, AI tagging, and data schemas
-- **`@aida-dev/metrics`** - Merge ratio and persistence calculations  
+- **`@aida-dev/metrics`** - Attribution coverage and persistence calculations  
 - **`@aida-dev/cli`** - Command-line interface for end users
 
 ## CLI Usage
@@ -146,7 +145,7 @@ aida collect --since 90d --out-dir ./aida-output
 
 #### `aida analyze`
 
-Calculate merge ratio and persistence metrics:
+Calculate attribution coverage and persistence metrics:
 
 ```bash
 aida analyze --out-dir ./aida-output
@@ -309,9 +308,14 @@ The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). 
 
 Merge ratio and persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) — the comparison that stays meaningful when everything is AI-assisted ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`.
 
-### Merge Ratio
+### Why there is no Merge Ratio
 
-Percentage of AI-tagged commits that were merged into the default branch.
+Early versions shipped a merge ratio ("% of AI commits that land on the default branch"). We removed it ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)) because git history structurally cannot answer that question honestly:
+
+- **Squash merges destroy the numerator's evidence** — branch commits vanish from history, so unmerged work disappears.
+- **Survivorship bias destroys the denominator** — abandoned branches get deleted, so discarded work leaves `git log --all` entirely. The ratio trends toward 100% for everyone and discriminates nothing.
+
+A rough metric with visible error bars is worth shipping; a metric whose data source systematically deletes the negative outcomes is not. The honest successor is a **PR acceptance rate** built on forge APIs (GitHub/GitLab), where declined PRs are never deleted — planned as a separate metric.
 
 ### Persistence (MVP)
 
@@ -334,7 +338,7 @@ If no commits are attributed `human` and no `defaultAttribution` prior assigns t
 These metrics are honest approximations, not ground truth. Read the numbers with these caveats in mind:
 
 - **Detection is voluntary** — AIDA only sees what commits admit to. Untagged AI code lands in the `unknown` bucket, and attribution coverage ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)) reports how big that bucket is instead of hiding it; the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)) lets you shrink it retroactively. But the tool still cannot see through a commit that lies.
-- **Squash merges break merge ratio** — branch commits disappear from history, inflating the ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).
+- **Git can't see discarded work** — squash merges and deleted branches erase unmerged commits, which is why the merge ratio was removed entirely rather than patched ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).
 - **Persistence is file-level** — one AI-touched line marks the whole file as AI-touched; line-level tracking via `git blame` is planned ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
 - **Cohort age skews persistence** — older commits have had more time to accumulate survival. The report now shows each cohort's age so you can judge fairness; normalization is still open ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
 - **Task mix skews persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. The report now shows each cohort's file-category mix; within-category comparison is still open ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
@@ -432,7 +436,8 @@ aida_analysis:
 - **v0.11** ✅ Autonomy mode collection — `mode` × `evidence` per commit, manifest declarations, tool inference ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 1).  
 - **v0.12** ✅ `automated` attribution state — merge commits and bots auto-detected, coverage counts known automation ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39)).  
 - **v0.13** ✅ Per-mode cohort metrics — merge ratio and persistence per autonomy level ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 2).  
-- **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
+- **v0.14** ✅ Merge ratio removed — git cannot measure it honestly; PR acceptance rate via forge APIs is the successor ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).  
+- **Next** → Synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)), anti-leaderboard hardening ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).  
 - **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), anti-leaderboard hardening: author redaction in outputs ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
