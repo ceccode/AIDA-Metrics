@@ -2,7 +2,7 @@ import { Commit, CommitStream, formatISODate } from '@aida-dev/core';
 import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
 import { calculateBaselineMergeRatio, calculateMergeRatio } from './merge-ratio.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
-import { Attribution, Metrics } from './schema/metrics.js';
+import { Attribution, ByMode, Metrics, ModeStats } from './schema/metrics.js';
 
 export * from './schema/metrics.js';
 export * from './cohort.js';
@@ -80,6 +80,26 @@ export function calculateMetrics(
     },
   };
 
+  // Per-autonomy-level metrics (#25, step 2). Automated commits are
+  // excluded: automation is not authored code, whatever its mode field says.
+  const MODES = ['agent', 'assisted', 'autocomplete', 'none', 'unknown'] as const;
+  const byMode = Object.fromEntries(
+    MODES.map((mode) => {
+      const isMode = (commit: Commit) =>
+        commit.tags.mode === mode && commit.tags.attribution !== 'automated';
+      const modeCommits = commitStream.commits.filter(isMode);
+      if (modeCommits.length === 0) {
+        return [mode, null];
+      }
+      const stats: ModeStats = {
+        commits: modeCommits.length,
+        mergeRatio: calculateBaselineMergeRatio(commitStream, isMode),
+        persistence: calculatePersistence(commitStream, isMode),
+      };
+      return [mode, stats];
+    })
+  ) as ByMode;
+
   // No baseline cohort → no baseline, no delta. AIDA does not invent a
   // comparison out of unattributed commits.
   const baselineSize = baselineCommits.length;
@@ -137,6 +157,7 @@ export function calculateMetrics(
     mergeRatio,
     persistence,
     cohorts,
+    byMode,
     baseline,
     delta,
     caveats,
