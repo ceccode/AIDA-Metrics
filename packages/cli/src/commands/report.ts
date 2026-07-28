@@ -11,7 +11,6 @@ function formatDelta(value: number, suffix: string): string {
 }
 
 function generateMarkdownReport(metrics: Metrics): string {
-  const mergeRatioPct = (metrics.mergeRatio.mergeRatio * 100).toFixed(1);
   const a = metrics.attribution;
   const coveragePct = (a.coverage * 100).toFixed(1);
   const unknownPct = a.commitsTotal > 0 ? ((a.unknown / a.commitsTotal) * 100).toFixed(1) : '0.0';
@@ -34,8 +33,7 @@ function generateMarkdownReport(metrics: Metrics): string {
 
 | Metric | AI commits | ${baselineLabel} | Delta |
 |---|---:|---:|---:|
-| Commits | ${metrics.mergeRatio.aiCommitsTotal} | ${metrics.baseline.mergeRatio.commitsTotal} | — |
-| Merge ratio | ${mergeRatioPct}% | ${(metrics.baseline.mergeRatio.mergeRatio * 100).toFixed(1)}% | ${formatDelta(Math.round(metrics.delta.mergeRatio * 1000) / 10, ' pp')} |
+| Commits | ${metrics.persistence.commitsConsidered} | ${metrics.baseline.persistence.commitsConsidered} | — |
 | Avg persistence (days) | ${metrics.persistence.avgDays} | ${metrics.baseline.persistence.avgDays} | ${formatDelta(metrics.delta.avgPersistenceDays, '')} |
 | Median persistence (days) | ${metrics.persistence.medianDays} | ${metrics.baseline.persistence.medianDays} | ${formatDelta(metrics.delta.medianPersistenceDays, '')} |
 `
@@ -72,7 +70,7 @@ ${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${
     .filter((row) => row.stats !== null)
     .map(
       ({ mode, stats }) =>
-        `| ${mode} | ${stats!.commits} | ${(stats!.mergeRatio.mergeRatio * 100).toFixed(1)}% | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} |`
+        `| ${mode} | ${stats!.commits} | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} | ${stats!.persistence.censored} |`
     );
   const byModeSection =
     modeRows.length > 0
@@ -80,7 +78,7 @@ ${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${
 
 The comparison that stays meaningful when everything is AI-assisted: how code holds up per autonomy level (automated commits excluded).
 
-| Mode | Commits | Merge ratio | Avg persistence (d) | Median (d) |
+| Mode | Commits | Avg persistence (d) | Median (d) | Surviving |
 |---|---:|---:|---:|---:|
 ${modeRows.join('\n')}
 
@@ -89,9 +87,6 @@ ${modeRows.join('\n')}
 
   const baselineDetail = metrics.baseline
     ? `## ${baselineLabel}
-- Commits (total): ${metrics.baseline.mergeRatio.commitsTotal}
-- Commits merged: ${metrics.baseline.mergeRatio.commitsMerged}
-- **Merge Ratio:** ${(metrics.baseline.mergeRatio.mergeRatio * 100).toFixed(1)}%
 - Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
 
 `
@@ -112,11 +107,6 @@ ${modeRows.join('\n')}
 ${coverageWarning}${priorNote}
 ${comparisonSection}
 ${byModeSection}${fairnessSection}
-## Merge Ratio
-- AI-tagged commits (total): ${metrics.mergeRatio.aiCommitsTotal}
-- AI-tagged commits merged: ${metrics.mergeRatio.aiCommitsMerged}
-- **Merge Ratio:** ${mergeRatioPct}%
-
 ## Persistence (file-level survival)
 - Commits considered: ${metrics.persistence.commitsConsidered}
 - Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)
