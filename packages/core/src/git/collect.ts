@@ -8,6 +8,7 @@ import {
   loadAttributionManifest,
   unmatchedManifestHashes,
 } from '../tags/attribution-manifest.js';
+import { createRedactor } from '../tags/redact.js';
 import { logWithStats } from './log.js';
 import { parseRelativeDate, formatISODate } from '../utils/dates.js';
 import { Logger } from '../utils/log.js';
@@ -22,7 +23,17 @@ export interface CollectOptions {
   aiTrailerDomains?: string[];
   aiBotBlocklist?: string[];
   defaultBranch?: string;
+  redactAuthors?: boolean;
   logger?: Logger;
+}
+
+// The synthetic merge commit `actions/checkout` creates for `pull_request`
+// events (refs/pull/N/merge): it exists only in the CI checkout, is authored
+// by nobody, and would otherwise inflate every PR-scoped report (#40).
+const SYNTHETIC_MERGE_SUBJECT = /^Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}$/;
+
+function isSyntheticPRMerge(commit: { parents: string[]; message: string }): boolean {
+  return commit.parents.length > 1 && SYNTHETIC_MERGE_SUBJECT.test(commit.message.split('\n')[0].trim());
 }
 
 export async function detectDefaultBranch(git: SimpleGit): Promise<string> {
@@ -62,6 +73,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     aiTrailerDomains = [],
     aiBotBlocklist = [],
     defaultBranch: providedDefaultBranch,
+    redactAuthors = false,
     logger,
   } = options;
 
@@ -142,12 +154,27 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const manifest = await loadAttributionManifest(repoPath, logger);
   const manifestIndex = manifest ? indexManifest(manifest) : null;
 
+  // Author redaction (#35). Applied last: identity-based detection above
+  // must see the real values.
+  const redactor = redactAuthors ? createRedactor() : null;
+  if (redactor) {
+    logger?.info('Author identities redacted with a per-run salted hash');
+  }
+
   // Deduplicate commits (same hash can appear from multiple branches)
   const seen = new Set<string>();
   const commits: Commit[] = [];
+  let syntheticMergesDropped = 0;
   for (const rawCommit of rawCommits) {
     if (seen.has(rawCommit.hash)) continue;
     seen.add(rawCommit.hash);
+
+    // Drop the CI-generated PR merge head (#40): PR-scoped mode only, where
+    // `diffBase..HEAD` would otherwise include a commit authored by nobody.
+    if (diffBase && isSyntheticPRMerge(rawCommit)) {
+      syntheticMergesDropped++;
+      continue;
+    }
 
     logger?.debug(`Processing commit ${rawCommit.hash}`);
 
@@ -175,11 +202,11 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
 
     const commit: Commit = {
       hash: rawCommit.hash,
-      authorName: rawCommit.authorName,
-      authorEmail: rawCommit.authorEmail,
+      authorName: redactor ? redactor.name(rawCommit.authorName) : rawCommit.authorName,
+      authorEmail: redactor ? redactor.email(rawCommit.authorEmail) : rawCommit.authorEmail,
       authorDate: new Date(rawCommit.authorDate).toISOString(),
-      committerName: rawCommit.committerName,
-      committerEmail: rawCommit.committerEmail,
+      committerName: redactor ? redactor.name(rawCommit.committerName) : rawCommit.committerName,
+      committerEmail: redactor ? redactor.email(rawCommit.committerEmail) : rawCommit.committerEmail,
       committerDate: new Date(rawCommit.committerDate).toISOString(),
       message: rawCommit.message.split('\n')[0],
       parents: rawCommit.parents,
@@ -189,6 +216,12 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     };
 
     commits.push(commit);
+  }
+
+  if (syntheticMergesDropped > 0) {
+    logger?.info(
+      `Skipped ${syntheticMergesDropped} CI-generated PR merge commit(s) (refs/pull/N/merge)`
+    );
   }
 
   if (manifestIndex) {

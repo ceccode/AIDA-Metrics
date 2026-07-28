@@ -206,3 +206,77 @@ describe('collectCommits with attribution manifest', () => {
     expect(stream.commits.every((c) => !c.tags.sources.includes('manifest'))).toBe(true);
   });
 });
+
+describe('collectCommits author redaction (#35)', () => {
+  it('redacts identities while keeping identity-based detection working', async () => {
+    const stream = await collectCommits({ repoPath, redactAuthors: true });
+
+    for (const commit of stream.commits) {
+      expect(commit.authorName).toMatch(/^redacted-[0-9a-f]{12}$/);
+      expect(commit.authorEmail).toMatch(/@redacted\.invalid$/);
+      expect(commit.committerName).toMatch(/^redacted-[0-9a-f]{12}$/);
+      expect(commit.authorName).not.toContain('Alice');
+      expect(commit.authorEmail).not.toContain('alice');
+    }
+
+    // The same identity hashes consistently within a run
+    const names = new Set(stream.commits.map((c) => c.authorName));
+    expect(names.size).toBe(1);
+
+    // Detection still worked: it runs before redaction
+    expect(stream.commits[0].tags.attribution).toBe('ai');
+  });
+
+  it('leaves identities untouched by default', async () => {
+    const stream = await collectCommits({ repoPath });
+    expect(stream.commits[0].authorName).toBe(AUTHOR.name);
+    expect(stream.commits[0].authorEmail).toBe(AUTHOR.email);
+  });
+});
+
+describe('collectCommits synthetic PR merge (#40)', () => {
+  let prRepoPath: string;
+  let realCommit: string;
+
+  beforeAll(() => {
+    prRepoPath = mkdtempSync(join(tmpdir(), 'aida-pr-merge-'));
+    const runHere = (cmd: string) => execSync(cmd, { cwd: prRepoPath });
+    runHere('git init -q -b main');
+    runHere('git config user.name test && git config user.email test@example.com');
+    runHere('git commit -q --allow-empty -m "chore: base"');
+
+    // PR branch with one real commit
+    runHere('git checkout -q -b feature');
+    runHere('git commit -q --allow-empty -m "feat: real work"');
+    realCommit = execSync('git rev-parse HEAD', { cwd: prRepoPath }).toString().trim();
+
+    // main moves on, so the branches actually diverge
+    runHere('git checkout -q main');
+    runHere('git commit -q --allow-empty -m "chore: main moves on"');
+    const mainTip = execSync('git rev-parse HEAD', { cwd: prRepoPath }).toString().trim();
+
+    // Emulate actions/checkout: a merge commit whose subject is the
+    // synthetic "Merge <sha> into <sha>" form
+    runHere('git checkout -q feature');
+    runHere(`git merge -q --no-ff main -m "Merge ${realCommit} into ${mainTip}"`);
+  });
+
+  afterAll(() => {
+    rmSync(prRepoPath, { recursive: true, force: true });
+  });
+
+  it('drops the synthetic merge head in PR-scoped mode', async () => {
+    const stream = await collectCommits({ repoPath: prRepoPath, diffBase: 'main' });
+    const subjects = stream.commits.map((c) => c.message);
+
+    expect(subjects).toContain('feat: real work');
+    expect(subjects.some((s) => /^Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}$/.test(s))).toBe(false);
+  });
+
+  it('keeps merge commits in standard (non-PR) mode', async () => {
+    const stream = await collectCommits({ repoPath: prRepoPath });
+    expect(
+      stream.commits.some((c) => /^Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}$/.test(c.message))
+    ).toBe(true);
+  });
+});
