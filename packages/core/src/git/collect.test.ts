@@ -146,13 +146,57 @@ describe('collectCommits with attribution manifest', () => {
     expect(byHash[humanCommit].attribution).toBe('human');
     expect(byHash[humanCommit].sources).toContain('manifest');
 
-    // The bot trailer would tag this explicit ai; excluded forces unknown
-    expect(byHash[releaseCommit].attribution).toBe('unknown');
+    // The bot trailer would tag this explicit ai; excluded declares automation
+    expect(byHash[releaseCommit].attribution).toBe('automated');
     expect(byHash[releaseCommit].ai).toBe(false);
     expect(byHash[releaseCommit].sources).toContain('manifest:excluded');
 
     expect(byHash[plainCommit].attribution).toBe('unknown');
     expect(byHash[plainCommit].sources).not.toContain('manifest');
+  });
+
+  it('auto-detects bot-authored commits as automated, but AI trailers win', async () => {
+    const botHash = (() => {
+      execSync(
+        'git commit -q --allow-empty -m "chore: release packages"',
+        {
+          cwd: manifestRepoPath,
+          env: {
+            ...process.env,
+            GIT_AUTHOR_NAME: 'github-actions[bot]',
+            GIT_AUTHOR_EMAIL: 'github-actions[bot]@users.noreply.github.com',
+            GIT_COMMITTER_NAME: 'github-actions[bot]',
+            GIT_COMMITTER_EMAIL: 'github-actions[bot]@users.noreply.github.com',
+          },
+        }
+      );
+      return execSync('git rev-parse HEAD', { cwd: manifestRepoPath }).toString().trim();
+    })();
+    const aiByBotHash = (() => {
+      execSync(
+        'git commit -q --allow-empty -m "feat: agent PR\n\nCo-Authored-By: Claude <noreply@anthropic.com>"',
+        {
+          cwd: manifestRepoPath,
+          env: {
+            ...process.env,
+            GIT_AUTHOR_NAME: 'github-actions[bot]',
+            GIT_AUTHOR_EMAIL: 'github-actions[bot]@users.noreply.github.com',
+            GIT_COMMITTER_NAME: 'github-actions[bot]',
+            GIT_COMMITTER_EMAIL: 'github-actions[bot]@users.noreply.github.com',
+          },
+        }
+      );
+      return execSync('git rev-parse HEAD', { cwd: manifestRepoPath }).toString().trim();
+    })();
+
+    rmSync(join(manifestRepoPath, 'aida-attribution.json'), { force: true });
+    const stream = await collectCommits({ repoPath: manifestRepoPath });
+    const byHash = Object.fromEntries(stream.commits.map((c) => [c.hash, c.tags]));
+
+    expect(byHash[botHash].attribution).toBe('automated');
+    expect(byHash[botHash].sources).toContain('automated:bot');
+    // In-commit AI evidence beats the bot-identity heuristic
+    expect(byHash[aiByBotHash].attribution).toBe('ai');
   });
 
   it('does not fail collect when the manifest is invalid', async () => {

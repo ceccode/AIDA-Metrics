@@ -87,10 +87,10 @@ export function createCollectCommand(): Command {
         await writeJSON(outputPath, commitStream);
 
         logger.info(`Collected ${commitStream.commits.length} commits`);
-        const counts = { ai: 0, human: 0, unknown: 0 };
+        const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
         for (const c of commitStream.commits) counts[c.tags.attribution]++;
         logger.info(
-          `Attribution: ai ${counts.ai} · human ${counts.human} · unknown ${counts.unknown}`
+          `Attribution: ai ${counts.ai} · human ${counts.human} · automated ${counts.automated} · unknown ${counts.unknown}`
         );
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {
