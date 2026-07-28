@@ -66,6 +66,27 @@ Persistence comparisons are only meaningful between cohorts of similar **age** a
 ${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${mixCell(baseCtx.taskMix, cat)} |`).join('\n')}
 `;
 
+  const modeOrder = ['agent', 'assisted', 'autocomplete', 'none', 'unknown'] as const;
+  const modeRows = modeOrder
+    .map((mode) => ({ mode, stats: metrics.byMode[mode] }))
+    .filter((row) => row.stats !== null)
+    .map(
+      ({ mode, stats }) =>
+        `| ${mode} | ${stats!.commits} | ${(stats!.mergeRatio.mergeRatio * 100).toFixed(1)}% | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} |`
+    );
+  const byModeSection =
+    modeRows.length > 0
+      ? `## By Autonomy Level
+
+The comparison that stays meaningful when everything is AI-assisted: how code holds up per autonomy level (automated commits excluded).
+
+| Mode | Commits | Merge ratio | Avg persistence (d) | Median (d) |
+|---|---:|---:|---:|---:|
+${modeRows.join('\n')}
+
+`
+      : '';
+
   const baselineDetail = metrics.baseline
     ? `## ${baselineLabel}
 - Commits (total): ${metrics.baseline.mergeRatio.commitsTotal}
@@ -90,7 +111,7 @@ ${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${
 **Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
 ${coverageWarning}${priorNote}
 ${comparisonSection}
-${fairnessSection}
+${byModeSection}${fairnessSection}
 ## Merge Ratio
 - AI-tagged commits (total): ${metrics.mergeRatio.aiCommitsTotal}
 - AI-tagged commits merged: ${metrics.mergeRatio.aiCommitsMerged}

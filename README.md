@@ -305,6 +305,10 @@ The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). 
 
 `defaultAttribution` lets a team consciously assign unattributed commits to a cohort (`human` for traditional repos, `ai` for AI-first ones). The prior affects cohort metrics but never coverage: unknown stays unknown in the attribution block, and an assumed baseline is labeled as such.
 
+### By Autonomy Level
+
+Merge ratio and persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) — the comparison that stays meaningful when everything is AI-assisted ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`.
+
 ### Merge Ratio
 
 Percentage of AI-tagged commits that were merged into the default branch.
@@ -427,7 +431,8 @@ aida_analysis:
 - **v0.10** ✅ Cohort fairness context — age stats ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29), step 1) and task mix by file category ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36), step 1) per cohort.  
 - **v0.11** ✅ Autonomy mode collection — `mode` × `evidence` per commit, manifest declarations, tool inference ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 1).  
 - **v0.12** ✅ `automated` attribution state — merge commits and bots auto-detected, coverage counts known automation ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39)).  
-- **Next** → Per-mode cohort metrics ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 2), synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
+- **v0.13** ✅ Per-mode cohort metrics — merge ratio and persistence per autonomy level ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 2).  
+- **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
 - **Next** → Fix squash-merge merge ratio ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)), anti-leaderboard hardening: author redaction in outputs ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Autonomy levels — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  

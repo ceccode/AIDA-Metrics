@@ -195,6 +195,39 @@ describe('calculateMetrics baseline cohort', () => {
     expect(metrics.cohorts.baseline.taskMix).toBeNull();
   });
 
+  it('computes per-mode stats, excluding automated commits, null for empty modes', () => {
+    const assistedTags = {
+      ai: true,
+      attribution: 'ai',
+      mode: 'assisted',
+      modeEvidence: 'inferred',
+      level: 'implicit',
+      sources: ['implicit:x'],
+    } as const;
+    const automatedTags = {
+      ai: false,
+      attribution: 'automated',
+      mode: 'none',
+      modeEvidence: 'inferred',
+      level: 'none',
+      sources: ['automated:bot'],
+    } as const;
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }), // agent
+        makeCommit({ hash: 'a2', tags: aiTags, inDefaultBranchAncestry: false }), // agent, unmerged
+        makeCommit({ hash: 's1', tags: assistedTags }),
+        makeCommit({ hash: 'b1', tags: automatedTags }), // mode none, but automated → excluded
+      ])
+    );
+
+    expect(metrics.byMode.agent?.commits).toBe(2);
+    expect(metrics.byMode.agent?.mergeRatio.mergeRatio).toBe(0.5);
+    expect(metrics.byMode.assisted?.commits).toBe(1);
+    expect(metrics.byMode.none).toBeNull(); // the automated commit doesn't count
+    expect(metrics.byMode.autocomplete).toBeNull();
+  });
+
   it('assigns unknown commits to the AI cohort with defaultAttribution: ai', () => {
     const metrics = calculateMetrics(
       makeStream([
