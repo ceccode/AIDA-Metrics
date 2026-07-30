@@ -113,6 +113,8 @@ export const ByMode = z.object({
 });
 
 export const Metrics = z.object({
+  // Bumped when a field is removed or changes meaning (#53)
+  schemaVersion: z.number().int().positive(),
   generatedAt: z.string().datetime(),
   window: z.object({
     since: z.string().optional(),

@@ -1,0 +1,158 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { execSync } from 'child_process';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import type { Command } from 'commander';
+import { createCollectCommand } from './collect.js';
+import { createAnalyzeCommand } from './analyze.js';
+import { createReportCommand } from './report.js';
+import { createCommentCommand } from './comment.js';
+
+// End-to-end coverage for the collect → analyze → report pipeline (#53).
+// Every schema change so far passed CI while this wiring was untested; the
+// mismatches were caught by hand-dogfooding instead.
+
+let repoPath: string;
+let outDir: string;
+
+function git(cmd: string) {
+  execSync(cmd, { cwd: repoPath });
+}
+
+function run(command: Command, args: string[]): Promise<Command> {
+  return command.parseAsync(args, { from: 'user' });
+}
+
+beforeAll(() => {
+  repoPath = mkdtempSync(join(tmpdir(), 'aida-e2e-repo-'));
+  outDir = mkdtempSync(join(tmpdir(), 'aida-e2e-out-'));
+
+  git('git init -q -b main');
+  git('git config user.name test && git config user.email test@example.com');
+
+  writeFileSync(join(repoPath, 'app.ts'), 'export const a = 1;\n');
+  git('git add -A');
+  git('git commit -q -m "feat: human work"');
+
+  writeFileSync(join(repoPath, 'app.ts'), 'export const a = 2;\n');
+  writeFileSync(join(repoPath, 'app.test.ts'), 'test("a", () => {});\n');
+  git('git add -A');
+  git(
+    'git commit -q -m "feat: agent work" -m "Co-Authored-By: Claude <noreply@anthropic.com>"'
+  );
+
+  // Silence CLI logging so test output stays readable
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterAll(() => {
+  vi.restoreAllMocks();
+  rmSync(repoPath, { recursive: true, force: true });
+  rmSync(outDir, { recursive: true, force: true });
+});
+
+describe('collect → analyze → report end to end', () => {
+  it('collects a versioned commit stream', async () => {
+    await run(createCollectCommand(), ['--repo', repoPath, '--out-dir', outDir]);
+
+    const stream = JSON.parse(readFileSync(join(outDir, 'commit-stream.json'), 'utf-8'));
+    expect(stream.schemaVersion).toBe(1);
+    expect(stream.commits).toHaveLength(2);
+    // The trailer commit is detected as AI, the other stays unknown
+    const attributions = stream.commits.map((c: { tags: { attribution: string } }) => c.tags.attribution).sort();
+    expect(attributions).toEqual(['ai', 'unknown']);
+  });
+
+  it('analyzes into versioned metrics with every block populated', async () => {
+    await run(createAnalyzeCommand(), ['--out-dir', outDir]);
+
+    const metrics = JSON.parse(readFileSync(join(outDir, 'metrics.json'), 'utf-8'));
+    expect(metrics.schemaVersion).toBe(1);
+    expect(metrics.attribution.coverage).toBeCloseTo(0.5);
+    expect(metrics.attribution.modes.agent).toBe(1);
+    expect(metrics.persistence).toHaveProperty('censored');
+    expect(metrics.cohorts.ai.taskMix).not.toBeNull();
+    expect(metrics.byMode.agent).not.toBeNull();
+    // No human-attributed commits → no invented comparison
+    expect(metrics.baseline).toBeNull();
+    expect(metrics.delta).toBeNull();
+    expect(metrics).not.toHaveProperty('mergeRatio');
+  });
+
+  it('renders a report containing every section the metrics support', async () => {
+    await run(createReportCommand(), ['--out-dir', outDir]);
+
+    const report = readFileSync(join(outDir, 'report.md'), 'utf-8');
+    expect(report).toContain('# AIDA Report');
+    expect(report).toContain('## Attribution Coverage');
+    expect(report).toContain('**Autonomy:**');
+    expect(report).toContain('## By Autonomy Level');
+    expect(report).toContain('## Cohort Fairness');
+    expect(report).toContain('## Persistence (file-level survival)');
+    expect(report).toContain('### Caveats');
+    // Removed metric must not resurface anywhere
+    expect(report.toLowerCase()).not.toContain('merge ratio');
+    // No unresolved template placeholders
+    expect(report).not.toContain('undefined');
+    expect(report).not.toContain('NaN');
+  });
+
+  it('prints the report on comment --dry-run without needing a CI provider', async () => {
+    const printed: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((msg?: unknown) => {
+      printed.push(String(msg));
+    });
+    await run(createCommentCommand(), ['--out-dir', outDir, '--dry-run']);
+    logSpy.mockRestore();
+    expect(printed.join('\n')).toContain('## Attribution Coverage');
+  });
+
+  it('applies --redact-authors through the CLI', async () => {
+    const redactedDir = mkdtempSync(join(tmpdir(), 'aida-e2e-redacted-'));
+    try {
+      await run(createCollectCommand(), [
+        '--repo',
+        repoPath,
+        '--out-dir',
+        redactedDir,
+        '--redact-authors',
+      ]);
+      const stream = JSON.parse(readFileSync(join(redactedDir, 'commit-stream.json'), 'utf-8'));
+      for (const commit of stream.commits) {
+        expect(commit.authorName).toMatch(/^redacted-[0-9a-f]{12}$/);
+      }
+    } finally {
+      rmSync(redactedDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('schema version gate', () => {
+  it('refuses an incompatible commit-stream instead of parsing it half-way', async () => {
+    const staleDir = mkdtempSync(join(tmpdir(), 'aida-e2e-stale-'));
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      // A pre-versioning stream: valid JSON, no schemaVersion
+      writeFileSync(
+        join(staleDir, 'commit-stream.json'),
+        JSON.stringify({ repoPath, defaultBranch: 'main', commits: [] })
+      );
+
+      await expect(run(createAnalyzeCommand(), ['--out-dir', staleDir])).rejects.toThrow(
+        'process.exit'
+      );
+      expect(errorSpy.mock.calls.flat().join(' ')).toMatch(
+        /no schemaVersion field.*Rerun 'aida collect'/
+      );
+    } finally {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
+      rmSync(staleDir, { recursive: true, force: true });
+    }
+  });
+});

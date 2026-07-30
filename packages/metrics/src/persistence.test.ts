@@ -22,6 +22,7 @@ function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStrea
 
 function makeStream(commits: CommitStream['commits']): CommitStream {
   return {
+    schemaVersion: 1,
     repoPath: '/test',
     defaultBranch: 'main',
     generatedAt: '2024-06-01T00:00:00.000Z',
@@ -149,7 +150,7 @@ describe('calculatePersistence', () => {
   });
 
   it('ends the survival clock at the first subsequent touch, same cohort included', () => {
-    const aiTags = { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] };
+    const aiTags: CommitStream['commits'][0]['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] };
     const stream = makeStream([
       makeCommit({
         hash: 'a1',

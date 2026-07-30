@@ -1,5 +1,13 @@
 import { Command } from 'commander';
-import { readJSON, writeJSON, createLogger, CommitStream, AidaConfig } from '@aida-dev/core';
+import {
+  readJSON,
+  writeJSON,
+  createLogger,
+  CommitStream,
+  AidaConfig,
+  COMMIT_STREAM_SCHEMA_VERSION,
+  assertSchemaVersion,
+} from '@aida-dev/core';
 import { calculateMetrics } from '@aida-dev/metrics';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
@@ -35,7 +43,16 @@ export function createAnalyzeCommand(): Command {
         logger.info('Starting metrics analysis...');
 
         const inputPath = join(config.outDir, 'commit-stream.json');
-        const commitStream = await readJSON(inputPath, CommitStream);
+        // Version gate before schema parsing, so an incompatible file gives an
+        // actionable message instead of a zod dump (#53)
+        const raw = await readJSON<unknown>(inputPath);
+        assertSchemaVersion(
+          raw,
+          COMMIT_STREAM_SCHEMA_VERSION,
+          'commit-stream.json',
+          "Rerun 'aida collect' with this version of AIDA."
+        );
+        const commitStream = CommitStream.parse(raw);
 
         logger.info(`Analyzing ${commitStream.commits.length} commits`);
 

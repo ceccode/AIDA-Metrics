@@ -21,6 +21,7 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
 
 function makeStream(commits: Commit[]): CommitStream {
   return {
+    schemaVersion: 1,
     repoPath: '/test/repo',
     defaultBranch: 'main',
     generatedAt: '2025-01-01T00:00:00.000Z',
@@ -29,9 +30,9 @@ function makeStream(commits: Commit[]): CommitStream {
   };
 }
 
-const aiTags = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] } as const;
-const humanTags = { ai: false, attribution: 'human', mode: 'none', modeEvidence: 'declared', level: 'none', sources: [] } as const;
-const unknownTags = { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] } as const;
+const aiTags: Commit['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] };
+const humanTags: Commit['tags'] = { ai: false, attribution: 'human', mode: 'none', modeEvidence: 'declared', level: 'none', sources: [] };
+const unknownTags: Commit['tags'] = { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] };
 
 describe('calculateMetrics attribution coverage', () => {
   it('reports coverage as (ai + human) / total', () => {
@@ -53,14 +54,14 @@ describe('calculateMetrics attribution coverage', () => {
   });
 
   it('counts automated commits toward coverage — their provenance is known', () => {
-    const automatedTags = {
+    const automatedTags: Commit['tags'] = {
       ai: false,
       attribution: 'automated',
       mode: 'none',
       modeEvidence: 'inferred',
       level: 'none',
       sources: ['automated:bot'],
-    } as const;
+    };
     const metrics = calculateMetrics(
       makeStream([
         makeCommit({ hash: 'a1', tags: aiTags }),
@@ -147,14 +148,14 @@ describe('calculateMetrics baseline cohort', () => {
   });
 
   it('never assigns automated commits to a cohort, even with a prior', () => {
-    const excludedTags = {
+    const excludedTags: Commit['tags'] = {
       ai: false,
       attribution: 'automated',
       mode: 'none',
       modeEvidence: 'declared',
       level: 'none',
       sources: ['manifest:excluded'],
-    } as const;
+    };
     const metrics = calculateMetrics(
       makeStream([
         makeCommit({ hash: 'a1', tags: aiTags }),
@@ -195,22 +196,22 @@ describe('calculateMetrics baseline cohort', () => {
   });
 
   it('computes per-mode stats, excluding automated commits, null for empty modes', () => {
-    const assistedTags = {
+    const assistedTags: Commit['tags'] = {
       ai: true,
       attribution: 'ai',
       mode: 'assisted',
       modeEvidence: 'inferred',
       level: 'implicit',
       sources: ['implicit:x'],
-    } as const;
-    const automatedTags = {
+    };
+    const automatedTags: Commit['tags'] = {
       ai: false,
       attribution: 'automated',
       mode: 'none',
       modeEvidence: 'inferred',
       level: 'none',
       sources: ['automated:bot'],
-    } as const;
+    };
     const metrics = calculateMetrics(
       makeStream([
         makeCommit({ hash: 'a1', tags: aiTags }), // agent

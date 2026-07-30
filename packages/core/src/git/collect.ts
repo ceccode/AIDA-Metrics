@@ -1,5 +1,6 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Commit, CommitStream } from '../schema/commit.js';
+import { COMMIT_STREAM_SCHEMA_VERSION } from '../schema/version.js';
 import { createAITagger } from '../tags/ai-tags.js';
 import { createAutomatedDetector } from '../tags/automated.js';
 import {
@@ -234,6 +235,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   }
 
   return {
+    schemaVersion: COMMIT_STREAM_SCHEMA_VERSION,
     repoPath,
     defaultBranch,
     generatedAt: formatISODate(new Date()),

@@ -41,7 +41,7 @@ AIDA provides **tangible, auditable metrics** to distinguish between **AI noise*
 - **Attribution Coverage** — Four-state provenance (`ai`/`human`/`automated`/`unknown`) with coverage as the headline metric
 - **Persistence** — Measure how long AI-generated code survives in your codebase
 - **Comparative Baseline** — AI vs non-AI side-by-side with delta, so metrics are interpretable
-- **Fast & Deterministic** — Built for production use with stable JSON schemas
+- **Fast & Deterministic** — Versioned JSON output schemas, so consumers detect breaking changes instead of reading silent `undefined`s
 - **CLI-First** — Simple commands for collection, analysis, and reporting
 - **CI/CD Ready** — GitHub Actions integration out of the box
 
@@ -357,9 +357,19 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 
 ## Output Files
 
-- `commit-stream.json` - Normalized commit data with AI tagging
-- `metrics.json` - Calculated metrics with merge ratio, persistence, baseline (non-AI), and delta
-- `report.md` - Human-readable Markdown report with AI vs non-AI comparison table
+- `commit-stream.json` - Normalized commit data with four-state attribution and autonomy mode
+- `metrics.json` - Attribution coverage, persistence, per-cohort and per-autonomy-level metrics
+- `report.md` - Human-readable Markdown report
+
+### Schema versioning
+
+Both JSON files carry a `schemaVersion` ([#53](https://github.com/ceccode/AIDA-Metrics/issues/53)). The contract:
+
+- **Additive changes** (a new field) do **not** bump the version — consumers keep working.
+- **Removing a field, renaming it, or changing its meaning** bumps `schemaVersion`.
+- Readers **refuse** a version they don't understand rather than parsing it half-way: `aida analyze` on a stale `commit-stream.json` fails with `Rerun 'aida collect'`, not a silent wrong result.
+
+Current: `commit-stream.json` v1, `metrics.json` v1.
 
 ## CI/CD Integration
 
@@ -450,7 +460,8 @@ aida_analysis:
 - **v0.13** ✅ Per-mode cohort metrics — persistence per autonomy level ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25), step 2).  
 - **v0.14** ✅ Merge ratio removed — git cannot measure it honestly; PR acceptance rate via forge APIs is the successor ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).  
 - **v0.15** ✅ Author redaction ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)) and synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
-- **Next** → PR acceptance rate via forge APIs ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)), autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)), schema versioning ([#53](https://github.com/ceccode/AIDA-Metrics/issues/53)).  
+- **v0.16** ✅ Versioned output schemas with reader-side version gate, plus end-to-end CLI tests and `pnpm typecheck` in CI ([#53](https://github.com/ceccode/AIDA-Metrics/issues/53)).  
+- **Next** → PR acceptance rate via forge APIs ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)), autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
