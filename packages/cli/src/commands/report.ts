@@ -1,5 +1,10 @@
 import { Command } from 'commander';
-import { readJSON, createLogger } from '@aida-dev/core';
+import {
+  readJSON,
+  createLogger,
+  METRICS_SCHEMA_VERSION,
+  assertSchemaVersion,
+} from '@aida-dev/core';
 import { Metrics } from '@aida-dev/metrics';
 import { join } from 'path';
 import { promises as fs } from 'fs';
@@ -135,7 +140,14 @@ export function createReportCommand(): Command {
         logger.info('Generating report...');
 
         const inputPath = join(config.outDir, 'metrics.json');
-        const metrics = await readJSON(inputPath, Metrics);
+        const raw = await readJSON<unknown>(inputPath);
+        assertSchemaVersion(
+          raw,
+          METRICS_SCHEMA_VERSION,
+          'metrics.json',
+          "Rerun 'aida analyze' with this version of AIDA."
+        );
+        const metrics = Metrics.parse(raw);
 
         const markdown = generateMarkdownReport(metrics);
         const mdPath = join(config.outDir, 'report.md');

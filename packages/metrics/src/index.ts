@@ -1,4 +1,4 @@
-import { Commit, CommitStream, formatISODate } from '@aida-dev/core';
+import { Commit, CommitStream, METRICS_SCHEMA_VERSION, formatISODate } from '@aida-dev/core';
 import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
 import { Attribution, ByMode, Metrics, ModeStats } from './schema/metrics.js';
@@ -138,6 +138,7 @@ export function calculateMetrics(
   }
 
   return {
+    schemaVersion: METRICS_SCHEMA_VERSION,
     generatedAt: formatISODate(new Date()),
     window: {
       since: commitStream.since,

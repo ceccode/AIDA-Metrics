@@ -40,6 +40,8 @@ export const Commit = z.object({
 export type Commit = z.infer<typeof Commit>;
 
 export const CommitStream = z.object({
+  // Bumped when a field is removed or changes meaning (#53)
+  schemaVersion: z.number().int().positive(),
   repoPath: z.string(),
   defaultBranch: z.string(),
   generatedAt: z.string().datetime(),

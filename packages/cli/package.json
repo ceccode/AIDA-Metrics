@@ -43,6 +43,7 @@
     "build": "tsup src/index.ts --dts",
     "dev": "tsup src/index.ts --dts --watch",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier -w ."
   },
