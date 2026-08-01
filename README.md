@@ -151,6 +151,14 @@ Install the commit-time mode stamping hook:
 aida install-hooks
 ```
 
+#### `aida blame`
+
+Compute line-level attribution (slow, opt-in):
+
+```bash
+aida blame --max-files 500
+```
+
 #### `aida fetch-prs`
 
 Fetch pull request outcomes from the forge API (**opt-in, the only command that uses the network**):
@@ -211,6 +219,14 @@ aida report --out-dir ./aida-output
 - `--repo <path>` - Repository path (default: current directory)
 - `--force` - Overwrite an existing unrelated hook
 - `--uninstall` - Remove the AIDA hook block
+- `--verbose` - Verbose logging
+
+#### `aida blame`
+
+- `--repo <path>` - Repository path (default: current directory)
+- `--max-files <n>` - Stop after this many files (bounds runtime, flags the result as a sample)
+- `--include-generated` - Also blame lockfiles and generated output
+- `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
 
 #### `aida fetch-prs`
@@ -424,6 +440,19 @@ Share of AI-touched files modified again within a short window (default 7 days, 
 
 **Honest limit**: it is file-level, so consecutive commits from a single working session touching the same file count as rework. For iterative workflows this inflates the number substantially — on this repo it reads 55%, most of which is within-session iteration rather than code that had to be redone. Line-level tracking ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) is what turns this into a quality signal.
 
+### Line Survival (`aida blame`)
+
+Exact per-line attribution from `git blame` ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) — of the lines alive in the tree right now, which commit last wrote each one, and at what autonomy level. This is the direct answer that file-level persistence could only approximate: one AI line in a thousand no longer marks a whole file.
+
+```bash
+aida blame          # writes blame-stream.json
+aida analyze        # picks it up automatically when present
+```
+
+Kept in its own opt-in command because it runs one git process per file — the most expensive thing AIDA does. `--max-files` bounds the walk (and flags the result as a sample); binary files are detected and excluded, since `git blame` reports a whole blob as a single line rather than failing.
+
+**What it measures exactly**: the living codebase — those share figures are precise. **What it cannot measure**: deleted lines, because blame only sees what survived. The derived "approximate survival of AI-introduced lines" is therefore labelled as approximate: its denominator counts every AI addition, and a line rewritten twice was added twice.
+
 ### Persistence (MVP)
 
 File-level survival: days from the first target-cohort touch of a file until the **first subsequent modification** (or deletion) by any commit.
@@ -447,7 +476,7 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 - **Detection is voluntary** — AIDA only sees what commits admit to. Untagged AI code lands in the `unknown` bucket, and attribution coverage ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)) reports how big that bucket is instead of hiding it; the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)) lets you shrink it retroactively. But the tool still cannot see through a commit that lies.
 - **Git can't see discarded work** — squash merges and deleted branches erase unmerged commits, which is why the merge ratio was removed entirely rather than patched ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)). PR acceptance ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)) answers the question from the forge API instead.
 - **The attribution manifest does not apply to PR commits** — manifest entries are keyed by hash, and a squash-merged PR's original commits have different hashes from what landed on the default branch. PR-level attribution therefore relies on trailers alone, so a repo that adopted trailers late will see more `unknown` PRs than `unknown` commits.
-- **Persistence is file-level** — one AI-touched line marks the whole file as AI-touched; line-level tracking via `git blame` is planned ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
+- **Persistence and rework are file-level** — one AI-touched line marks the whole file. `aida blame` ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) gives exact per-line attribution for the living codebase; the file-level figures remain as the fast path.
 - **Cohort age skews persistence** — older commits have had more time to accumulate survival. The report now shows each cohort's age so you can judge fairness; normalization is still open ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
 - **Task mix skews persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. The report now shows each cohort's file-category mix; within-category comparison is still open ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
 
@@ -455,6 +484,7 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 
 - `commit-stream.json` - Normalized commit data with four-state attribution and autonomy mode
 - `metrics.json` - Attribution coverage, persistence, per-cohort and per-autonomy-level metrics
+- `blame-stream.json` - Per-commit surviving line counts (only when `aida blame` ran)
 - `pr-stream.json` - PR outcomes and per-PR attribution (only when `aida fetch-prs` ran)
 - `report.md` - Human-readable Markdown report
 
@@ -466,7 +496,7 @@ Both JSON files carry a `schemaVersion` ([#53](https://github.com/ceccode/AIDA-M
 - **Removing a field, renaming it, or changing its meaning** bumps `schemaVersion`.
 - Readers **refuse** a version they don't understand rather than parsing it half-way: `aida analyze` on a stale `commit-stream.json` fails with `Rerun 'aida collect'`, not a silent wrong result.
 
-Current: `commit-stream.json` v1, `metrics.json` v1, `pr-stream.json` v1.
+Current: `commit-stream.json` v1, `metrics.json` v1, `pr-stream.json` v1, `blame-stream.json` v1.
 
 ## CI/CD Integration
 
@@ -573,7 +603,8 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.18** ✅ Commit-time mode stamping via git hook — `AI-Mode` trailer, `declared` evidence at the source ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)).  
 - **v0.19** ✅ Windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)) and rework rate with censoring ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)).  
 - **v0.20** ✅ GitLab CI provider — MR comments with note reuse ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)).  
-- **Next** → Line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
+- **v0.21** ✅ Line-level survival via `aida blame` — exact per-line attribution, binaries excluded ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
+- **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), outcome correlation restricted to git-detectable reverts and hotfixes ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  

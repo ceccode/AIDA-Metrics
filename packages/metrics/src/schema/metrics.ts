@@ -172,6 +172,36 @@ export const PRAcceptance = z.object({
   }),
 });
 
+// Line-level survival (#23): the direct answer file-level persistence could
+// only approximate. Share figures are exact for the living codebase; the
+// survival rate is an approximation (blame cannot see deleted lines).
+export const LineSurvival = z.object({
+  filesBlamed: z.number().int().nonnegative(),
+  filesSkipped: z.number().int().nonnegative(),
+  filesExcluded: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+  totalLines: z.number().int().nonnegative(),
+  // Lines written by commits outside the collected window: unattributable,
+  // reported rather than folded into 'unknown'
+  linesOutsideWindow: z.number().int().nonnegative(),
+  byAttribution: z.object({
+    ai: z.number().int().nonnegative(),
+    human: z.number().int().nonnegative(),
+    automated: z.number().int().nonnegative(),
+    unknown: z.number().int().nonnegative(),
+  }),
+  byMode: z.object({
+    none: z.number().int().nonnegative(),
+    autocomplete: z.number().int().nonnegative(),
+    assisted: z.number().int().nonnegative(),
+    agent: z.number().int().nonnegative(),
+    unknown: z.number().int().nonnegative(),
+  }),
+  aiShare: z.number().min(0).max(1),
+  introducedByAI: z.number().int().nonnegative(),
+  approxSurvivalRate: z.number().min(0).max(1),
+});
+
 export const Metrics = z.object({
   // Bumped when a field is removed or changes meaning (#53)
   schemaVersion: z.number().int().positive(),
@@ -193,6 +223,8 @@ export const Metrics = z.object({
   byMode: ByMode,
   // Null unless `aida fetch-prs` produced a pr-stream.json (#51)
   prAcceptance: PRAcceptance.nullable(),
+  // Null unless `aida blame` produced a blame-stream.json (#23)
+  lineSurvival: LineSurvival.nullable(),
   // Null when no commit is attributed 'human' and no defaultAttribution prior
   // assigns the unknowns: AIDA does not invent a comparison cohort.
   baseline: Baseline.nullable(),
@@ -211,6 +243,7 @@ export type ModeStats = z.infer<typeof ModeStats>;
 export type ByMode = z.infer<typeof ByMode>;
 export type AcceptanceStats = z.infer<typeof AcceptanceStats>;
 export type PRAcceptance = z.infer<typeof PRAcceptance>;
+export type LineSurvival = z.infer<typeof LineSurvival>;
 export type Persistence = z.infer<typeof Persistence>;
 export type Baseline = z.infer<typeof Baseline>;
 export type Delta = z.infer<typeof Delta>;
