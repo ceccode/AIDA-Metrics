@@ -1,4 +1,5 @@
 import {
+  BlameStream,
   Commit,
   CommitStream,
   METRICS_SCHEMA_VERSION,
@@ -7,6 +8,7 @@ import {
 } from '@aida-dev/core';
 import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
+import { calculateLineSurvival } from './line-survival.js';
 import { calculatePRAcceptance } from './pr-acceptance.js';
 import { Attribution, ByMode, Metrics, ModeStats } from './schema/metrics.js';
 
@@ -14,6 +16,7 @@ export * from './schema/metrics.js';
 export * from './cohort.js';
 export * from './persistence.js';
 export * from './pr-acceptance.js';
+export * from './line-survival.js';
 
 export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
 
@@ -25,6 +28,8 @@ export interface MetricsOptions {
   coverageWindowDays?: number;
   // Optional PR outcomes from `aida fetch-prs` (#51)
   prStream?: PRStream | null;
+  // Optional line-level blame data from `aida blame` (#23)
+  blameStream?: BlameStream | null;
 }
 
 function round(value: number, decimals: number): number {
@@ -41,6 +46,7 @@ export function calculateMetrics(
     coverageThreshold = 0.7,
     coverageWindowDays = DEFAULT_COVERAGE_WINDOW_DAYS,
     prStream = null,
+    blameStream = null,
   } = options;
 
   const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
@@ -166,6 +172,8 @@ export function calculateMetrics(
 
   // PR acceptance (#51): present only when fetch-prs ran
   const prAcceptance = prStream ? calculatePRAcceptance(prStream) : null;
+  // Line-level survival (#23): present only when blame ran
+  const lineSurvival = blameStream ? calculateLineSurvival(blameStream, commitStream) : null;
 
   const caveats = [
     `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
@@ -178,6 +186,16 @@ export function calculateMetrics(
   if (prAcceptance?.truncated) {
     caveats.push(
       'PR acceptance covers a capped sample of pull requests (--max-prs), not the full history.'
+    );
+  }
+  if (lineSurvival?.truncated) {
+    caveats.push(
+      'Line survival covers a capped sample of files (--max-files), not the whole tree.'
+    );
+  }
+  if (!lineSurvival) {
+    caveats.push(
+      "Line-level survival is unavailable: run 'aida blame' for exact per-line attribution instead of the file-level proxy."
     );
   }
   if (!prAcceptance) {
@@ -210,6 +228,7 @@ export function calculateMetrics(
     cohorts,
     byMode,
     prAcceptance,
+    lineSurvival,
     baseline,
     delta,
     caveats,

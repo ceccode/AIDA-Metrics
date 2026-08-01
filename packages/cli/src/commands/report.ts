@@ -97,6 +97,28 @@ ${modeRows.join('\n')}
 `
       : '';
 
+  const ls = metrics.lineSurvival;
+  const lineSection = ls
+    ? `## Line Survival
+
+Exact per-line attribution from \`git blame\` — of the code alive in the tree right now, who last wrote it. Unlike file-level persistence, one AI line no longer marks a whole file.${ls.truncated ? '\n\n> ⚠️ Capped sample (`--max-files`): not the whole tree.' : ''}
+
+| Cohort | Lines alive | Share |
+|---|---:|---:|
+| ai | ${ls.byAttribution.ai} | ${(ls.aiShare * 100).toFixed(1)}% |
+| human | ${ls.byAttribution.human} | ${ls.totalLines > 0 ? ((ls.byAttribution.human / ls.totalLines) * 100).toFixed(1) : '0.0'}% |
+| automated | ${ls.byAttribution.automated} | ${ls.totalLines > 0 ? ((ls.byAttribution.automated / ls.totalLines) * 100).toFixed(1) : '0.0'}% |
+| unknown | ${ls.byAttribution.unknown} | ${ls.totalLines > 0 ? ((ls.byAttribution.unknown / ls.totalLines) * 100).toFixed(1) : '0.0'}% |
+
+By autonomy level: agent ${ls.byMode.agent} · assisted ${ls.byMode.assisted} · autocomplete ${ls.byMode.autocomplete} · none ${ls.byMode.none} · unknown ${ls.byMode.unknown}
+
+${ls.filesBlamed} files blamed, ${ls.totalLines} lines${ls.filesSkipped > 0 ? `, ${ls.filesSkipped} skipped (binary/empty)` : ''}${ls.filesExcluded > 0 ? `, ${ls.filesExcluded} excluded (generated)` : ''}${ls.linesOutsideWindow > 0 ? `, ${ls.linesOutsideWindow} lines from commits outside the collected window` : ''}.
+
+Approximate survival of AI-introduced lines: **${(ls.approxSurvivalRate * 100).toFixed(1)}%** (${ls.byAttribution.ai} alive of ${ls.introducedByAI} added). Approximate because blame cannot see deleted lines, and a line rewritten twice was added twice.
+
+`
+    : '';
+
   const acc = metrics.prAcceptance;
   function accRow(label: string, stats: { total: number; merged: number; closed: number; acceptanceRate: number } | null) {
     if (!stats) return null;
@@ -146,7 +168,7 @@ ${recentLine}
 **Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
 ${coverageWarning}${priorNote}
 ${comparisonSection}
-${byModeSection}${prSection}${fairnessSection}
+${byModeSection}${lineSection}${prSection}${fairnessSection}
 ## Persistence (file-level survival)
 - Commits considered: ${metrics.persistence.commitsConsidered}
 - Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)
