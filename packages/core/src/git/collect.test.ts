@@ -280,3 +280,32 @@ describe('collectCommits synthetic PR merge (#40)', () => {
     ).toBe(true);
   });
 });
+
+describe('collectCommits revert detection (#26)', () => {
+  it('parses the target sha from a real git revert commit', async () => {
+    const repoPath = mkdtempSync(join(tmpdir(), 'aida-revert-'));
+    try {
+      execSync('git init -q -b main', { cwd: repoPath });
+      execSync('git config user.name test && git config user.email test@example.com', { cwd: repoPath });
+      writeFileSync(join(repoPath, 'app.ts'), 'v1\n');
+      execSync('git add -A && git commit -q -m "feat: introduce bug"', { cwd: repoPath });
+      const targetSha = execSync('git rev-parse HEAD', { cwd: repoPath }).toString().trim();
+
+      execSync(`git revert --no-edit ${targetSha}`, { cwd: repoPath, stdio: 'ignore' });
+
+      const stream = await collectCommits({ repoPath });
+      const revertCommit = stream.commits[0];
+
+      expect(revertCommit.message).toMatch(/^Revert /);
+      expect(revertCommit.revertsCommit).toBe(targetSha);
+      expect(stream.commits[1].revertsCommit).toBeNull();
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves revertsCommit null for ordinary commits', async () => {
+    const stream = await collectCommits({ repoPath });
+    expect(stream.commits.every((c) => c.revertsCommit === null)).toBe(true);
+  });
+});

@@ -14,6 +14,7 @@ function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStrea
     message: 'test commit',
     parents: [],
     inDefaultBranchAncestry: true,
+    revertsCommit: null,
     tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
     stats: { totalAdditions: 10, totalDeletions: 0, files: [] },
     ...overrides,
@@ -346,5 +347,123 @@ describe('calculateBaselinePersistence', () => {
     const result = calculateBaselinePersistence(stream);
     expect(result.commitsConsidered).toBe(0);
     expect(result.avgDays).toBe(0);
+  });
+});
+
+describe('maxObservationDays (#29 age-normalization)', () => {
+  const aiTags = { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
+
+  it('caps survival for a file reworked after the cap, treating it as censored at the cap', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
+      }),
+      // Real rework happens 30 days later — outside a 10-day cap
+      makeCommit({
+        hash: 'a2',
+        authorDate: '2024-01-31T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 1, deletions: 0, status: 'modified' }] },
+      }),
+    ]);
+    const uncapped = calculatePersistence(stream);
+    expect(uncapped.avgDays).toBe(30); // sees the real rework
+
+    const capped = calculatePersistence(stream, undefined, { maxObservationDays: 10 });
+    expect(capped.avgDays).toBe(10); // cap cuts observation off before the event
+    expect(capped.censored).toBe(1); // treated as "no event observed", not as the real rework
+  });
+
+  it('does not cap survival for an event that happens within the cap', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'a2',
+        authorDate: '2024-01-03T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 1, deletions: 0, status: 'modified' }] },
+      }),
+    ]);
+    const result = calculatePersistence(stream, undefined, { maxObservationDays: 10 });
+    expect(result.avgDays).toBe(2); // real event, well inside the cap
+    expect(result.censored).toBe(0);
+  });
+
+  it('caps a censored (never-touched-again) file at the cap instead of the full window', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z', // stream ends 2024-06-01: 152 days uncapped
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'stable.ts', additions: 5, deletions: 0 }] },
+      }),
+    ]);
+    const result = calculatePersistence(stream, undefined, { maxObservationDays: 20 });
+    expect(result.avgDays).toBe(20);
+    expect(result.censored).toBe(1);
+  });
+
+  it('leaves uncapped behaviour untouched when maxObservationDays is not set', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'stable.ts', additions: 5, deletions: 0 }] },
+      }),
+    ]);
+    expect(calculatePersistence(stream).avgDays).toBe(152);
+  });
+});
+
+describe('onlyCategory (#36 within-category comparison)', () => {
+  const aiTags = { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
+
+  it('restricts consideration to a single category, bypassing the default exclusions', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: {
+          totalAdditions: 3,
+          totalDeletions: 0,
+          files: [
+            { path: 'src/app.ts', additions: 1, deletions: 0 },
+            { path: 'src/app.test.ts', additions: 1, deletions: 0 },
+            { path: 'db/migrations/001.sql', additions: 1, deletions: 0 },
+          ],
+        },
+      }),
+    ]);
+
+    const sourceOnly = calculatePersistence(stream, undefined, {
+      onlyCategory: 'source',
+      excludeCategories: [],
+    });
+    expect(sourceOnly.filesConsidered).toBe(1);
+    expect(sourceOnly.filesExcluded).toBe(2);
+
+    const testsOnly = calculatePersistence(stream, undefined, {
+      onlyCategory: 'tests',
+      excludeCategories: [],
+    });
+    expect(testsOnly.filesConsidered).toBe(1);
+
+    // Migrations are excluded by default everywhere else, but onlyCategory
+    // explicitly asks for them — the caller gets real data, not zero.
+    const migrationsOnly = calculatePersistence(stream, undefined, {
+      onlyCategory: 'migrations',
+      excludeCategories: [],
+    });
+    expect(migrationsOnly.filesConsidered).toBe(1);
   });
 });

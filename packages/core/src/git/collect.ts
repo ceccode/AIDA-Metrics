@@ -37,6 +37,10 @@ function isSyntheticPRMerge(commit: { parents: string[]; message: string }): boo
   return commit.parents.length > 1 && SYNTHETIC_MERGE_SUBJECT.test(commit.message.split('\n')[0].trim());
 }
 
+// The line `git revert` writes into the body of the revert commit it
+// generates: the only reliable link back to what was reverted (#26).
+const REVERT_TARGET = /This reverts commit ([0-9a-f]{7,40})/i;
+
 export async function detectDefaultBranch(git: SimpleGit): Promise<string> {
   try {
     // Try to get the default branch from origin/HEAD
@@ -201,6 +205,11 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       aiTag = applyManifest(aiTag, rawCommit.hash, manifestIndex, logger);
     }
 
+    // Revert target (#26): only the standard git-generated body line links
+    // a revert back to what it reverted; parsed from the full message,
+    // since the stored `message` field below is subject-only.
+    const revertMatch = rawCommit.message.match(REVERT_TARGET);
+
     const commit: Commit = {
       hash: rawCommit.hash,
       authorName: redactor ? redactor.name(rawCommit.authorName) : rawCommit.authorName,
@@ -212,6 +221,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       message: rawCommit.message.split('\n')[0],
       parents: rawCommit.parents,
       inDefaultBranchAncestry: defaultBranchHashes.has(rawCommit.hash),
+      revertsCommit: revertMatch ? revertMatch[1] : null,
       tags: aiTag,
       stats: rawCommit.stats,
     };

@@ -66,6 +66,13 @@ describe('collect → analyze → report end to end', () => {
     expect(attributions).toEqual(['ai', 'unknown']);
   });
 
+  it('always includes outcomeCorrelation, even with no reverts or hotfixes', async () => {
+    await run(createAnalyzeCommand(), ['--out-dir', outDir]);
+    const metrics = JSON.parse(readFileSync(join(outDir, 'metrics.json'), 'utf-8'));
+    expect(metrics.outcomeCorrelation.reverts.total).toBe(0);
+    expect(metrics.outcomeCorrelation.hotfixes.total).toBe(0);
+  });
+
   it('analyzes into versioned metrics with every block populated', async () => {
     await run(createAnalyzeCommand(), ['--out-dir', outDir]);
 

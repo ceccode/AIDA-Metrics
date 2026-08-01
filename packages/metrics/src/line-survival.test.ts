@@ -14,6 +14,7 @@ function makeCommit(hash: string, tags: Partial<Commit['tags']>, additions = 0):
     message: 'commit',
     parents: [],
     inDefaultBranchAncestry: true,
+    revertsCommit: null,
     tags: {
       ai: false,
       attribution: 'unknown',
