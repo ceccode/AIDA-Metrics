@@ -243,6 +243,40 @@ Co-authored-by: Claude <noreply@anthropic.com>`
     });
   });
 
+  describe('declared mode trailer (#61)', () => {
+    it('reads AI-Mode as a declaration, beating tool inference', () => {
+      const result = tagger(
+        'feat: x\n\nCo-Authored-By: Copilot <noreply@github.com>\nAI-Mode: agent'
+      );
+      // The Copilot trailer would infer autocomplete; the declaration wins
+      expect(result.mode).toBe('agent');
+      expect(result.modeEvidence).toBe('declared');
+      expect(result.attribution).toBe('ai');
+      expect(result.sources).toContain('trailer:AI-Mode');
+    });
+
+    it('treats AI-Mode: none as a declaration of human authorship', () => {
+      const result = tagger('fix: hand written\n\nAI-Mode: none');
+      expect(result.attribution).toBe('human');
+      expect(result.ai).toBe(false);
+      expect(result.mode).toBe('none');
+      expect(result.modeEvidence).toBe('declared');
+    });
+
+    it('accepts every documented mode, case-insensitively', () => {
+      for (const mode of ['autocomplete', 'assisted', 'agent'] as const) {
+        expect(tagger(`feat: x\n\nAI-Mode: ${mode}`).mode).toBe(mode);
+      }
+      expect(tagger('feat: x\n\nai-mode: AGENT').mode).toBe('agent');
+    });
+
+    it('ignores an unrecognized mode value rather than trusting it', () => {
+      const result = tagger('feat: x\n\nAI-Mode: wizard');
+      expect(result.mode).toBe('unknown');
+      expect(result.modeEvidence).toBe('none');
+    });
+  });
+
   describe('three-state attribution', () => {
     it('maps explicit and implicit levels to attribution: ai', () => {
       expect(tagger('[AI] automated change').attribution).toBe('ai');

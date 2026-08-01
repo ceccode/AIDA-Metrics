@@ -29,6 +29,16 @@ export const MODE_BY_TOOL: Array<[pattern: RegExp, mode: AIMode]> = [
   [/\b(cursor|windsurf|codeium|chatgpt|gemini)\b/i, 'assisted'],
 ];
 
+// Commit-time declared mode (#61): `AI-Mode: agent` written by the
+// prepare-commit-msg hook. A declaration beats inference — this is the
+// mechanism that turns `declared` from exception into norm.
+const DECLARED_MODE_TRAILER = /^AI-Mode:\s*(none|autocomplete|assisted|agent)\s*$/im;
+
+export function declaredMode(message: string): AIMode | null {
+  const match = message.match(DECLARED_MODE_TRAILER);
+  return match ? (match[1].toLowerCase() as AIMode) : null;
+}
+
 export function inferMode(message: string): AIMode {
   for (const [pattern, mode] of MODE_BY_TOOL) {
     if (pattern.test(message)) {
@@ -200,6 +210,22 @@ export function createAITagger(
         level = 'mention';
         sources.push('tool_name_only');
       }
+    }
+
+    // A declared mode is itself an AI signal: `AI-Mode: agent` states that an
+    // agent wrote this, and `AI-Mode: none` states a human did (#61).
+    const declared = declaredMode(message);
+    if (declared) {
+      sources.push('trailer:AI-Mode');
+      const declaredAI = declared !== 'none';
+      return {
+        ai: declaredAI,
+        attribution: declaredAI ? 'ai' : 'human',
+        mode: declared,
+        modeEvidence: 'declared',
+        level: declaredAI ? 'explicit' : level,
+        sources,
+      };
     }
 
     // ai: true only for explicit and implicit
