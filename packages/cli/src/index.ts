@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { createRequire } from 'module';
 import { createCollectCommand } from './commands/collect.js';
+import { createBlameCommand } from './commands/blame.js';
 import { createInstallHooksCommand } from './commands/install-hooks.js';
 import { createFetchPRsCommand } from './commands/fetch-prs.js';
 import { createAnalyzeCommand } from './commands/analyze.js';
@@ -22,6 +23,7 @@ program
 
 // Add commands
 program.addCommand(createCollectCommand());
+program.addCommand(createBlameCommand());
 program.addCommand(createInstallHooksCommand());
 program.addCommand(createFetchPRsCommand());
 program.addCommand(createAnalyzeCommand());
