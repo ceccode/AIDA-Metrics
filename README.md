@@ -143,6 +143,14 @@ Collect commits and generate normalized commit stream:
 aida collect --since 90d --out-dir ./aida-output
 ```
 
+#### `aida fetch-prs`
+
+Fetch pull request outcomes from the forge API (**opt-in, the only command that uses the network**):
+
+```bash
+GITHUB_TOKEN=... aida fetch-prs --github-repo owner/name --since 90d
+```
+
 #### `aida analyze`
 
 Calculate attribution coverage and persistence metrics:
@@ -186,6 +194,17 @@ aida report --out-dir ./aida-output
 
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
+
+#### `aida fetch-prs`
+
+- `--github-repo <owner/name>` - GitHub repository (default: `$GITHUB_REPOSITORY`)
+- `--since <date>` - Only PRs closed after this date (ISO or relative like 90d)
+- `--max-prs <n>` - Stop after this many PRs (bounds API usage)
+- `--repo <path>` - Repository path, for reading `.aida.json`
+- `--out-dir <path>` - Output directory (default: ./aida-output)
+- `--verbose` - Verbose logging
+
+Requires `GITHUB_TOKEN`. Without it the command refuses to run and PR acceptance stays **absent** from the report — never a silent 0%.
 
 #### `aida comment`
 
@@ -320,6 +339,19 @@ The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). 
 
 Merge ratio and persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) — the comparison that stays meaningful when everything is AI-assisted ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`.
 
+### PR Acceptance
+
+Whether AI-written work is **accepted**, measured from the forge API ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)): merged vs closed-unmerged pull requests, broken down by attribution and autonomy level.
+
+This is the successor to the removed merge ratio. The difference is the data source: a forge never deletes a closed PR, so the negative outcome is observable — while git history erases it.
+
+Two deliberate properties:
+
+- **Opt-in and additive.** `aida fetch-prs` is the only command that touches the network; everything else stays git-only and offline. Without a token the metric is absent, with a caveat saying so.
+- **No author identity is ever fetched or stored.** `pr-stream.json` holds PR numbers, outcomes, dates, and the attribution of the PR's own commits — nothing that names anyone ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).
+
+PRs are attributed from **their own commit messages as returned by the API**, not from a join against local git. That is what makes this work for squash-merged PRs whose branches no longer exist — the exact case where git-based measurement failed.
+
 ### Why there is no Merge Ratio
 
 Early versions shipped a merge ratio ("% of AI commits that land on the default branch"). We removed it ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)) because git history structurally cannot answer that question honestly:
@@ -350,7 +382,8 @@ If no commits are attributed `human` and no `defaultAttribution` prior assigns t
 These metrics are honest approximations, not ground truth. Read the numbers with these caveats in mind:
 
 - **Detection is voluntary** — AIDA only sees what commits admit to. Untagged AI code lands in the `unknown` bucket, and attribution coverage ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)) reports how big that bucket is instead of hiding it; the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)) lets you shrink it retroactively. But the tool still cannot see through a commit that lies.
-- **Git can't see discarded work** — squash merges and deleted branches erase unmerged commits, which is why the merge ratio was removed entirely rather than patched ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).
+- **Git can't see discarded work** — squash merges and deleted branches erase unmerged commits, which is why the merge ratio was removed entirely rather than patched ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)). PR acceptance ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)) answers the question from the forge API instead.
+- **The attribution manifest does not apply to PR commits** — manifest entries are keyed by hash, and a squash-merged PR's original commits have different hashes from what landed on the default branch. PR-level attribution therefore relies on trailers alone, so a repo that adopted trailers late will see more `unknown` PRs than `unknown` commits.
 - **Persistence is file-level** — one AI-touched line marks the whole file as AI-touched; line-level tracking via `git blame` is planned ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
 - **Cohort age skews persistence** — older commits have had more time to accumulate survival. The report now shows each cohort's age so you can judge fairness; normalization is still open ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
 - **Task mix skews persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. The report now shows each cohort's file-category mix; within-category comparison is still open ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
@@ -359,6 +392,7 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 
 - `commit-stream.json` - Normalized commit data with four-state attribution and autonomy mode
 - `metrics.json` - Attribution coverage, persistence, per-cohort and per-autonomy-level metrics
+- `pr-stream.json` - PR outcomes and per-PR attribution (only when `aida fetch-prs` ran)
 - `report.md` - Human-readable Markdown report
 
 ### Schema versioning
@@ -369,7 +403,7 @@ Both JSON files carry a `schemaVersion` ([#53](https://github.com/ceccode/AIDA-M
 - **Removing a field, renaming it, or changing its meaning** bumps `schemaVersion`.
 - Readers **refuse** a version they don't understand rather than parsing it half-way: `aida analyze` on a stale `commit-stream.json` fails with `Rerun 'aida collect'`, not a silent wrong result.
 
-Current: `commit-stream.json` v1, `metrics.json` v1.
+Current: `commit-stream.json` v1, `metrics.json` v1, `pr-stream.json` v1.
 
 ## CI/CD Integration
 
@@ -461,7 +495,8 @@ aida_analysis:
 - **v0.14** ✅ Merge ratio removed — git cannot measure it honestly; PR acceptance rate via forge APIs is the successor ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)).  
 - **v0.15** ✅ Author redaction ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)) and synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
 - **v0.16** ✅ Versioned output schemas with reader-side version gate, plus end-to-end CLI tests and `pnpm typecheck` in CI ([#53](https://github.com/ceccode/AIDA-Metrics/issues/53)).  
-- **Next** → PR acceptance rate via forge APIs ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)), autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)).  
+- **v0.17** ✅ PR acceptance rate via forge APIs — opt-in `aida fetch-prs`, the honest successor to merge ratio ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)).  
+- **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)), GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) / Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR providers.  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  

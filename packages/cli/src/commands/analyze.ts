@@ -6,7 +6,10 @@ import {
   CommitStream,
   AidaConfig,
   COMMIT_STREAM_SCHEMA_VERSION,
+  PRStream,
+  PR_STREAM_SCHEMA_VERSION,
   assertSchemaVersion,
+  fileExists,
 } from '@aida-dev/core';
 import { calculateMetrics } from '@aida-dev/metrics';
 import { join } from 'path';
@@ -74,7 +77,27 @@ export function createAnalyzeCommand(): Command {
           );
         }
 
-        const metrics = calculateMetrics(commitStream, { defaultAttribution, coverageThreshold });
+        // Optional PR outcomes (#51): absent unless `aida fetch-prs` ran.
+        // Missing file is the normal offline case, not an error.
+        const prStreamPath = join(config.outDir, 'pr-stream.json');
+        let prStream = null;
+        if (await fileExists(prStreamPath)) {
+          const rawPRs = await readJSON<unknown>(prStreamPath);
+          assertSchemaVersion(
+            rawPRs,
+            PR_STREAM_SCHEMA_VERSION,
+            'pr-stream.json',
+            "Rerun 'aida fetch-prs' with this version of AIDA."
+          );
+          prStream = PRStream.parse(rawPRs);
+          logger.info(`PR outcomes loaded: ${prStream.prs.length} closed PR(s)`);
+        }
+
+        const metrics = calculateMetrics(commitStream, {
+          defaultAttribution,
+          coverageThreshold,
+          prStream,
+        });
 
         const outputPath = join(config.outDir, 'metrics.json');
         await writeJSON(outputPath, metrics);
@@ -89,6 +112,13 @@ export function createAnalyzeCommand(): Command {
           );
         }
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);
+        if (metrics.prAcceptance) {
+          const ai = metrics.prAcceptance.byAttribution.ai;
+          logger.info(
+            `PR acceptance overall: ${(metrics.prAcceptance.overall.acceptanceRate * 100).toFixed(1)}%` +
+              (ai ? ` · AI PRs: ${(ai.acceptanceRate * 100).toFixed(1)}% (${ai.total})` : '')
+          );
+        }
         if (!metrics.baseline) {
           logger.warn('No baseline cohort: no commits attributed as human (see caveats).');
         }

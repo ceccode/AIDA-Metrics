@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { createCollectCommand } from './commands/collect.js';
+import { createFetchPRsCommand } from './commands/fetch-prs.js';
 import { createAnalyzeCommand } from './commands/analyze.js';
 import { createReportCommand } from './commands/report.js';
 import { createCommentCommand } from './commands/comment.js';
@@ -15,6 +16,7 @@ program
 
 // Add commands
 program.addCommand(createCollectCommand());
+program.addCommand(createFetchPRsCommand());
 program.addCommand(createAnalyzeCommand());
 program.addCommand(createReportCommand());
 program.addCommand(createCommentCommand());

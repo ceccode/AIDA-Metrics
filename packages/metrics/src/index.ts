@@ -1,16 +1,26 @@
-import { Commit, CommitStream, METRICS_SCHEMA_VERSION, formatISODate } from '@aida-dev/core';
+import {
+  Commit,
+  CommitStream,
+  METRICS_SCHEMA_VERSION,
+  PRStream,
+  formatISODate,
+} from '@aida-dev/core';
 import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
+import { calculatePRAcceptance } from './pr-acceptance.js';
 import { Attribution, ByMode, Metrics, ModeStats } from './schema/metrics.js';
 
 export * from './schema/metrics.js';
 export * from './cohort.js';
 export * from './persistence.js';
+export * from './pr-acceptance.js';
 
 export interface MetricsOptions {
   // Prior applied to 'unknown' commits: which cohort (if any) they join.
   defaultAttribution?: 'ai' | 'human' | 'unknown';
   coverageThreshold?: number;
+  // Optional PR outcomes from `aida fetch-prs` (#51)
+  prStream?: PRStream | null;
 }
 
 function round(value: number, decimals: number): number {
@@ -22,7 +32,7 @@ export function calculateMetrics(
   commitStream: CommitStream,
   options: MetricsOptions = {}
 ): Metrics {
-  const { defaultAttribution = 'unknown', coverageThreshold = 0.7 } = options;
+  const { defaultAttribution = 'unknown', coverageThreshold = 0.7, prStream = null } = options;
 
   const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
   const modes = { none: 0, autocomplete: 0, assisted: 0, agent: 0, unknown: 0 };
@@ -119,6 +129,9 @@ export function calculateMetrics(
       }
     : null;
 
+  // PR acceptance (#51): present only when fetch-prs ran
+  const prAcceptance = prStream ? calculatePRAcceptance(prStream) : null;
+
   const caveats = [
     `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
     'Persistence is file-level, not line-level.',
@@ -126,6 +139,16 @@ export function calculateMetrics(
     'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
   ];
+  if (prAcceptance?.truncated) {
+    caveats.push(
+      'PR acceptance covers a capped sample of pull requests (--max-prs), not the full history.'
+    );
+  }
+  if (!prAcceptance) {
+    caveats.push(
+      "PR acceptance is unavailable: run 'aida fetch-prs' to measure whether AI work is accepted. Git history alone cannot answer that."
+    );
+  }
   if (baseline?.assumed) {
     caveats.push(
       `Baseline includes ${counts.unknown} unattributed commit(s) assumed human via defaultAttribution — undetected AI usage may leak into it.`
@@ -150,6 +173,7 @@ export function calculateMetrics(
     persistence,
     cohorts,
     byMode,
+    prAcceptance,
     baseline,
     delta,
     caveats,
