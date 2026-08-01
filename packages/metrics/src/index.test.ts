@@ -77,6 +77,36 @@ describe('calculateMetrics attribution coverage', () => {
     expect(metrics.persistence.commitsConsidered).toBe(1);
   });
 
+  it('reports recent-window coverage alongside all-time (#52)', () => {
+    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const metrics = calculateMetrics(
+      makeStream([
+        // Old, untagged: drags all-time coverage down forever
+        makeCommit({ hash: 'o1', tags: unknownTags, authorDate: old }),
+        makeCommit({ hash: 'o2', tags: unknownTags, authorDate: old }),
+        makeCommit({ hash: 'o3', tags: unknownTags, authorDate: old }),
+        // Recent, tagged: current hygiene is perfect
+        makeCommit({ hash: 'r1', tags: aiTags, authorDate: recent }),
+      ])
+    );
+
+    expect(metrics.attribution.coverage).toBe(0.25); // all-time: bleak
+    expect(metrics.attribution.belowThreshold).toBe(true);
+    expect(metrics.attribution.recent?.coverage).toBe(1); // recent: perfect
+    expect(metrics.attribution.recent?.commitsTotal).toBe(1);
+    expect(metrics.attribution.recent?.belowThreshold).toBe(false);
+  });
+
+  it('has a null recent block when the window contains no commits', () => {
+    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const metrics = calculateMetrics(
+      makeStream([makeCommit({ hash: 'o1', tags: aiTags, authorDate: old })]),
+      { coverageWindowDays: 30 }
+    );
+    expect(metrics.attribution.recent).toBeNull();
+  });
+
   it('flags belowThreshold using a custom coverageThreshold', () => {
     const metrics = calculateMetrics(
       makeStream([

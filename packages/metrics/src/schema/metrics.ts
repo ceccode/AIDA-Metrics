@@ -2,6 +2,20 @@ import { z } from 'zod';
 
 // Attribution coverage (#34): the headline metric. Every other number in this
 // file is only as trustworthy as this block says it is.
+// Coverage over a recent window (#52). All-time coverage is a verdict on the
+// past that a team cannot change; the actionable question is "are we tagging
+// now?". Reported alongside all-time, never instead of it.
+export const RecentCoverage = z.object({
+  windowDays: z.number().int().positive(),
+  commitsTotal: z.number().int().nonnegative(),
+  ai: z.number().int().nonnegative(),
+  human: z.number().int().nonnegative(),
+  automated: z.number().int().nonnegative(),
+  unknown: z.number().int().nonnegative(),
+  coverage: z.number().min(0).max(1),
+  belowThreshold: z.boolean(),
+});
+
 export const Attribution = z.object({
   commitsTotal: z.number().int().nonnegative(),
   ai: z.number().int().nonnegative(),
@@ -13,7 +27,9 @@ export const Attribution = z.object({
   coverage: z.number().min(0).max(1), // (ai + human + automated) / total
   defaultAttribution: z.enum(['ai', 'human', 'unknown']), // prior applied to unknown commits
   coverageThreshold: z.number().min(0).max(1),
-  belowThreshold: z.boolean(),
+  belowThreshold: z.boolean(), // all-time; see `recent` for the actionable one
+  // Null when the window contains no commits (#52)
+  recent: RecentCoverage.nullable(),
   // Autonomy axis (#25): commit counts per mode and per mode-evidence level
   modes: z.object({
     none: z.number().int().nonnegative(),
@@ -34,6 +50,18 @@ export const Attribution = z.object({
 // at the observation end (they survived the window — the best outcome).
 // Migrations and generated files are excluded by default: their lifecycle is
 // convention-driven and carries no quality signal.
+// Rework rate (#22): share of AI-touched files modified again within a short
+// window. Right-censoring matters here: a file first touched two days ago
+// and not yet reworked has no *determined* outcome for a 7-day window, so it
+// counts in neither numerator nor denominator.
+export const Rework = z.object({
+  windowDays: z.number().int().positive(),
+  reworked: z.number().int().nonnegative(),
+  determined: z.number().int().nonnegative(), // files whose outcome is known
+  undetermined: z.number().int().nonnegative(), // observed for less than the window
+  rate: z.number().min(0).max(1),
+});
+
 export const Persistence = z.object({
   commitsConsidered: z.number().int().nonnegative(),
   filesConsidered: z.number().int().nonnegative(),
@@ -41,6 +69,8 @@ export const Persistence = z.object({
   censored: z.number().int().nonnegative(), // files that survived the whole window
   avgDays: z.number().nonnegative(),
   medianDays: z.number().nonnegative(),
+  // Null when no file has a determined outcome in the window (#22)
+  rework: Rework.nullable(),
   buckets: z.object({
     d0_1: z.number().int().nonnegative(),
     d2_7: z.number().int().nonnegative(),
@@ -171,6 +201,8 @@ export const Metrics = z.object({
 });
 
 export type Attribution = z.infer<typeof Attribution>;
+export type RecentCoverage = z.infer<typeof RecentCoverage>;
+export type Rework = z.infer<typeof Rework>;
 export type AgeStats = z.infer<typeof AgeStats>;
 export type FileCategory = z.infer<typeof FileCategory>;
 export type CategoryCounts = z.infer<typeof CategoryCounts>;

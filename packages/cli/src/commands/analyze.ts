@@ -37,6 +37,10 @@ export function createAnalyzeCommand(): Command {
       '--coverage-threshold <fraction>',
       'Coverage below this flags metrics as low-confidence (default: 0.7, or .aida.json)'
     )
+    .option(
+      '--coverage-window <days>',
+      'Window in days for the actionable coverage figure (default: 90)'
+    )
     .option('--verbose', 'Verbose logging', false)
     .action(async (options) => {
       const config = CLIConfig.parse(options);
@@ -93,9 +97,22 @@ export function createAnalyzeCommand(): Command {
           logger.info(`PR outcomes loaded: ${prStream.prs.length} closed PR(s)`);
         }
 
+        const coverageWindowDays = options.coverageWindow
+          ? Number(options.coverageWindow)
+          : undefined;
+        if (
+          coverageWindowDays !== undefined &&
+          (!Number.isInteger(coverageWindowDays) || coverageWindowDays <= 0)
+        ) {
+          throw new Error(
+            `Invalid --coverage-window "${options.coverageWindow}": expected a positive integer`
+          );
+        }
+
         const metrics = calculateMetrics(commitStream, {
           defaultAttribution,
           coverageThreshold,
+          coverageWindowDays,
           prStream,
         });
 
@@ -106,7 +123,12 @@ export function createAnalyzeCommand(): Command {
         logger.info(
           `Attribution coverage: ${(a.coverage * 100).toFixed(1)}% (ai: ${a.ai}, human: ${a.human}, automated: ${a.automated}, unknown: ${a.unknown})`
         );
-        if (a.belowThreshold) {
+        if (a.recent) {
+          logger.info(
+            `Recent coverage (${a.recent.windowDays}d): ${(a.recent.coverage * 100).toFixed(1)}% over ${a.recent.commitsTotal} commits`
+          );
+        }
+        if (a.recent ? a.recent.belowThreshold : a.belowThreshold) {
           logger.warn(
             `Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%: metrics are low-confidence. Tag AI commits or set defaultAttribution.`
           );

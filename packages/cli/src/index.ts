@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { createRequire } from 'module';
 import { createCollectCommand } from './commands/collect.js';
 import { createInstallHooksCommand } from './commands/install-hooks.js';
 import { createFetchPRsCommand } from './commands/fetch-prs.js';
@@ -8,12 +9,16 @@ import { createAnalyzeCommand } from './commands/analyze.js';
 import { createReportCommand } from './commands/report.js';
 import { createCommentCommand } from './commands/comment.js';
 
+// Report the real package version: a hardcoded '0.0.0' left users unable to
+// tell which build they were running.
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
+
 const program = new Command();
 
 program
   .name('aida')
   .description('AIDA (AI Development Accounting) - Metrics for AI-assisted development')
-  .version('0.0.0');
+  .version(version);
 
 // Add commands
 program.addCommand(createCollectCommand());

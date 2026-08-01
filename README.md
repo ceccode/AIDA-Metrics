@@ -195,6 +195,9 @@ aida report --out-dir ./aida-output
 
 #### `aida analyze`
 
+- `--default-attribution <value>` - Prior for unattributed commits: `ai` | `human` | `unknown`
+- `--coverage-threshold <fraction>` - Coverage below this flags metrics as low-confidence (default: 0.7)
+- `--coverage-window <days>` - Window for the actionable coverage figure (default: 90)
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
 
@@ -381,7 +384,9 @@ aida analyze --default-attribution human --coverage-threshold 0.8
 
 The headline metric ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). Every commit gets a four-state attribution: `ai` (explicit/implicit detection or manifest), `human` (explicit declaration via manifest), `automated` (provenance-known automation, [#39](https://github.com/ceccode/AIDA-Metrics/issues/39) — merge commits and known bots auto-detected at collect time, or manifest `excluded_commits`; counts toward coverage, joins no cohort), or `unknown` (no signal — the absence of an AI tag is *not* evidence of human authorship).
 
-**Coverage** = share of commits with known provenance (`ai` + `human` + `automated`). It is reported first in every output, because every other number is only as trustworthy as coverage says it is. Below `coverageThreshold` (default 70%), the report carries a low-confidence warning.
+**Coverage** = share of commits with known provenance (`ai` + `human` + `automated`). It is reported first in every output, because every other number is only as trustworthy as coverage says it is.
+
+Coverage is reported over **two windows** ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)): all-time, and a recent window (default 90 days, `--coverage-window`). The recent figure is the actionable one — it answers *"are we tagging now?"* rather than passing a permanent verdict on history that predates adoption — so it is what drives the low-confidence warning below `coverageThreshold` (default 70%). All-time stays visible as context, never replaced.
 
 `defaultAttribution` lets a team consciously assign unattributed commits to a cohort (`human` for traditional repos, `ai` for AI-first ones). The prior affects cohort metrics but never coverage: unknown stays unknown in the attribution block, and an assumed baseline is labeled as such.
 
@@ -410,6 +415,14 @@ Early versions shipped a merge ratio ("% of AI commits that land on the default 
 - **Survivorship bias destroys the denominator** — abandoned branches get deleted, so discarded work leaves `git log --all` entirely. The ratio trends toward 100% for everyone and discriminates nothing.
 
 A rough metric with visible error bars is worth shipping; a metric whose data source systematically deletes the negative outcomes is not. The honest successor is a **PR acceptance rate** built on forge APIs (GitHub/GitLab), where declined PRs are never deleted — planned as a separate metric.
+
+### Rework Rate
+
+Share of AI-touched files modified again within a short window (default 7 days, `--rework-window`) — the bucket that actually carries signal, since tests and source get rewritten when the code moves ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)).
+
+**Right-censoring is handled explicitly**: a file first touched two days ago and not yet reworked has no determined answer to a seven-day question, so it counts in neither the numerator nor the denominator. The report shows how many files were set aside for this reason.
+
+**Honest limit**: it is file-level, so consecutive commits from a single working session touching the same file count as rework. For iterative workflows this inflates the number substantially — on this repo it reads 55%, most of which is within-session iteration rather than code that had to be redone. Line-level tracking ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) is what turns this into a quality signal.
 
 ### Persistence (MVP)
 
@@ -547,6 +560,7 @@ aida_analysis:
 - **v0.16** ✅ Versioned output schemas with reader-side version gate, plus end-to-end CLI tests and `pnpm typecheck` in CI ([#53](https://github.com/ceccode/AIDA-Metrics/issues/53)).  
 - **v0.17** ✅ PR acceptance rate via forge APIs — opt-in `aida fetch-prs`, the honest successor to merge ratio ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)).  
 - **v0.18** ✅ Commit-time mode stamping via git hook — `AI-Mode` trailer, `declared` evidence at the source ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)).  
+- **v0.19** ✅ Windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)) and rework rate with censoring ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)).  
 - **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)), GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) / Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR providers.  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  

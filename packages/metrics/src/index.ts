@@ -15,10 +15,14 @@ export * from './cohort.js';
 export * from './persistence.js';
 export * from './pr-acceptance.js';
 
+export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
+
 export interface MetricsOptions {
   // Prior applied to 'unknown' commits: which cohort (if any) they join.
   defaultAttribution?: 'ai' | 'human' | 'unknown';
   coverageThreshold?: number;
+  // Window for the actionable coverage figure (#52)
+  coverageWindowDays?: number;
   // Optional PR outcomes from `aida fetch-prs` (#51)
   prStream?: PRStream | null;
 }
@@ -32,7 +36,12 @@ export function calculateMetrics(
   commitStream: CommitStream,
   options: MetricsOptions = {}
 ): Metrics {
-  const { defaultAttribution = 'unknown', coverageThreshold = 0.7, prStream = null } = options;
+  const {
+    defaultAttribution = 'unknown',
+    coverageThreshold = 0.7,
+    coverageWindowDays = DEFAULT_COVERAGE_WINDOW_DAYS,
+    prStream = null,
+  } = options;
 
   const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
   const modes = { none: 0, autocomplete: 0, assisted: 0, agent: 0, unknown: 0 };
@@ -46,6 +55,19 @@ export function calculateMetrics(
   // Automated commits have known provenance (#39): they count as covered
   const coverage = total > 0 ? (counts.ai + counts.human + counts.automated) / total : 0;
 
+  // Coverage over a recent window (#52): the number a team can actually move.
+  // All-time coverage is a permanent verdict on history predating adoption.
+  const windowStart = new Date(Date.now() - coverageWindowDays * 24 * 60 * 60 * 1000);
+  const recentCommits = commitStream.commits.filter(
+    (commit) => new Date(commit.authorDate) >= windowStart
+  );
+  const recentCounts = { ai: 0, human: 0, automated: 0, unknown: 0 };
+  for (const commit of recentCommits) recentCounts[commit.tags.attribution]++;
+  const recentCoverage =
+    recentCommits.length > 0
+      ? (recentCounts.ai + recentCounts.human + recentCounts.automated) / recentCommits.length
+      : 0;
+
   const attribution: Attribution = {
     commitsTotal: total,
     ai: counts.ai,
@@ -56,6 +78,19 @@ export function calculateMetrics(
     defaultAttribution,
     coverageThreshold,
     belowThreshold: coverage < coverageThreshold,
+    recent:
+      recentCommits.length > 0
+        ? {
+            windowDays: coverageWindowDays,
+            commitsTotal: recentCommits.length,
+            ai: recentCounts.ai,
+            human: recentCounts.human,
+            automated: recentCounts.automated,
+            unknown: recentCounts.unknown,
+            coverage: round(recentCoverage, 4),
+            belowThreshold: recentCoverage < coverageThreshold,
+          }
+        : null,
     modes,
     modeEvidence,
   };
@@ -134,6 +169,7 @@ export function calculateMetrics(
 
   const caveats = [
     `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
+    'Rework rate is file-level: consecutive commits from one working session touching the same file count as rework, which inflates it for iterative workflows. Files too recent to judge are excluded from both sides. Line-level tracking will refine this.',
     'Persistence is file-level, not line-level.',
     'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',
     'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',

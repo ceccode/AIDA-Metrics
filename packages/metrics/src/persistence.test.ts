@@ -228,6 +228,91 @@ describe('calculatePersistence', () => {
   });
 });
 
+describe('rework rate (#22)', () => {
+  const aiTags: CommitStream['commits'][0]['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: [] };
+
+  it('counts a file reworked inside the window', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 5, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'a2',
+        authorDate: '2024-01-03T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 1, files: [{ path: 'src/a.ts', additions: 1, deletions: 1, status: 'modified' }] },
+      }),
+    ]);
+    const result = calculatePersistence(stream, undefined, { reworkWindowDays: 7 });
+    expect(result.rework).toEqual({
+      windowDays: 7,
+      reworked: 1,
+      determined: 1,
+      undetermined: 0,
+      rate: 1,
+    });
+  });
+
+  it('does not count a file reworked after the window', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 5, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'a2',
+        authorDate: '2024-02-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 1, files: [{ path: 'src/a.ts', additions: 1, deletions: 1, status: 'modified' }] },
+      }),
+    ]);
+    const result = calculatePersistence(stream, undefined, { reworkWindowDays: 7 });
+    expect(result.rework?.reworked).toBe(0);
+    expect(result.rework?.determined).toBe(1);
+    expect(result.rework?.rate).toBe(0);
+  });
+
+  it('excludes files too recent to judge from both numerator and denominator', () => {
+    // Stream ends 2024-06-01; this file is first touched 2 days before that,
+    // so a 7-day question has no answer for it either way.
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-05-30T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'src/fresh.ts', additions: 5, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'a2',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'src/old.ts', additions: 5, deletions: 0 }] },
+      }),
+    ]);
+    const result = calculatePersistence(stream, undefined, { reworkWindowDays: 7 });
+    expect(result.rework?.undetermined).toBe(1); // fresh.ts
+    expect(result.rework?.determined).toBe(1); // old.ts, observed long enough
+    expect(result.rework?.reworked).toBe(0);
+  });
+
+  it('is null when no file has a determined outcome', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-05-31T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/fresh.ts', additions: 1, deletions: 0 }] },
+      }),
+    ]);
+    expect(calculatePersistence(stream, undefined, { reworkWindowDays: 30 }).rework).toBeNull();
+  });
+});
+
 describe('calculateBaselinePersistence', () => {
   it('measures persistence over human-attributed commits only, ignoring AI commits', () => {
     const stream = makeStream([
