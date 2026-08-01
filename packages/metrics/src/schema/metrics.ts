@@ -112,6 +112,36 @@ export const ByMode = z.object({
   unknown: ModeStats.nullable(),
 });
 
+// PR acceptance (#51): merged vs closed-unmerged, per cohort. Null when no
+// pr-stream.json is present — an absent metric, never a silent 0%.
+export const AcceptanceStats = z.object({
+  total: z.number().int().nonnegative(),
+  merged: z.number().int().nonnegative(),
+  closed: z.number().int().nonnegative(),
+  acceptanceRate: z.number().min(0).max(1),
+});
+
+export const PRAcceptance = z.object({
+  provider: z.string(),
+  repo: z.string(),
+  fetchedAt: z.string().datetime(),
+  // True when the fetch was capped: rates describe a sample, not all history
+  truncated: z.boolean(),
+  overall: AcceptanceStats,
+  byAttribution: z.object({
+    ai: AcceptanceStats.nullable(),
+    human: AcceptanceStats.nullable(),
+    unknown: AcceptanceStats.nullable(),
+  }),
+  byMode: z.object({
+    agent: AcceptanceStats.nullable(),
+    assisted: AcceptanceStats.nullable(),
+    autocomplete: AcceptanceStats.nullable(),
+    none: AcceptanceStats.nullable(),
+    unknown: AcceptanceStats.nullable(),
+  }),
+});
+
 export const Metrics = z.object({
   // Bumped when a field is removed or changes meaning (#53)
   schemaVersion: z.number().int().positive(),
@@ -131,6 +161,8 @@ export const Metrics = z.object({
     baseline: CohortContext,
   }),
   byMode: ByMode,
+  // Null unless `aida fetch-prs` produced a pr-stream.json (#51)
+  prAcceptance: PRAcceptance.nullable(),
   // Null when no commit is attributed 'human' and no defaultAttribution prior
   // assigns the unknowns: AIDA does not invent a comparison cohort.
   baseline: Baseline.nullable(),
@@ -145,6 +177,8 @@ export type CategoryCounts = z.infer<typeof CategoryCounts>;
 export type CohortContext = z.infer<typeof CohortContext>;
 export type ModeStats = z.infer<typeof ModeStats>;
 export type ByMode = z.infer<typeof ByMode>;
+export type AcceptanceStats = z.infer<typeof AcceptanceStats>;
+export type PRAcceptance = z.infer<typeof PRAcceptance>;
 export type Persistence = z.infer<typeof Persistence>;
 export type Baseline = z.infer<typeof Baseline>;
 export type Delta = z.infer<typeof Delta>;

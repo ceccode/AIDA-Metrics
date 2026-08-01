@@ -90,6 +90,33 @@ ${modeRows.join('\n')}
 `
       : '';
 
+  const acc = metrics.prAcceptance;
+  function accRow(label: string, stats: { total: number; merged: number; closed: number; acceptanceRate: number } | null) {
+    if (!stats) return null;
+    return `| ${label} | ${stats.total} | ${stats.merged} | ${stats.closed} | ${(stats.acceptanceRate * 100).toFixed(1)}% |`;
+  }
+  const prSection = acc
+    ? `## PR Acceptance
+
+Whether the work was **accepted**, from the ${acc.provider} API — the question git history cannot answer, since squash merges and deleted branches erase what was discarded.${acc.truncated ? '\n\n> ⚠️ Capped sample (`--max-prs`): not the full history.' : ''}
+
+| Cohort | PRs | Merged | Closed unmerged | Acceptance |
+|---|---:|---:|---:|---:|
+${[
+  accRow('**All PRs**', acc.overall),
+  accRow('ai', acc.byAttribution.ai),
+  accRow('human', acc.byAttribution.human),
+  accRow('unknown', acc.byAttribution.unknown),
+  accRow('mode: agent', acc.byMode.agent),
+  accRow('mode: assisted', acc.byMode.assisted),
+  accRow('mode: autocomplete', acc.byMode.autocomplete),
+]
+  .filter(Boolean)
+  .join('\n')}
+
+`
+    : '';
+
   const baselineDetail = metrics.baseline
     ? `## ${baselineLabel}
 - Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
@@ -111,7 +138,7 @@ ${modeRows.join('\n')}
 **Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
 ${coverageWarning}${priorNote}
 ${comparisonSection}
-${byModeSection}${fairnessSection}
+${byModeSection}${prSection}${fairnessSection}
 ## Persistence (file-level survival)
 - Commits considered: ${metrics.persistence.commitsConsidered}
 - Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)

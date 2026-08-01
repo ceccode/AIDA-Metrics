@@ -8,6 +8,7 @@ import { createCollectCommand } from './collect.js';
 import { createAnalyzeCommand } from './analyze.js';
 import { createReportCommand } from './report.js';
 import { createCommentCommand } from './comment.js';
+import { createFetchPRsCommand } from './fetch-prs.js';
 
 // End-to-end coverage for the collect → analyze → report pipeline (#53).
 // Every schema change so far passed CI while this wiring was untested; the
@@ -125,6 +126,101 @@ describe('collect → analyze → report end to end', () => {
       }
     } finally {
       rmSync(redactedDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('PR acceptance (#51)', () => {
+  it('is absent — with a caveat, never a silent 0% — when fetch-prs has not run', async () => {
+    const metrics = JSON.parse(readFileSync(join(outDir, 'metrics.json'), 'utf-8'));
+    expect(metrics.prAcceptance).toBeNull();
+    expect(metrics.caveats.join(' ')).toContain("run 'aida fetch-prs'");
+
+    const report = readFileSync(join(outDir, 'report.md'), 'utf-8');
+    expect(report).not.toContain('## PR Acceptance');
+  });
+
+  it('is computed and rendered when a pr-stream.json is present', async () => {
+    const prDir = mkdtempSync(join(tmpdir(), 'aida-e2e-prs-'));
+    try {
+      await run(createCollectCommand(), ['--repo', repoPath, '--out-dir', prDir]);
+
+      const aiCommit = {
+        sha: 'a'.repeat(40),
+        tags: {
+          ai: true,
+          attribution: 'ai',
+          mode: 'agent',
+          modeEvidence: 'inferred',
+          level: 'explicit',
+          sources: ['trailer'],
+        },
+      };
+      writeFileSync(
+        join(prDir, 'pr-stream.json'),
+        JSON.stringify({
+          schemaVersion: 1,
+          provider: 'github',
+          repo: 'owner/name',
+          fetchedAt: '2026-01-03T00:00:00.000Z',
+          truncated: false,
+          prs: [
+            {
+              number: 1,
+              state: 'merged',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              closedAt: '2026-01-02T00:00:00.000Z',
+              mergedAt: '2026-01-02T00:00:00.000Z',
+              commits: [aiCommit],
+            },
+            {
+              number: 2,
+              state: 'closed',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              closedAt: '2026-01-02T00:00:00.000Z',
+              mergedAt: null,
+              commits: [aiCommit],
+            },
+          ],
+        })
+      );
+
+      await run(createAnalyzeCommand(), ['--out-dir', prDir]);
+      const metrics = JSON.parse(readFileSync(join(prDir, 'metrics.json'), 'utf-8'));
+      expect(metrics.prAcceptance.overall).toEqual({
+        total: 2,
+        merged: 1,
+        closed: 1,
+        acceptanceRate: 0.5,
+      });
+      expect(metrics.prAcceptance.byAttribution.ai.acceptanceRate).toBe(0.5);
+
+      await run(createReportCommand(), ['--out-dir', prDir]);
+      const report = readFileSync(join(prDir, 'report.md'), 'utf-8');
+      expect(report).toContain('## PR Acceptance');
+      expect(report).toContain('Closed unmerged');
+      expect(report).not.toContain('undefined');
+    } finally {
+      rmSync(prDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fetch-prs refuses to run without a token instead of failing silently', async () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const savedToken = process.env.GITHUB_TOKEN;
+    delete process.env.GITHUB_TOKEN;
+    try {
+      await expect(
+        run(createFetchPRsCommand(), ['--out-dir', outDir, '--github-repo', 'owner/name'])
+      ).rejects.toThrow('process.exit');
+      expect(errorSpy.mock.calls.flat().join(' ')).toContain('GITHUB_TOKEN is required');
+    } finally {
+      if (savedToken !== undefined) process.env.GITHUB_TOKEN = savedToken;
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
     }
   });
 });
