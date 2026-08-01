@@ -514,19 +514,30 @@ Or use `--since` for time-based analysis:
 | Monthly audit | `90d` | Management/finance reporting |
 | Full history | *(omit)* | One-time baseline analysis |
 
-### GitLab CI
+### GitLab CI (with MR comments)
 
 ```yaml
 aida_analysis:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GITLAB_TOKEN: $AIDA_GITLAB_TOKEN
   script:
     - npm install -g @aida-dev/cli
-    - aida collect --since 30d && aida analyze && aida report
+    - aida collect --pr --redact-authors
+    - aida analyze
+    - aida report
+    - aida comment
   artifacts:
     paths:
       - aida-output/
 ```
 
-> GitLab MR comments coming soon — see [#16](https://github.com/ceccode/AIDA-Metrics/issues/16). Bitbucket: [#17](https://github.com/ceccode/AIDA-Metrics/issues/17).
+`aida comment` auto-detects GitLab CI and posts the report as a merge request note, updating its own note on re-runs instead of adding new ones ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)).
+
+**Token**: set `GITLAB_TOKEN` to a project or group access token with the `api` scope. The built-in `CI_JOB_TOKEN` cannot post notes, so it is deliberately not used as a fallback — the command fails with that explanation rather than an opaque 401.
+
+Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17) closed); the `CIProvider` interface stays provider-agnostic if someone wants to add it.
 
 ## Repository Structure
 
@@ -561,7 +572,8 @@ aida_analysis:
 - **v0.17** ✅ PR acceptance rate via forge APIs — opt-in `aida fetch-prs`, the honest successor to merge ratio ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)).  
 - **v0.18** ✅ Commit-time mode stamping via git hook — `AI-Mode` trailer, `declared` evidence at the source ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)).  
 - **v0.19** ✅ Windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)) and rework rate with censoring ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)).  
-- **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)), GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) / Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR providers.  
+- **v0.20** ✅ GitLab CI provider — MR comments with note reuse ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)).  
+- **Next** → Line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
