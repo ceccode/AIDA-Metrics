@@ -21,6 +21,16 @@ export interface PersistenceOptions {
   // End of the observation window, used to measure censored files (never
   // modified again). Defaults to the stream's collection time.
   observationEnd?: Date;
+  // Age-normalization (#29): cap each file's observation window to at most
+  // this many days from its first target-cohort touch. Without this, an
+  // older cohort accumulates persistence simply by having existed longer —
+  // capping both cohorts to the same span (typically the younger cohort's
+  // age) makes the comparison fair rather than a clock-time artifact.
+  maxObservationDays?: number;
+  // Task-mix stratification (#36): restrict file consideration to a single
+  // category, bypassing excludeCategories (the caller is explicitly asking
+  // for that category's own data, generated/migrations included).
+  onlyCategory?: FileCategory;
 }
 
 interface FileLifecycle {
@@ -43,6 +53,8 @@ export function calculatePersistence(
     excludeCategories = DEFAULT_PERSISTENCE_EXCLUDED_CATEGORIES,
     observationEnd = new Date(commitStream.generatedAt),
     reworkWindowDays = DEFAULT_REWORK_WINDOW_DAYS,
+    maxObservationDays,
+    onlyCategory,
   } = options;
   const excluded = new Set<FileCategory>(excludeCategories);
 
@@ -75,7 +87,9 @@ export function calculatePersistence(
     if (!isTarget(commit)) return;
     for (const file of commit.stats.files) {
       if (lifecycles.has(file.path)) continue;
-      if (excluded.has(categorizeFile(file.path))) {
+      const category = categorizeFile(file.path);
+      const isExcluded = onlyCategory ? category !== onlyCategory : excluded.has(category);
+      if (isExcluded) {
         filesExcluded++;
         lifecycles.set(file.path, { firstTargetIndex: -1, firstTargetDate: new Date(0), eventDate: null });
         continue;
@@ -111,15 +125,31 @@ export function calculatePersistence(
   let undetermined = 0;
   for (const lifecycle of lifecycles.values()) {
     if (lifecycle.firstTargetIndex < 0) continue; // excluded category
-    const observedDays = Math.max(0, daysBetween(lifecycle.firstTargetDate, observationEnd));
 
-    if (lifecycle.eventDate) {
+    // Age-normalization (#29): the window we're allowed to look through for
+    // this file closes at either the real observation end, or capDays after
+    // its first touch — whichever is sooner. An event beyond that point is
+    // treated as not-yet-observed, exactly like a file with no event at all.
+    const effectiveEnd =
+      maxObservationDays !== undefined
+        ? new Date(
+            Math.min(
+              observationEnd.getTime(),
+              lifecycle.firstTargetDate.getTime() + maxObservationDays * 24 * 60 * 60 * 1000
+            )
+          )
+        : observationEnd;
+    const observedDays = Math.max(0, daysBetween(lifecycle.firstTargetDate, effectiveEnd));
+
+    if (lifecycle.eventDate && lifecycle.eventDate <= effectiveEnd) {
       const survived = daysBetween(lifecycle.firstTargetDate, lifecycle.eventDate);
       survivalDays.push(survived);
       determined++;
       if (survived < reworkWindowDays) reworked++;
     } else {
-      // Never modified again: survived to the end of the observation window
+      // No event within the effective window: censored there, whether
+      // because the file was never touched again or the cap cut us off
+      // before we could see what happens next.
       censored++;
       survivalDays.push(observedDays);
       if (observedDays >= reworkWindowDays) {

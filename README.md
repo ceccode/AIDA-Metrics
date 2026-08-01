@@ -206,6 +206,7 @@ aida report --out-dir ./aida-output
 - `--default-attribution <value>` - Prior for unattributed commits: `ai` | `human` | `unknown`
 - `--coverage-threshold <fraction>` - Coverage below this flags metrics as low-confidence (default: 0.7)
 - `--coverage-window <days>` - Window for the actionable coverage figure (default: 90)
+- `--hotfix-window <days>` - Window for linking a hotfix to its likely antecedent (default: 7)
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
 
@@ -469,6 +470,27 @@ The `metrics.json` output includes `baseline` (human cohort) and `delta` (AI min
 The markdown report renders a side-by-side comparison table at the top.  
 If no commits are attributed `human` and no `defaultAttribution` prior assigns the unknowns, `baseline` and `delta` are `null`: AIDA does not invent a comparison cohort.
 
+### Fair Comparison (age-normalized)
+
+The raw AI vs Baseline table can be misleading when one cohort's commits are systematically older or younger than the other's — an older cohort accumulates persistence simply from having existed longer, not from better code ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
+
+`metrics.json` gains `fairComparison`: both cohorts' persistence recomputed with each file's observation window **capped** to `capDays` — the younger cohort's average commit age — so neither side gets credit for clock time it hasn't actually had. Reported alongside the raw comparison, never in place of it. Null under the same condition as `baseline` (no human-attributed commits and no prior).
+
+### Within-Category Comparison
+
+A pooled AI-vs-baseline delta can hide a task-mix confound: if AI mostly touches tests and humans mostly touch source, the delta reflects *what* each cohort worked on, not code quality ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
+
+`metrics.json` gains `byCategory`: persistence computed separately per file category (`source` / `tests` / `migrations` / `config` / `docs` / `generated`) for each cohort, with a delta only where both sides touched that category. Always present — useful even without a baseline, e.g. to compare AI-written tests against AI-written source within the same repo.
+
+### Outcome Correlation
+
+Whether AI-generated code causes more rework is the highest-value question for engineering leadership — but most of it (incidents, vulnerabilities) lives outside git, in PagerDuty/Jira/SAST tools, and pulling those in would need network access AIDA deliberately doesn't have for its core commands ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)). Scoped to what git itself can answer:
+
+- **Reverts**: a `git revert` writes "This reverts commit \<sha\>." into the generated commit's body — parsed at collect time into `revertsCommit`. `metrics.json`'s `outcomeCorrelation.reverts` reports how many were found and resolved, broken down by the **reverted** commit's attribution and autonomy mode.
+- **Hotfixes**: commits matching a `fix`/`hotfix`/`patch` subject convention. Each is linked to the most recent prior commit that touched the same file(s), within a window (default 7 days, `--hotfix-window`) — the closest antecedent across all its files, so a hotfix touching several files links to whichever was most recently disturbed. `outcomeCorrelation.hotfixes` reports totals, how many were linked, and the antecedent's attribution/mode.
+
+Both are always present in `metrics.json` (never gated on a baseline cohort — they're a property of the repo, not a comparison) and rendered in the report only when at least one is non-zero.
+
 ### Known Limits
 
 These metrics are honest approximations, not ground truth. Read the numbers with these caveats in mind:
@@ -477,8 +499,9 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 - **Git can't see discarded work** — squash merges and deleted branches erase unmerged commits, which is why the merge ratio was removed entirely rather than patched ([#20](https://github.com/ceccode/AIDA-Metrics/issues/20)). PR acceptance ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)) answers the question from the forge API instead.
 - **The attribution manifest does not apply to PR commits** — manifest entries are keyed by hash, and a squash-merged PR's original commits have different hashes from what landed on the default branch. PR-level attribution therefore relies on trailers alone, so a repo that adopted trailers late will see more `unknown` PRs than `unknown` commits.
 - **Persistence and rework are file-level** — one AI-touched line marks the whole file. `aida blame` ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) gives exact per-line attribution for the living codebase; the file-level figures remain as the fast path.
-- **Cohort age skews persistence** — older commits have had more time to accumulate survival. The report now shows each cohort's age so you can judge fairness; normalization is still open ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)).
-- **Task mix skews persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. The report now shows each cohort's file-category mix; within-category comparison is still open ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)).
+- **Cohort age skews raw persistence** — older commits have had more time to accumulate survival. The report shows each cohort's age, and the fair comparison ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)) caps both sides to the same observation window so a stale delta can't pass as a quality signal.
+- **Task mix skews pooled persistence** — AI is often pointed at boilerplate, tests, and migrations, which survive longer because nobody has a reason to touch them. The within-category comparison ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)) compares like with like instead of pooling.
+- **Outcome correlation is git-only** — hotfix linking is a heuristic (closest prior touch within a window, not proven causation), and a chained hotfix attributes to the immediately preceding fix rather than the original commit. Incidents and vulnerabilities aren't represented at all ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).
 
 ## Output Files
 
@@ -603,7 +626,8 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.18** ✅ Commit-time mode stamping via git hook — `AI-Mode` trailer, `declared` evidence at the source ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)).  
 - **v0.19** ✅ Windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)) and rework rate with censoring ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)).  
 - **v0.20** ✅ GitLab CI provider — MR comments with note reuse ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)).  
-- **v0.21** ✅ Line-level survival via `aida blame` — exact per-line attribution, binaries excluded ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
+- **v0.21** ✅ Line-level survival via `aida blame` — exact per-line attribution, binaries excluded ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
+- **v0.22** ✅ Age-normalized fair comparison ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)), within-category comparison ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)), git-scoped outcome correlation — reverts and hotfixes ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
 - **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), outcome correlation restricted to git-detectable reverts and hotfixes ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  

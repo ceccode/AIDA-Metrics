@@ -18,6 +18,10 @@ export const Commit = z.object({
   message: z.string(),
   parents: z.array(z.string()),
   inDefaultBranchAncestry: z.boolean(), // set during collect
+  // Target of a `git revert` (#26), parsed from the full commit body at
+  // collect time ("This reverts commit <sha>."). Null for non-revert
+  // commits, or when the target isn't in the standard git-generated form.
+  revertsCommit: z.string().nullable().default(null),
   tags: z.object({
     ai: z.boolean(),
     // Four-state attribution (#34, #39). Heuristics emit 'ai' or 'unknown';

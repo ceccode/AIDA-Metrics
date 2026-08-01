@@ -43,6 +43,10 @@ export function createAnalyzeCommand(): Command {
       '--coverage-window <days>',
       'Window in days for the actionable coverage figure (default: 90)'
     )
+    .option(
+      '--hotfix-window <days>',
+      'Window in days for linking a hotfix to its likely antecedent (default: 7)'
+    )
     .option('--verbose', 'Verbose logging', false)
     .action(async (options) => {
       const config = CLIConfig.parse(options);
@@ -126,12 +130,23 @@ export function createAnalyzeCommand(): Command {
           logger.info(`Blame data loaded: ${blameStream.totalLines} lines`);
         }
 
+        const hotfixWindowDays = options.hotfixWindow ? Number(options.hotfixWindow) : undefined;
+        if (
+          hotfixWindowDays !== undefined &&
+          (!Number.isInteger(hotfixWindowDays) || hotfixWindowDays <= 0)
+        ) {
+          throw new Error(
+            `Invalid --hotfix-window "${options.hotfixWindow}": expected a positive integer`
+          );
+        }
+
         const metrics = calculateMetrics(commitStream, {
           defaultAttribution,
           coverageThreshold,
           coverageWindowDays,
           prStream,
           blameStream,
+          hotfixWindowDays,
         });
 
         const outputPath = join(config.outDir, 'metrics.json');
@@ -163,6 +178,12 @@ export function createAnalyzeCommand(): Command {
           logger.info(
             `PR acceptance overall: ${(metrics.prAcceptance.overall.acceptanceRate * 100).toFixed(1)}%` +
               (ai ? ` · AI PRs: ${(ai.acceptanceRate * 100).toFixed(1)}% (${ai.total})` : '')
+          );
+        }
+        const oc = metrics.outcomeCorrelation;
+        if (oc.reverts.total > 0 || oc.hotfixes.total > 0) {
+          logger.info(
+            `Outcome correlation: ${oc.reverts.resolved}/${oc.reverts.total} reverts resolved, ${oc.hotfixes.linked}/${oc.hotfixes.total} hotfixes linked`
           );
         }
         if (!metrics.baseline) {

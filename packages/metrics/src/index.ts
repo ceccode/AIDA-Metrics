@@ -9,14 +9,24 @@ import {
 import { calculateAgeStats, calculateCategoryCounts } from './cohort.js';
 import { calculateBaselinePersistence, calculatePersistence } from './persistence.js';
 import { calculateLineSurvival } from './line-survival.js';
+import { calculateOutcomeCorrelation } from './outcome-correlation.js';
 import { calculatePRAcceptance } from './pr-acceptance.js';
-import { Attribution, ByMode, Metrics, ModeStats } from './schema/metrics.js';
+import {
+  Attribution,
+  ByCategory,
+  ByMode,
+  CategoryComparison,
+  FileCategory,
+  Metrics,
+  ModeStats,
+} from './schema/metrics.js';
 
 export * from './schema/metrics.js';
 export * from './cohort.js';
 export * from './persistence.js';
 export * from './pr-acceptance.js';
 export * from './line-survival.js';
+export * from './outcome-correlation.js';
 
 export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
 
@@ -30,6 +40,8 @@ export interface MetricsOptions {
   prStream?: PRStream | null;
   // Optional line-level blame data from `aida blame` (#23)
   blameStream?: BlameStream | null;
+  // Window for linking a hotfix to its likely antecedent (#26)
+  hotfixWindowDays?: number;
 }
 
 function round(value: number, decimals: number): number {
@@ -47,6 +59,7 @@ export function calculateMetrics(
     coverageWindowDays = DEFAULT_COVERAGE_WINDOW_DAYS,
     prStream = null,
     blameStream = null,
+    hotfixWindowDays,
   } = options;
 
   const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
@@ -170,10 +183,77 @@ export function calculateMetrics(
       }
     : null;
 
+  // Age-normalized comparison (#29): cap both sides to the younger cohort's
+  // average age, so an older cohort can't win on clock time alone. Requires
+  // both cohorts to have a known age (i.e. to be non-empty) — same
+  // precondition as `baseline`.
+  const aiAge = cohorts.ai.age;
+  const baselineAge = cohorts.baseline.age;
+  const fairComparison =
+    baseline && aiAge && baselineAge
+      ? (() => {
+          const capDays = Math.min(aiAge.avgAgeDays, baselineAge.avgAgeDays);
+          const cappedAI = calculatePersistence(commitStream, isAI, { maxObservationDays: capDays });
+          const cappedBaseline = calculateBaselinePersistence(commitStream, isBaseline, {
+            maxObservationDays: capDays,
+          });
+          return {
+            capDays: round(capDays, 2),
+            ai: cappedAI,
+            baseline: cappedBaseline,
+            delta: {
+              avgPersistenceDays: round(cappedAI.avgDays - cappedBaseline.avgDays, 2),
+              medianPersistenceDays: round(cappedAI.medianDays - cappedBaseline.medianDays, 2),
+            },
+          };
+        })()
+      : null;
+
+  // Within-category comparison (#36 step 2): persistence per file category,
+  // AI vs baseline, instead of only reporting the mix. Always computed —
+  // useful even without a baseline cohort, to compare e.g. AI-written tests
+  // against AI-written source within the same repo.
+  const CATEGORIES: FileCategory[] = ['source', 'tests', 'migrations', 'config', 'docs', 'generated'];
+  const byCategory = Object.fromEntries(
+    CATEGORIES.map((category) => {
+      const toLean = (p: ReturnType<typeof calculatePersistence>) =>
+        p.filesConsidered > 0
+          ? { filesConsidered: p.filesConsidered, avgDays: p.avgDays, medianDays: p.medianDays }
+          : null;
+
+      const aiCat = toLean(
+        calculatePersistence(commitStream, isAI, { onlyCategory: category, excludeCategories: [] })
+      );
+      const baselineCat = baseline
+        ? toLean(
+            calculateBaselinePersistence(commitStream, isBaseline, {
+              onlyCategory: category,
+              excludeCategories: [],
+            })
+          )
+        : null;
+
+      const comparison: CategoryComparison = {
+        ai: aiCat,
+        baseline: baselineCat,
+        deltaAvgDays: aiCat && baselineCat ? round(aiCat.avgDays - baselineCat.avgDays, 2) : null,
+        deltaMedianDays:
+          aiCat && baselineCat ? round(aiCat.medianDays - baselineCat.medianDays, 2) : null,
+      };
+      return [category, comparison];
+    })
+  ) as ByCategory;
+
   // PR acceptance (#51): present only when fetch-prs ran
   const prAcceptance = prStream ? calculatePRAcceptance(prStream) : null;
   // Line-level survival (#23): present only when blame ran
   const lineSurvival = blameStream ? calculateLineSurvival(blameStream, commitStream) : null;
+  // Outcome correlation (#26): reverts and hotfixes linked to what they
+  // respond to. Always computed — a repo-level property, not a comparison.
+  const outcomeCorrelation = calculateOutcomeCorrelation(
+    commitStream,
+    hotfixWindowDays !== undefined ? { hotfixWindowDays } : {}
+  );
 
   const caveats = [
     `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
@@ -182,6 +262,7 @@ export function calculateMetrics(
     'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',
     'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
+    'Outcome correlation only covers what git can see: reverts resolved by hash and hotfix-pattern commits linked to the most recent prior touch of the same file(s). Incidents, SAST findings, and reverts/hotfixes outside the collected window are not represented.',
   ];
   if (prAcceptance?.truncated) {
     caveats.push(
@@ -201,6 +282,11 @@ export function calculateMetrics(
   if (!prAcceptance) {
     caveats.push(
       "PR acceptance is unavailable: run 'aida fetch-prs' to measure whether AI work is accepted. Git history alone cannot answer that."
+    );
+  }
+  if (fairComparison) {
+    caveats.push(
+      `Fair comparison caps both cohorts' observation window to ${fairComparison.capDays} days (the younger cohort's average commit age) — the raw AI vs Baseline table above does not, and may simply reflect one cohort having existed longer.`
     );
   }
   if (baseline?.assumed) {
@@ -227,6 +313,9 @@ export function calculateMetrics(
     persistence,
     cohorts,
     byMode,
+    fairComparison,
+    byCategory,
+    outcomeCorrelation,
     prAcceptance,
     lineSurvival,
     baseline,

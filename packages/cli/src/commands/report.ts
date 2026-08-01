@@ -40,6 +40,18 @@ function generateMarkdownReport(metrics: Metrics): string {
     ? 'Human baseline (assumed)'
     : 'Human baseline';
 
+  const fc = metrics.fairComparison;
+  const fairComparisonSection = fc
+    ? `
+**Age-normalized (fair) comparison** — both cohorts capped to ${fc.capDays} days of observation (the younger cohort's average commit age), so neither side gets credit for time it hasn't had:
+
+| Metric | AI commits (capped) | ${baselineLabel} (capped) | Delta |
+|---|---:|---:|---:|
+| Avg persistence (days) | ${fc.ai.avgDays} | ${fc.baseline.avgDays} | ${formatDelta(fc.delta.avgPersistenceDays, '')} |
+| Median persistence (days) | ${fc.ai.medianDays} | ${fc.baseline.medianDays} | ${formatDelta(fc.delta.medianPersistenceDays, '')} |
+`
+    : '';
+
   const comparisonSection = metrics.baseline && metrics.delta
     ? `## AI vs Baseline
 
@@ -48,7 +60,7 @@ function generateMarkdownReport(metrics: Metrics): string {
 | Commits | ${metrics.persistence.commitsConsidered} | ${metrics.baseline.persistence.commitsConsidered} | — |
 | Avg persistence (days) | ${metrics.persistence.avgDays} | ${metrics.baseline.persistence.avgDays} | ${formatDelta(metrics.delta.avgPersistenceDays, '')} |
 | Median persistence (days) | ${metrics.persistence.medianDays} | ${metrics.baseline.persistence.medianDays} | ${formatDelta(metrics.delta.medianPersistenceDays, '')} |
-`
+${fairComparisonSection}`
     : `## AI vs Baseline
 
 **No baseline available** — no commits are attributed as human, so there is nothing honest to compare against. If unattributed commits in this repo are human-authored, set \`"defaultAttribution": "human"\` in \`.aida.json\`.
@@ -64,6 +76,25 @@ function generateMarkdownReport(metrics: Metrics): string {
 
   const aiCtx = metrics.cohorts.ai;
   const baseCtx = metrics.cohorts.baseline;
+
+  function categoryRow(cat: (typeof categories)[number]) {
+    const c = metrics.byCategory[cat];
+    if (!c.ai && !c.baseline) return null;
+    return `| ${cat} | ${c.ai ? `${c.ai.avgDays}d (${c.ai.filesConsidered} files)` : '—'} | ${c.baseline ? `${c.baseline.avgDays}d (${c.baseline.filesConsidered} files)` : '—'} | ${c.deltaAvgDays !== null ? formatDelta(c.deltaAvgDays, '') : '—'} |`;
+  }
+  const categoryRows = categories.map(categoryRow).filter(Boolean);
+  const byCategorySection =
+    categoryRows.length > 0
+      ? `
+
+**Within-category comparison** — avg persistence per file category, instead of pooling everything (a mismatched task mix can't masquerade as a quality difference):
+
+| Category | AI avg persistence | Baseline avg persistence | Delta |
+|---|---:|---:|---:|
+${categoryRows.join('\n')}
+`
+      : '';
+
   const fairnessSection = `## Cohort Fairness
 
 Persistence comparisons are only meaningful between cohorts of similar **age** and **task mix**.
@@ -74,7 +105,7 @@ Persistence comparisons are only meaningful between cohorts of similar **age** a
 | Avg age (days) | ${aiCtx.age?.avgAgeDays ?? '—'} | ${baseCtx.age?.avgAgeDays ?? '—'} |
 | Median age (days) | ${aiCtx.age?.medianAgeDays ?? '—'} | ${baseCtx.age?.medianAgeDays ?? '—'} |
 ${categories.map((cat) => `| Files: ${cat} | ${mixCell(aiCtx.taskMix, cat)} | ${mixCell(baseCtx.taskMix, cat)} |`).join('\n')}
-`;
+${byCategorySection}`;
 
   const modeOrder = ['agent', 'assisted', 'autocomplete', 'none', 'unknown'] as const;
   const modeRows = modeOrder
@@ -118,6 +149,29 @@ Approximate survival of AI-introduced lines: **${(ls.approxSurvivalRate * 100).t
 
 `
     : '';
+
+  const oc = metrics.outcomeCorrelation;
+  function outcomeRow(label: string, counts: { ai: number; human: number; automated: number; unknown: number }) {
+    const total = counts.ai + counts.human + counts.automated + counts.unknown;
+    if (total === 0) return null;
+    return `| ${label} | ${counts.ai} | ${counts.human} | ${counts.automated} | ${counts.unknown} |`;
+  }
+  const outcomeRows = [
+    outcomeRow(`Reverted commits (${oc.reverts.resolved}/${oc.reverts.total} resolved)`, oc.reverts.byAttribution),
+    outcomeRow(`Hotfix antecedents (${oc.hotfixes.linked}/${oc.hotfixes.total} linked, ${oc.hotfixes.windowDays}d window)`, oc.hotfixes.byAttribution),
+  ].filter(Boolean);
+  const outcomeSection =
+    outcomeRows.length > 0
+      ? `## Outcome Correlation
+
+Reverts and hotfix-pattern commits, linked back to the attribution of the commit(s) they respond to — scoped to what git itself can answer (no incidents, no SAST).
+
+| Metric | ai | human | automated | unknown |
+|---|---:|---:|---:|---:|
+${outcomeRows.join('\n')}
+
+`
+      : '';
 
   const acc = metrics.prAcceptance;
   function accRow(label: string, stats: { total: number; merged: number; closed: number; acceptanceRate: number } | null) {
@@ -168,7 +222,7 @@ ${recentLine}
 **Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
 ${coverageWarning}${priorNote}
 ${comparisonSection}
-${byModeSection}${lineSection}${prSection}${fairnessSection}
+${byModeSection}${lineSection}${outcomeSection}${prSection}${fairnessSection}
 ## Persistence (file-level survival)
 - Commits considered: ${metrics.persistence.commitsConsidered}
 - Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)

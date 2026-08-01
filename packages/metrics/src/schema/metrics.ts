@@ -125,6 +125,87 @@ export const Delta = z.object({
   medianPersistenceDays: z.number(),
 });
 
+// Age-normalized comparison (#29): the AI vs Baseline table above can be
+// misleading when one cohort's commits are systematically older or younger
+// — an old cohort accumulates persistence simply from clock time, not code
+// quality. This recomputes both sides with each file's observation window
+// capped to `capDays` (the younger cohort's average commit age), so neither
+// side gets credit for time it hasn't actually had. Null when there's no
+// baseline cohort to compare against, same condition as `baseline`.
+export const FairComparison = z.object({
+  capDays: z.number().nonnegative(),
+  ai: Persistence,
+  baseline: Persistence,
+  delta: Delta,
+});
+
+// Within-category comparison (#36 step 2): persistence computed separately
+// per file category instead of pooled, so a mismatched task mix between
+// cohorts (e.g. AI writes mostly tests, humans write mostly source) can't
+// masquerade as a quality difference. Each side is null when that cohort has
+// no files in the category; delta only when both sides are present.
+export const CategoryPersistence = z.object({
+  filesConsidered: z.number().int().nonnegative(),
+  avgDays: z.number().nonnegative(),
+  medianDays: z.number().nonnegative(),
+});
+
+export const CategoryComparison = z.object({
+  ai: CategoryPersistence.nullable(),
+  baseline: CategoryPersistence.nullable(),
+  deltaAvgDays: z.number().nullable(),
+  deltaMedianDays: z.number().nullable(),
+});
+
+export const ByCategory = z.object({
+  source: CategoryComparison,
+  tests: CategoryComparison,
+  migrations: CategoryComparison,
+  config: CategoryComparison,
+  docs: CategoryComparison,
+  generated: CategoryComparison,
+});
+
+// Outcome correlation (#26), scoped to what git itself can answer: reverts
+// and hotfix-pattern commits, linked back to the attribution/mode of the
+// commit(s) they respond to. Incidents and SAST findings are out of scope —
+// they'd need network access this tool deliberately doesn't have.
+const AttributionCounts = z.object({
+  ai: z.number().int().nonnegative(),
+  human: z.number().int().nonnegative(),
+  automated: z.number().int().nonnegative(),
+  unknown: z.number().int().nonnegative(),
+});
+const ModeCounts = z.object({
+  none: z.number().int().nonnegative(),
+  autocomplete: z.number().int().nonnegative(),
+  assisted: z.number().int().nonnegative(),
+  agent: z.number().int().nonnegative(),
+  unknown: z.number().int().nonnegative(),
+});
+
+export const RevertStats = z.object({
+  total: z.number().int().nonnegative(), // revert commits found
+  resolved: z.number().int().nonnegative(), // reverts whose target is in the collected window
+  // Attribution/mode of the REVERTED commit, not the revert itself
+  byAttribution: AttributionCounts,
+  byMode: ModeCounts,
+});
+
+export const HotfixStats = z.object({
+  windowDays: z.number().int().positive(),
+  total: z.number().int().nonnegative(), // commits matching a fix/hotfix pattern
+  linked: z.number().int().nonnegative(), // hotfixes with an antecedent touch inside the window
+  // Attribution/mode of the antecedent commit, not the hotfix itself
+  byAttribution: AttributionCounts,
+  byMode: ModeCounts,
+});
+
+export const OutcomeCorrelation = z.object({
+  reverts: RevertStats,
+  hotfixes: HotfixStats,
+});
+
 // Per-autonomy-level metrics (#25, step 2): the durable comparison in an
 // AI-first world is between autonomy levels, not AI vs human. Automated
 // commits are excluded — automation is not authored code. Null when the
@@ -221,6 +302,15 @@ export const Metrics = z.object({
     baseline: CohortContext,
   }),
   byMode: ByMode,
+  // Age-normalized AI vs Baseline (#29). Same nullability as `baseline`.
+  fairComparison: FairComparison.nullable(),
+  // Per-file-category AI vs Baseline (#36 step 2). Always present; each
+  // category's sides are independently null when that cohort touched no
+  // files of that kind.
+  byCategory: ByCategory,
+  // Reverts and hotfixes linked to the commit(s) they respond to (#26).
+  // Always present — a property of the repo, not a cohort comparison.
+  outcomeCorrelation: OutcomeCorrelation,
   // Null unless `aida fetch-prs` produced a pr-stream.json (#51)
   prAcceptance: PRAcceptance.nullable(),
   // Null unless `aida blame` produced a blame-stream.json (#23)
@@ -243,6 +333,13 @@ export type ModeStats = z.infer<typeof ModeStats>;
 export type ByMode = z.infer<typeof ByMode>;
 export type AcceptanceStats = z.infer<typeof AcceptanceStats>;
 export type PRAcceptance = z.infer<typeof PRAcceptance>;
+export type FairComparison = z.infer<typeof FairComparison>;
+export type CategoryPersistence = z.infer<typeof CategoryPersistence>;
+export type CategoryComparison = z.infer<typeof CategoryComparison>;
+export type ByCategory = z.infer<typeof ByCategory>;
+export type RevertStats = z.infer<typeof RevertStats>;
+export type HotfixStats = z.infer<typeof HotfixStats>;
+export type OutcomeCorrelation = z.infer<typeof OutcomeCorrelation>;
 export type LineSurvival = z.infer<typeof LineSurvival>;
 export type Persistence = z.infer<typeof Persistence>;
 export type Baseline = z.infer<typeof Baseline>;

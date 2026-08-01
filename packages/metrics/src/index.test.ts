@@ -13,6 +13,7 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     message: 'commit',
     parents: [],
     inDefaultBranchAncestry: true,
+    revertsCommit: null,
     tags: { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] },
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,
@@ -270,5 +271,140 @@ describe('calculateMetrics baseline cohort', () => {
     expect(metrics.persistence.commitsConsidered).toBe(2); // ai + unknown
     expect(metrics.baseline!.persistence.commitsConsidered).toBe(1); // human only
     expect(metrics.baseline!.assumed).toBe(false);
+  });
+});
+
+describe('fairComparison (#29 age-normalization)', () => {
+  it('is null when there is no baseline cohort', () => {
+    const metrics = calculateMetrics(makeStream([makeCommit({ hash: 'a1', tags: aiTags })]));
+    expect(metrics.fairComparison).toBeNull();
+  });
+
+  it('caps both cohorts to the younger cohort average age, unlike the raw comparison', () => {
+    // Baseline: old commit whose file was never touched again — accumulates
+    // a lot of raw persistence purely from clock time.
+    const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
+    // AI: recent commit, also never touched again.
+    const recentDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+
+    const metrics = calculateMetrics({
+      ...makeStream([
+        makeCommit({
+          hash: 'h1',
+          tags: humanTags,
+          authorDate: oldDate,
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'old.ts', additions: 1, deletions: 0 }] },
+        }),
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          authorDate: recentDate,
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'new.ts', additions: 1, deletions: 0 }] },
+        }),
+      ]),
+      // Both commits post-date the fixed '2025-01-01' default: the
+      // observation end must be "now" for their persistence to make sense.
+      generatedAt: new Date().toISOString(),
+    });
+
+    // Raw comparison: baseline looks far more "persistent" just because it's old
+    expect(metrics.baseline!.persistence.avgDays).toBeGreaterThan(150);
+    expect(metrics.persistence.avgDays).toBeLessThan(15);
+
+    // Fair comparison: both capped to ~10 days (the AI cohort's average age)
+    expect(metrics.fairComparison).not.toBeNull();
+    expect(metrics.fairComparison!.capDays).toBeCloseTo(10, 0);
+    expect(metrics.fairComparison!.ai.avgDays).toBeLessThanOrEqual(10);
+    expect(metrics.fairComparison!.baseline.avgDays).toBeLessThanOrEqual(10);
+  });
+});
+
+describe('byCategory (#36 step 2 within-category comparison)', () => {
+  it('is computed even without a baseline cohort', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          stats: {
+            totalAdditions: 2,
+            totalDeletions: 0,
+            files: [
+              { path: 'src/a.ts', additions: 1, deletions: 0 },
+              { path: 'src/a.test.ts', additions: 1, deletions: 0 },
+            ],
+          },
+        }),
+      ])
+    );
+
+    expect(metrics.byCategory.source.ai?.filesConsidered).toBe(1);
+    expect(metrics.byCategory.tests.ai?.filesConsidered).toBe(1);
+    expect(metrics.byCategory.source.baseline).toBeNull();
+    expect(metrics.byCategory.source.deltaAvgDays).toBeNull();
+    expect(metrics.byCategory.migrations.ai).toBeNull(); // no migration files touched
+  });
+
+  it('computes a delta only when both sides have files in that category', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          authorDate: '2025-01-01T00:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }] },
+        }),
+        makeCommit({
+          hash: 'a2',
+          tags: aiTags,
+          authorDate: '2025-01-10T00:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0, status: 'modified' }] },
+        }),
+        makeCommit({
+          hash: 'h1',
+          tags: humanTags,
+          authorDate: '2025-01-01T00:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/b.ts', additions: 1, deletions: 0 }] },
+        }),
+      ])
+    );
+
+    expect(metrics.byCategory.source.ai?.filesConsidered).toBe(1);
+    expect(metrics.byCategory.source.baseline?.filesConsidered).toBe(1);
+    expect(metrics.byCategory.source.deltaAvgDays).not.toBeNull();
+    expect(metrics.byCategory.tests.ai).toBeNull();
+    expect(metrics.byCategory.tests.deltaAvgDays).toBeNull();
+  });
+});
+
+describe('outcomeCorrelation (#26)', () => {
+  it('is always present and reflects reverts/hotfixes end to end via calculateMetrics', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          authorDate: '2025-01-01T00:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'app.ts', additions: 1, deletions: 0 }] },
+        }),
+        makeCommit({
+          hash: 'r1',
+          message: 'Revert "feat: a1"',
+          authorDate: '2025-01-02T00:00:00.000Z',
+          revertsCommit: 'a1',
+        }),
+      ]),
+      { hotfixWindowDays: 7 }
+    );
+
+    expect(metrics.outcomeCorrelation.reverts.total).toBe(1);
+    expect(metrics.outcomeCorrelation.reverts.resolved).toBe(1);
+    expect(metrics.outcomeCorrelation.reverts.byAttribution.ai).toBe(1);
+  });
+
+  it('is present (all zero) even for a stream with no reverts or hotfixes', () => {
+    const metrics = calculateMetrics(makeStream([makeCommit({ hash: 'a1', tags: aiTags })]));
+    expect(metrics.outcomeCorrelation.reverts.total).toBe(0);
+    expect(metrics.outcomeCorrelation.hotfixes.total).toBe(0);
   });
 });
