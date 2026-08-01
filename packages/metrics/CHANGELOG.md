@@ -1,5 +1,12 @@
 # @aida/metrics
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [328b64d]
+  - @aida-dev/core@0.15.0
+
 ## 0.10.0
 
 ### Minor Changes
