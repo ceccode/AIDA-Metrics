@@ -20,8 +20,15 @@ function generateMarkdownReport(metrics: Metrics): string {
   const coveragePct = (a.coverage * 100).toFixed(1);
   const unknownPct = a.commitsTotal > 0 ? ((a.unknown / a.commitsTotal) * 100).toFixed(1) : '0.0';
 
-  const coverageWarning = a.belowThreshold
-    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%.** Most of this history has unknown provenance: every metric below is low-confidence. Tag AI commits (trailers, \`[AI]\`) or set \`defaultAttribution\` in \`.aida.json\`.\n`
+  // The recent window is the actionable number, so it leads and it drives
+  // the warning; all-time stays visible as context (#52).
+  const recentLine = a.recent
+    ? `\n**Last ${a.recent.windowDays} days: ${(a.recent.coverage * 100).toFixed(1)}%** (${a.recent.commitsTotal} commits) — the number you can move. All-time: ${coveragePct}%.\n`
+    : '';
+  const warnOnRecent = a.recent ? a.recent.belowThreshold : a.belowThreshold;
+
+  const coverageWarning = warnOnRecent
+    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** Provenance is largely unknown, so every metric below is low-confidence. Install the commit hook (\`aida install-hooks\`), tag AI commits, or set \`defaultAttribution\` in \`.aida.json\`.\n`
     : '';
 
   const priorNote =
@@ -135,6 +142,7 @@ ${[
 
 **${coveragePct}% of commits have known provenance** — ai: ${a.ai} · human: ${a.human} · automated: ${a.automated} · unknown: ${a.unknown} (${unknownPct}%)
 
+${recentLine}
 **Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
 ${coverageWarning}${priorNote}
 ${comparisonSection}
@@ -143,7 +151,12 @@ ${byModeSection}${prSection}${fairnessSection}
 - Commits considered: ${metrics.persistence.commitsConsidered}
 - Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)
 - Average days: ${metrics.persistence.avgDays}
-- Median days: ${metrics.persistence.medianDays}
+- Median days: ${metrics.persistence.medianDays}${
+    metrics.persistence.rework
+      ? `
+- **Rework rate (${metrics.persistence.rework.windowDays}d):** ${(metrics.persistence.rework.rate * 100).toFixed(1)}% — ${metrics.persistence.rework.reworked} of ${metrics.persistence.rework.determined} files with a determined outcome${metrics.persistence.rework.undetermined > 0 ? ` (${metrics.persistence.rework.undetermined} too recent to judge)` : ''}`
+      : ''
+  }
 
 | 0–1d | 2–7d | 8–30d | 31–90d | 90d+ |
 |---:|---:|---:|---:|---:|

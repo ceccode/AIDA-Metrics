@@ -12,8 +12,12 @@ export const DEFAULT_PERSISTENCE_EXCLUDED_CATEGORIES: FileCategory[] = [
   'generated',
 ];
 
+export const DEFAULT_REWORK_WINDOW_DAYS = 7;
+
 export interface PersistenceOptions {
   excludeCategories?: FileCategory[];
+  // Window for the rework rate (#22)
+  reworkWindowDays?: number;
   // End of the observation window, used to measure censored files (never
   // modified again). Defaults to the stream's collection time.
   observationEnd?: Date;
@@ -38,6 +42,7 @@ export function calculatePersistence(
   const {
     excludeCategories = DEFAULT_PERSISTENCE_EXCLUDED_CATEGORIES,
     observationEnd = new Date(commitStream.generatedAt),
+    reworkWindowDays = DEFAULT_REWORK_WINDOW_DAYS,
   } = options;
   const excluded = new Set<FileCategory>(excludeCategories);
 
@@ -50,6 +55,7 @@ export function calculatePersistence(
     censored: 0,
     avgDays: 0,
     medianDays: 0,
+    rework: null,
     buckets: { d0_1: 0, d2_7: 0, d8_30: 0, d31_90: 0, d90_plus: 0 },
   };
 
@@ -96,14 +102,31 @@ export function calculatePersistence(
 
   const survivalDays: number[] = [];
   let censored = 0;
+  // Rework accounting (#22). A file counts only when its outcome within the
+  // window is *determined*: either it was reworked in time, or it was
+  // observed for the full window without being touched. A file first seen
+  // two days ago cannot answer a seven-day question either way.
+  let reworked = 0;
+  let determined = 0;
+  let undetermined = 0;
   for (const lifecycle of lifecycles.values()) {
     if (lifecycle.firstTargetIndex < 0) continue; // excluded category
+    const observedDays = Math.max(0, daysBetween(lifecycle.firstTargetDate, observationEnd));
+
     if (lifecycle.eventDate) {
-      survivalDays.push(daysBetween(lifecycle.firstTargetDate, lifecycle.eventDate));
+      const survived = daysBetween(lifecycle.firstTargetDate, lifecycle.eventDate);
+      survivalDays.push(survived);
+      determined++;
+      if (survived < reworkWindowDays) reworked++;
     } else {
       // Never modified again: survived to the end of the observation window
       censored++;
-      survivalDays.push(Math.max(0, daysBetween(lifecycle.firstTargetDate, observationEnd)));
+      survivalDays.push(observedDays);
+      if (observedDays >= reworkWindowDays) {
+        determined++; // observed long enough to say "not reworked"
+      } else {
+        undetermined++; // too recent to judge
+      }
     }
   }
 
@@ -125,6 +148,16 @@ export function calculatePersistence(
     censored,
     avgDays: Math.round(avgDays * 100) / 100,
     medianDays: Math.round(medianDays * 100) / 100,
+    rework:
+      determined > 0
+        ? {
+            windowDays: reworkWindowDays,
+            reworked,
+            determined,
+            undetermined,
+            rate: Math.round((reworked / determined) * 10000) / 10000,
+          }
+        : null,
     buckets: {
       d0_1: survivalDays.filter((days) => days <= 1).length,
       d2_7: survivalDays.filter((days) => days >= 2 && days <= 7).length,
