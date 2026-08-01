@@ -10,6 +10,9 @@ export const AidaConfig = z.object({
   defaultAttribution: z.enum(['ai', 'human', 'unknown']).default('unknown'),
   // Attribution coverage below this fraction flags all metrics as low-confidence.
   coverageThreshold: z.number().min(0).max(1).default(0.7),
+  // Repo-wide autonomy mode stamped by the commit hook when nothing else
+  // determines it (#61). Absent means: leave unknown rather than guess.
+  defaultMode: z.enum(['none', 'autocomplete', 'assisted', 'agent']).optional(),
   // Replace author/committer identities with a per-run salted hash (#35).
   // Recommended in CI, where commit-stream.json leaves the machine.
   redactAuthors: z.boolean().default(false),

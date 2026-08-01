@@ -143,6 +143,14 @@ Collect commits and generate normalized commit stream:
 aida collect --since 90d --out-dir ./aida-output
 ```
 
+#### `aida install-hooks`
+
+Install the commit-time mode stamping hook:
+
+```bash
+aida install-hooks
+```
+
 #### `aida fetch-prs`
 
 Fetch pull request outcomes from the forge API (**opt-in, the only command that uses the network**):
@@ -195,6 +203,13 @@ aida report --out-dir ./aida-output
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
 
+#### `aida install-hooks`
+
+- `--repo <path>` - Repository path (default: current directory)
+- `--force` - Overwrite an existing unrelated hook
+- `--uninstall` - Remove the AIDA hook block
+- `--verbose` - Verbose logging
+
 #### `aida fetch-prs`
 
 - `--github-repo <owner/name>` - GitHub repository (default: `$GITHUB_REPOSITORY`)
@@ -244,6 +259,40 @@ Non-AI automation bots (`dependabot`, `renovate`, `github-actions`, `greenkeeper
 ### Supported Tools (built-in)
 
 `copilot`, `cursor`, `windsurf`, `codeium`, `claude`, `chatgpt`, `gemini`
+
+### Commit-Time Mode Stamping (git hook)
+
+The manifest is retroactive; a hook is **prospective** — it declares provenance at the moment the commit is made, turning `declared` from the exception into the norm ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)).
+
+```bash
+aida install-hooks          # writes .git/hooks/prepare-commit-msg
+aida install-hooks --uninstall
+```
+
+The hook appends an `AI-Mode:` trailer when the mode is known:
+
+```
+feat: add rate limiting
+
+AI-Mode: agent
+```
+
+| Mode | Meaning |
+|------|---------|
+| `none` | Hand-written — the only mechanism that declares **human** authorship at commit time |
+| `autocomplete` | Line-level suggestions |
+| `assisted` | Supervised pair-programming |
+| `agent` | Autonomous, multi-file work |
+
+Resolution order: **`AIDA_MODE`** env var (explicit and reliable — set it in your agent, wrapper, or shell alias) → auto-detection of known agent environments (best-effort convenience) → `defaultMode` in `.aida.json` → **nothing**. When the mode is unknown the hook writes no trailer at all: an absent declaration honestly means unknown, while a guessed one would be a fabrication.
+
+```bash
+AIDA_MODE=agent git commit -m "feat: ..."
+```
+
+The hook is self-contained POSIX shell with no dependency on `aida` being installed, never blocks a commit whatever happens inside it, refuses to overwrite a hook it didn't write (unless `--force`), and removes only its own block on uninstall.
+
+**Honest limit**: a hook is voluntary and local to each clone. It shrinks the unknown bucket, it does not eliminate it — someone who doesn't install it, or unsets the variable, is invisible to it.
 
 ### Attribution Manifest (`aida-attribution.json`)
 
@@ -311,6 +360,7 @@ Place a `.aida.json` file in your project root to add custom tools, trailer doma
 | `patterns` | Raw regex patterns (treated as explicit) |
 | `defaultAttribution` | Prior applied to unattributed commits at analysis time: `ai`, `human`, or `unknown` (default). With `unknown`, unattributed commits join no cohort — AIDA does not invent a comparison. This repo sets `ai`: it is AI-written with human review. |
 | `coverageThreshold` | Attribution coverage below this fraction (default `0.7`) flags all metrics as low-confidence |
+| `defaultMode` | Autonomy mode the commit hook stamps when nothing else determines it: `none` \| `autocomplete` \| `assisted` \| `agent` ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)). Absent means leave unknown rather than guess |
 | `redactAuthors` | Replace author/committer identities in `commit-stream.json` with a per-run salted hash (default `false`; recommended in CI) |
 
 ### CLI Flags
@@ -496,7 +546,8 @@ aida_analysis:
 - **v0.15** ✅ Author redaction ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)) and synthetic PR merge commit fix ([#40](https://github.com/ceccode/AIDA-Metrics/issues/40)).  
 - **v0.16** ✅ Versioned output schemas with reader-side version gate, plus end-to-end CLI tests and `pnpm typecheck` in CI ([#53](https://github.com/ceccode/AIDA-Metrics/issues/53)).  
 - **v0.17** ✅ PR acceptance rate via forge APIs — opt-in `aida fetch-prs`, the honest successor to merge ratio ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)).  
-- **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)), GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) / Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR providers.  
+- **v0.18** ✅ Commit-time mode stamping via git hook — `AI-Mode` trailer, `declared` evidence at the source ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)).  
+- **Next** → Autonomy as primary axis ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25) step 3, once declared data accumulates), windowed coverage ([#52](https://github.com/ceccode/AIDA-Metrics/issues/52)), GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) / Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR providers.  
 - **Next** → Rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level persistence via blame ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).  
 - **Next** → Outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **Next** → GitLab ([#16](https://github.com/ceccode/AIDA-Metrics/issues/16)) and Bitbucket ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)) PR comment providers.  
@@ -509,7 +560,7 @@ In an AI-first world, "was this commit written by AI?" is becoming the wrong que
 - **Three-state attribution** — `ai` / `human` / `unknown` instead of forcing unattributed commits into a binary bucket ([#34](https://github.com/ceccode/AIDA-Metrics/issues/34)). Attribution **coverage** becomes the headline metric ("62% attributed · 38% unknown" is a data-quality signal, not something to hide inside a default) — because the unknown bucket grows fastest exactly where the numbers are taken most seriously. A configurable `defaultAttribution` prior will let AI-first teams opt into "AI unless stated otherwise" — consciously, instead of the tool silently assuming either way.
 - **Quality over adoption** — the durable question is not "how much code is AI?" but "does AI code hold up?": rework rate ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)), line-level survival ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)), outcome correlation ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).
 - **Autonomy over the binary** — autocomplete vs assisted vs agent ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)) is the axis that will replace AI/non-AI.
-- **Shrink the unknown at the source** — the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10), shipped) makes attribution declarative; commit-time stamping via git hooks will make it automatic.
+- **Shrink the unknown at the source** — the attribution manifest ([#10](https://github.com/ceccode/AIDA-Metrics/issues/10)) makes attribution declarative retroactively; commit-time stamping via git hooks ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)) makes it automatic going forward. Both shipped.
 - **Cohorts, not people** — AIDA compares groups of commits, never developers. No per-author aggregation will ever ship, and author identity can be redacted from output artifacts ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35), shipped) so the data model doesn't hand anyone a leaderboard for free.
 
 ## Contributing
