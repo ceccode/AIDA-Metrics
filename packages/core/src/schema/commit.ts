@@ -18,6 +18,10 @@ export const Commit = z.object({
   message: z.string(),
   parents: z.array(z.string()),
   inDefaultBranchAncestry: z.boolean(), // set during collect
+  // How the commit was found on the default branch (proposal for #20):
+  // 'ancestry' = reachable from it; 'patch-id' = its diff matches a squashed
+  // commit; null = not found. Additive, so schemaVersion stays 1 (#53).
+  mergedVia: z.enum(['ancestry', 'patch-id']).nullable().default(null),
   tags: z.object({
     ai: z.boolean(),
     // Four-state attribution (#34, #39). Heuristics emit 'ai' or 'unknown';

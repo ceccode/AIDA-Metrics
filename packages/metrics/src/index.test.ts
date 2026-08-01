@@ -13,6 +13,7 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     message: 'commit',
     parents: [],
     inDefaultBranchAncestry: true,
+    mergedVia: 'ancestry',
     tags: { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] },
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,

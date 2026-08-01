@@ -14,6 +14,7 @@ function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStrea
     message: 'test commit',
     parents: [],
     inDefaultBranchAncestry: true,
+    mergedVia: 'ancestry',
     tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
     stats: { totalAdditions: 10, totalDeletions: 0, files: [] },
     ...overrides,

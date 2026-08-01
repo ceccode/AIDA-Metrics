@@ -32,6 +32,10 @@ export function createCollectCommand(): Command {
     .option('--ai-bot-blocklist <name>', 'Non-AI bot to exclude from trailer matching (repeatable)', collectRepeatable, [])
     .option('--default-branch <name>', 'Default branch name')
     .option(
+      '--detect-squash-merges',
+      'Match unmerged commits against squashed ones by patch-id (proposal for #20)'
+    )
+    .option(
       '--redact-authors',
       'Replace author/committer identities with a per-run salted hash (recommended in CI)'
     )
@@ -86,6 +90,7 @@ export function createCollectCommand(): Command {
           defaultBranch: config.defaultBranch,
           // CLI flag wins over .aida.json
           redactAuthors: config.redactAuthors ?? fileConfig.redactAuthors ?? false,
+          detectSquashMerges: Boolean(options.detectSquashMerges),
           logger,
         });
 

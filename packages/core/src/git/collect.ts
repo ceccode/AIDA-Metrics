@@ -11,6 +11,7 @@ import {
 } from '../tags/attribution-manifest.js';
 import { createRedactor } from '../tags/redact.js';
 import { logWithStats } from './log.js';
+import { computePatchIds, findSquashMatch } from './patch-id.js';
 import { parseRelativeDate, formatISODate } from '../utils/dates.js';
 import { Logger } from '../utils/log.js';
 
@@ -25,6 +26,8 @@ export interface CollectOptions {
   aiBotBlocklist?: string[];
   defaultBranch?: string;
   redactAuthors?: boolean;
+  // Proposal for #20: match unmerged commits against squashed ones by patch-id
+  detectSquashMerges?: boolean;
   logger?: Logger;
 }
 
@@ -75,6 +78,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     aiBotBlocklist = [],
     defaultBranch: providedDefaultBranch,
     redactAuthors = false,
+    detectSquashMerges = false,
     logger,
   } = options;
 
@@ -155,6 +159,16 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const manifest = await loadAttributionManifest(repoPath, logger);
   const manifestIndex = manifest ? indexManifest(manifest) : null;
 
+  // Squash-merge detection (proposal for #20): patch-ids of the default
+  // branch, to match against commits that are not ancestors of it.
+  let defaultBranchPatchIds = null;
+  let allPatchIds = null;
+  if (detectSquashMerges && !diffBase) {
+    logger?.info('Computing patch-ids for squash-merge detection...');
+    defaultBranchPatchIds = await computePatchIds(repoPath, defaultBranch);
+    allPatchIds = await computePatchIds(repoPath, '--all');
+  }
+
   // Author redaction (#35). Applied last: identity-based detection above
   // must see the real values.
   const redactor = redactAuthors ? createRedactor() : null;
@@ -212,6 +226,12 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       message: rawCommit.message.split('\n')[0],
       parents: rawCommit.parents,
       inDefaultBranchAncestry: defaultBranchHashes.has(rawCommit.hash),
+      mergedVia: defaultBranchHashes.has(rawCommit.hash)
+        ? 'ancestry'
+        : allPatchIds && defaultBranchPatchIds &&
+            findSquashMatch(rawCommit.hash, allPatchIds, defaultBranchPatchIds)
+          ? 'patch-id'
+          : null,
       tags: aiTag,
       stats: rawCommit.stats,
     };

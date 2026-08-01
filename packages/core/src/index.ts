@@ -5,6 +5,7 @@ export * from './schema/stream.js';
 export * from './git/collect.js';
 export * from './git/diff.js';
 export * from './git/log.js';
+export * from './git/patch-id.js';
 export * from './tags/ai-tags.js';
 export * from './tags/attribution-manifest.js';
 export * from './tags/automated.js';
