@@ -6,6 +6,8 @@ import {
   CommitStream,
   AidaConfig,
   COMMIT_STREAM_SCHEMA_VERSION,
+  BlameStream,
+  BLAME_STREAM_SCHEMA_VERSION,
   PRStream,
   PR_STREAM_SCHEMA_VERSION,
   assertSchemaVersion,
@@ -109,11 +111,27 @@ export function createAnalyzeCommand(): Command {
           );
         }
 
+        // Optional line-level blame data (#23): absent unless `aida blame` ran
+        const blamePath = join(config.outDir, 'blame-stream.json');
+        let blameStream = null;
+        if (await fileExists(blamePath)) {
+          const rawBlame = await readJSON<unknown>(blamePath);
+          assertSchemaVersion(
+            rawBlame,
+            BLAME_STREAM_SCHEMA_VERSION,
+            'blame-stream.json',
+            "Rerun 'aida blame' with this version of AIDA."
+          );
+          blameStream = BlameStream.parse(rawBlame);
+          logger.info(`Blame data loaded: ${blameStream.totalLines} lines`);
+        }
+
         const metrics = calculateMetrics(commitStream, {
           defaultAttribution,
           coverageThreshold,
           coverageWindowDays,
           prStream,
+          blameStream,
         });
 
         const outputPath = join(config.outDir, 'metrics.json');
@@ -134,6 +152,12 @@ export function createAnalyzeCommand(): Command {
           );
         }
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);
+        if (metrics.lineSurvival) {
+          const ls = metrics.lineSurvival;
+          logger.info(
+            `Line survival: ${(ls.aiShare * 100).toFixed(1)}% of attributed lines were last written by AI (${ls.byAttribution.ai}/${ls.totalLines})`
+          );
+        }
         if (metrics.prAcceptance) {
           const ai = metrics.prAcceptance.byAttribution.ai;
           logger.info(
