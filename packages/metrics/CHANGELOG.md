@@ -1,5 +1,37 @@
 # @aida/metrics
 
+## 0.13.0
+
+### Minor Changes
+
+- 8e7aaee: Age-normalized fair comparison (#29), within-category comparison (#36), outcome correlation (#26)
+
+  **Fair comparison (#29)** — the raw AI vs Baseline table can be misleading when one cohort's commits are systematically older than the other's: an older cohort accumulates persistence simply from clock time. `metrics.json` gains `fairComparison`, recomputing both cohorts' persistence with each file's observation window capped to the younger cohort's average commit age. Reported alongside the raw comparison, never in place of it; null under the same condition as `baseline`.
+
+  **Within-category comparison (#36 step 2)** — a pooled delta can hide a task-mix confound (AI mostly writing tests, humans mostly writing source). `metrics.json` gains `byCategory`: persistence per file category (source/tests/migrations/config/docs/generated) for each cohort, with a delta only where both sides touched that category. Always present, useful even without a baseline.
+
+  **Outcome correlation (#26)**, scoped to what git can answer — no incidents, no SAST, both would need network access this tool deliberately doesn't have:
+  - `commit-stream.json`: new `revertsCommit` field, parsed from the full commit body at collect time (`git revert` writes "This reverts commit \<sha\>." — the only reliable link back to what was reverted).
+  - `metrics.json` gains `outcomeCorrelation`: reverts resolved and attributed to the **reverted** commit's cohort/mode; hotfix-pattern commits (`fix`/`hotfix`/`patch`) linked to the closest prior touch of the same file(s) within a window (default 7 days, `--hotfix-window`) and attributed to that antecedent's cohort/mode. Always present, a repo-level property rather than a cohort comparison.
+
+  All three fields are additive; `schemaVersion` stays unchanged per the #53 contract.
+
+- 0ed11c6: Report outcome correlation against the base rate, not as raw counts
+
+  A bare count of "AI-caused" reverts or hotfixes is uninterpretable: in a repo where 90% of commits are AI, 90% of reverts being AI means nothing. The previous table showed only counts, which invited exactly the wrong conclusion from correct numbers.
+
+  `outcomeCorrelation.reverts.rates` and `.hotfixes.rates` now carry, per cohort, its `share` of the outcome, its `baseRate` (share of authored commits) and the `ratio` between them — 1.00× being exactly what the cohort's size predicts. Automated commits are excluded from both sides, since automation isn't authored work. The report renders share, base rate and ratio side by side, and leads with "read the ratio, not the count".
+
+  Found by running AIDA against `anthropics/claude-code-action`, where the raw numbers (3 of 11 reverts, 49 of 140 hotfix antecedents attributed to AI) read as alarming, while the ratios show 1.13× for reverts — no signal — and 1.45× for hotfixes, a real but modest excess.
+
+  Additive to the schema; `schemaVersion` unchanged.
+
+### Patch Changes
+
+- Updated dependencies [672edff]
+- Updated dependencies [8e7aaee]
+  - @aida-dev/core@0.17.0
+
 ## 0.12.0
 
 ### Minor Changes
