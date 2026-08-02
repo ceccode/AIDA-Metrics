@@ -490,6 +490,12 @@ Whether AI-generated code causes more rework is the highest-value question for e
 - **Reverts**: a `git revert` writes "This reverts commit \<sha\>." into the generated commit's body — parsed at collect time into `revertsCommit`. `metrics.json`'s `outcomeCorrelation.reverts` reports how many were found and resolved, broken down by the **reverted** commit's attribution and autonomy mode.
 - **Hotfixes**: commits matching a `fix`/`hotfix`/`patch` subject convention. Each is linked to the most recent prior commit that touched the same file(s), within a window (default 7 days, `--hotfix-window`) — the closest antecedent across all its files, so a hotfix touching several files links to whichever was most recently disturbed. `outcomeCorrelation.hotfixes` reports totals, how many were linked, and the antecedent's attribution/mode.
 
+**Counts are reported against the base rate, never alone.** A cohort's share of reverts only means something next to its share of authored commits: in a repo that is 90% AI, 90% of reverts being AI is exactly what you'd expect and says nothing. Each row therefore carries `share`, `baseRate` and their `ratio` — **1.00× is what the cohort's size predicts**, above is an excess, below is better than average. Automated commits are excluded from both sides, since automation isn't authored work.
+
+Validated on `anthropics/claude-code-action`: the raw counts (3 of 11 reverts, 49 of 140 hotfix antecedents) look alarming until the ratios show 1.13× for reverts — no signal at all — against 1.45× for hotfixes, a real but modest excess.
+
+The ratios are descriptive, not causal, and on small counts a single commit moves them a long way.
+
 Both are always present in `metrics.json` (never gated on a baseline cohort — they're a property of the repo, not a comparison) and rendered in the report only when at least one is non-zero.
 
 ### Known Limits

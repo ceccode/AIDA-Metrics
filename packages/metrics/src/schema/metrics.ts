@@ -184,12 +184,33 @@ const ModeCounts = z.object({
   unknown: z.number().int().nonnegative(),
 });
 
+// A raw count of "AI-caused" outcomes is uninterpretable on its own: in a
+// repo where 90% of commits are AI, 90% of reverts being AI means nothing.
+// `share` is the cohort's slice of the outcome, `baseRate` its slice of
+// authored commits overall, and `ratio` the two divided — ratio ≈ 1 means
+// the cohort is reverted/hotfixed exactly as often as its size predicts.
+// Null when there is nothing to divide by.
+export const OutcomeRate = z.object({
+  count: z.number().int().nonnegative(),
+  share: z.number().min(0).max(1).nullable(),
+  baseRate: z.number().min(0).max(1).nullable(),
+  ratio: z.number().nonnegative().nullable(),
+});
+
+const OutcomeRates = z.object({
+  ai: OutcomeRate,
+  human: OutcomeRate,
+  unknown: OutcomeRate,
+});
+
 export const RevertStats = z.object({
   total: z.number().int().nonnegative(), // revert commits found
   resolved: z.number().int().nonnegative(), // reverts whose target is in the collected window
   // Attribution/mode of the REVERTED commit, not the revert itself
   byAttribution: AttributionCounts,
   byMode: ModeCounts,
+  // Same counts expressed against each cohort's base rate (see OutcomeRate)
+  rates: OutcomeRates,
 });
 
 export const HotfixStats = z.object({
@@ -199,6 +220,7 @@ export const HotfixStats = z.object({
   // Attribution/mode of the antecedent commit, not the hotfix itself
   byAttribution: AttributionCounts,
   byMode: ModeCounts,
+  rates: OutcomeRates,
 });
 
 export const OutcomeCorrelation = z.object({
@@ -337,6 +359,7 @@ export type FairComparison = z.infer<typeof FairComparison>;
 export type CategoryPersistence = z.infer<typeof CategoryPersistence>;
 export type CategoryComparison = z.infer<typeof CategoryComparison>;
 export type ByCategory = z.infer<typeof ByCategory>;
+export type OutcomeRate = z.infer<typeof OutcomeRate>;
 export type RevertStats = z.infer<typeof RevertStats>;
 export type HotfixStats = z.infer<typeof HotfixStats>;
 export type OutcomeCorrelation = z.infer<typeof OutcomeCorrelation>;

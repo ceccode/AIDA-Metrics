@@ -195,3 +195,88 @@ describe('hotfixes', () => {
     expect(result.hotfixes.linked).toBe(0);
   });
 });
+
+describe('outcome rates against the base rate', () => {
+  // A revert commit is itself authored work, so it belongs in the base-rate
+  // denominator. These fixtures therefore attribute each revert to the same
+  // cohort as its target, which is what an 80%-AI repo actually looks like.
+  function repoWith(revertTargets: Array<'ai' | 'human'>) {
+    const commits: Commit[] = [];
+    for (let i = 0; i < 8; i++) commits.push(makeCommit({ hash: `ai${i}`, tags: aiTags }));
+    for (let i = 0; i < 2; i++) commits.push(makeCommit({ hash: `h${i}`, tags: humanTags }));
+    // Separate counters: the target must be a commit that actually exists,
+    // or the revert reads as unresolved and drops out of the denominator.
+    let nextAi = 0;
+    let nextHuman = 0;
+    revertTargets.forEach((cohort, i) => {
+      const target = cohort === 'ai' ? `ai${nextAi++}` : `h${nextHuman++}`;
+      commits.push(
+        makeCommit({
+          hash: `rev${i}`,
+          message: 'Revert x',
+          revertsCommit: target,
+          tags: cohort === 'ai' ? aiTags : humanTags,
+        })
+      );
+    });
+    return makeStream(commits);
+  }
+
+  it('reports a ratio of ~1 when a cohort is reverted exactly as often as its size predicts', () => {
+    // 12 of 15 authored commits are AI (80%); 4 of 5 reverts hit AI (80%)
+    const result = calculateOutcomeCorrelation(repoWith(['ai', 'ai', 'ai', 'ai', 'human']));
+    const ai = result.reverts.rates.ai;
+    expect(ai.count).toBe(4);
+    expect(ai.share).toBeCloseTo(0.8, 2);
+    expect(ai.baseRate).toBeCloseTo(0.8, 2);
+    // The headline point: AI dominates the raw count and yet there is no signal
+    expect(ai.ratio).toBeCloseTo(1, 1);
+  });
+
+  it('reports a ratio above 1 only when a cohort is genuinely over-represented', () => {
+    // Every revert hits AI: 100% of reverts against an 86.7% base rate
+    const result = calculateOutcomeCorrelation(repoWith(['ai', 'ai', 'ai', 'ai', 'ai']));
+    const ai = result.reverts.rates.ai;
+    expect(ai.share).toBe(1);
+    expect(ai.ratio).toBeGreaterThan(1);
+    expect(ai.ratio).toBeLessThan(1.2);
+  });
+
+  it('flags an under-represented cohort taking more than its share', () => {
+    // Humans: 3 of 12 authored commits (25%) but 1 of 2 reverts (50%) → 2x
+    const result = calculateOutcomeCorrelation(repoWith(['ai', 'human']));
+    const human = result.reverts.rates.human;
+    expect(human.share).toBeCloseTo(0.5, 2);
+    expect(human.ratio).toBeGreaterThan(1.5);
+    expect(result.reverts.rates.ai.ratio).toBeLessThan(1);
+  });
+
+  it('excludes automated commits from the base rate — they are not authored work', () => {
+    const automatedTags: Commit['tags'] = {
+      ai: false,
+      attribution: 'automated',
+      mode: 'none',
+      modeEvidence: 'inferred',
+      level: 'none',
+      sources: ['automated:bot'],
+    };
+    const stream = makeStream([
+      makeCommit({ hash: 'a1', tags: aiTags }),
+      makeCommit({ hash: 'h1', tags: humanTags }),
+      // 20 bot commits must not dilute the base rate toward ~5%
+      ...Array.from({ length: 20 }, (_, i) => makeCommit({ hash: `b${i}`, tags: automatedTags })),
+      makeCommit({ hash: 'r1', message: 'Revert', revertsCommit: 'a1', tags: aiTags }),
+    ]);
+    const result = calculateOutcomeCorrelation(stream);
+    // 2 AI of 3 authored (a1, h1, r1) — the bots are excluded entirely
+    expect(result.reverts.rates.ai.baseRate).toBeCloseTo(2 / 3, 2);
+    expect(result.reverts.rates.ai.share).toBe(1);
+  });
+
+  it('leaves rates null when there is nothing to divide by', () => {
+    const result = calculateOutcomeCorrelation(makeStream([makeCommit({ hash: 'a1', tags: aiTags })]));
+    expect(result.reverts.rates.ai.share).toBeNull();
+    expect(result.reverts.rates.ai.ratio).toBeNull();
+    expect(result.reverts.rates.ai.count).toBe(0);
+  });
+});

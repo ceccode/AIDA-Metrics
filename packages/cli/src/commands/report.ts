@@ -151,25 +151,54 @@ Approximate survival of AI-introduced lines: **${(ls.approxSurvivalRate * 100).t
     : '';
 
   const oc = metrics.outcomeCorrelation;
-  function outcomeRow(label: string, counts: { ai: number; human: number; automated: number; unknown: number }) {
-    const total = counts.ai + counts.human + counts.automated + counts.unknown;
-    if (total === 0) return null;
-    return `| ${label} | ${counts.ai} | ${counts.human} | ${counts.automated} | ${counts.unknown} |`;
+  // A bare count is uninterpretable: in a repo that is 90% AI, 90% of
+  // reverts being AI means nothing at all. Every row carries the cohort's
+  // base rate and the ratio between them, so an excess is visible and a
+  // non-excess can't be misread as one.
+  function outcomeRows(rates: Metrics['outcomeCorrelation']['reverts']['rates']) {
+    return (['ai', 'human', 'unknown'] as const)
+      .map((cohort) => {
+        const r = rates[cohort];
+        if (r.share === null) return null;
+        const ratio =
+          r.ratio === null
+            ? '—'
+            : `**${r.ratio.toFixed(2)}×**${r.ratio >= 1.5 ? ' ⚠️' : r.ratio <= 0.67 ? ' ✅' : ''}`;
+        return `| ${cohort} | ${r.count} | ${(r.share * 100).toFixed(1)}% | ${r.baseRate === null ? '—' : `${(r.baseRate * 100).toFixed(1)}%`} | ${ratio} |`;
+      })
+      .filter(Boolean);
   }
-  const outcomeRows = [
-    outcomeRow(`Reverted commits (${oc.reverts.resolved}/${oc.reverts.total} resolved)`, oc.reverts.byAttribution),
-    outcomeRow(`Hotfix antecedents (${oc.hotfixes.linked}/${oc.hotfixes.total} linked, ${oc.hotfixes.windowDays}d window)`, oc.hotfixes.byAttribution),
-  ].filter(Boolean);
+
+  const revertRows = oc.reverts.resolved > 0 ? outcomeRows(oc.reverts.rates) : [];
+  const hotfixRows = oc.hotfixes.linked > 0 ? outcomeRows(oc.hotfixes.rates) : [];
   const outcomeSection =
-    outcomeRows.length > 0
+    revertRows.length > 0 || hotfixRows.length > 0
       ? `## Outcome Correlation
 
 Reverts and hotfix-pattern commits, linked back to the attribution of the commit(s) they respond to — scoped to what git itself can answer (no incidents, no SAST).
 
-| Metric | ai | human | automated | unknown |
-|---|---:|---:|---:|---:|
-${outcomeRows.join('\n')}
+**Read the ratio, not the count.** A cohort's share of outcomes only means something against its share of authored commits: **1.00× is exactly what its size predicts**, above is an excess, below is better than average. Automated commits are excluded from both sides.
+${
+  revertRows.length > 0
+    ? `
+### Reverted commits (${oc.reverts.resolved} of ${oc.reverts.total} reverts resolved to a target)
 
+| Cohort of the reverted commit | Count | Share of reverts | Share of commits | Ratio |
+|---|---:|---:|---:|---:|
+${revertRows.join('\n')}
+`
+    : ''
+}${
+  hotfixRows.length > 0
+    ? `
+### Hotfix antecedents (${oc.hotfixes.linked} of ${oc.hotfixes.total} hotfixes linked, ${oc.hotfixes.windowDays}d window)
+
+| Cohort of the antecedent | Count | Share of hotfixes | Share of commits | Ratio |
+|---|---:|---:|---:|---:|
+${hotfixRows.join('\n')}
+`
+    : ''
+}
 `
       : '';
 
