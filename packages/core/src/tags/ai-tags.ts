@@ -25,6 +25,9 @@ export const MODE_BY_TOOL: Array<[pattern: RegExp, mode: AIMode]> = [
   // Co-Authored-By: Claude <noreply@anthropic.com> is Claude Code's own
   // commit convention → agent
   [/\bclaude\b/i, 'agent'],
+  // GitHub's autonomous coding agent, which opens its own PRs — must be
+  // matched before the bare `copilot` rule, or it reads as autocomplete.
+  [/\bcopilot[-\s]?swe[-\s]?agent\b/i, 'agent'],
   [/\bcopilot\b/i, 'autocomplete'],
   [/\b(cursor|windsurf|codeium|chatgpt|gemini)\b/i, 'assisted'],
 ];
@@ -65,11 +68,19 @@ export interface AITagConfig {
 }
 
 export const DEFAULT_TOOLS = ['copilot', 'cursor', 'windsurf', 'codeium', 'claude', 'chatgpt', 'gemini'];
-const DEFAULT_TRAILER_DOMAINS = ['anthropic', 'openai', 'github\\.com'];
+
+// Domains that identify an AI co-author. Deliberately does NOT include
+// `github.com`: `@users.noreply.github.com` is the default email of every
+// GitHub account, so matching it flags ordinary humans who co-authored a
+// commit through the web UI as AI. Found by running AIDA against
+// commander.js, where 2 of 3 "AI" detections were humans. AI bots hosted on
+// GitHub (copilot, copilot-swe-agent) are still caught by the `.*bot.*`
+// trailer rule and by tool-name matching.
+const DEFAULT_TRAILER_DOMAINS = ['anthropic', 'openai'];
 
 // Known non-AI automation bots. Their `Co-authored-by` trailers must not be
 // counted as AI contributions even though they match the generic `.*bot.*`
-// pattern (or a github.com domain, in dependabot's case).
+// pattern.
 export const DEFAULT_BOT_BLOCKLIST = [
   'dependabot',
   'renovate',

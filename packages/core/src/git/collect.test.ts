@@ -309,3 +309,63 @@ describe('collectCommits revert detection (#26)', () => {
     expect(stream.commits.every((c) => c.revertsCommit === null)).toBe(true);
   });
 });
+
+describe('collectCommits on degenerate repositories', () => {
+  it('returns an empty stream instead of crashing on a repo with no commits', async () => {
+    const emptyPath = mkdtempSync(join(tmpdir(), 'aida-empty-'));
+    try {
+      execSync('git init -q -b main', { cwd: emptyPath });
+
+      const stream = await collectCommits({ repoPath: emptyPath });
+      expect(stream.commits).toEqual([]);
+      expect(stream.schemaVersion).toBe(1);
+      expect(stream.defaultBranch).toBe('main');
+    } finally {
+      rmSync(emptyPath, { recursive: true, force: true });
+    }
+  });
+
+  it('warns loudly on a shallow clone, whose truncated history would silently skew every metric', async () => {
+    const originPath = mkdtempSync(join(tmpdir(), 'aida-origin-'));
+    const shallowPath = mkdtempSync(join(tmpdir(), 'aida-shallow-'));
+    rmSync(shallowPath, { recursive: true, force: true }); // git clone wants a fresh path
+    const warnings: string[] = [];
+    const logger = {
+      info: () => {},
+      warn: (m: string) => warnings.push(m),
+      error: () => {},
+      debug: () => {},
+    };
+
+    try {
+      execSync('git init -q -b main', { cwd: originPath });
+      execSync('git config user.name test && git config user.email test@example.com', { cwd: originPath });
+      for (const n of [1, 2, 3]) {
+        execSync(`git commit -q --allow-empty -m "feat: commit ${n}"`, { cwd: originPath });
+      }
+      execSync(`git clone -q --depth 1 file://${originPath} ${shallowPath}`, { stdio: 'ignore' });
+
+      const stream = await collectCommits({ repoPath: shallowPath, logger });
+
+      // The truncation itself is real: only the tip was fetched
+      expect(stream.commits.length).toBeLessThan(3);
+      expect(warnings.join(' ')).toMatch(/SHALLOW clone/);
+      expect(warnings.join(' ')).toMatch(/fetch-depth: 0/);
+    } finally {
+      rmSync(originPath, { recursive: true, force: true });
+      rmSync(shallowPath, { recursive: true, force: true });
+    }
+  });
+
+  it('does not warn about shallowness on a complete clone', async () => {
+    const warnings: string[] = [];
+    const logger = {
+      info: () => {},
+      warn: (m: string) => warnings.push(m),
+      error: () => {},
+      debug: () => {},
+    };
+    await collectCommits({ repoPath, logger });
+    expect(warnings.join(' ')).not.toMatch(/SHALLOW/);
+  });
+});

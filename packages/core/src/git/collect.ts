@@ -41,6 +41,23 @@ function isSyntheticPRMerge(commit: { parents: string[]; message: string }): boo
 // generates: the only reliable link back to what was reverted (#26).
 const REVERT_TARGET = /This reverts commit ([0-9a-f]{7,40})/i;
 
+export async function isEmptyRepository(git: SimpleGit): Promise<boolean> {
+  try {
+    return (await git.raw(['rev-list', '--count', '--all'])).trim() === '0';
+  } catch {
+    return false;
+  }
+}
+
+export async function isShallowRepository(git: SimpleGit): Promise<boolean> {
+  try {
+    return (await git.raw(['rev-parse', '--is-shallow-repository'])).trim() === 'true';
+  } catch {
+    // Older git without the flag: assume complete rather than cry wolf
+    return false;
+  }
+}
+
 export async function detectDefaultBranch(git: SimpleGit): Promise<string> {
   try {
     // Try to get the default branch from origin/HEAD
@@ -83,6 +100,34 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   } = options;
 
   const git = simpleGit(repoPath);
+
+  // An empty repository has no HEAD, so every later git call fails with a
+  // raw "ambiguous argument" error. Return a valid empty stream instead:
+  // nothing to measure is a legitimate answer, not a crash.
+  if (await isEmptyRepository(git)) {
+    logger?.warn('Repository has no commits yet — nothing to collect.');
+    return {
+      schemaVersion: COMMIT_STREAM_SCHEMA_VERSION,
+      repoPath,
+      defaultBranch: providedDefaultBranch ?? 'main',
+      generatedAt: formatISODate(new Date()),
+      since,
+      until,
+      aiPatterns: [...aiPatterns],
+      commits: [],
+    };
+  }
+
+  // A shallow clone silently truncates history, so every metric would
+  // describe a fragment while looking like a full report. `actions/checkout`
+  // defaults to `fetch-depth: 1`, which makes this the single most likely
+  // way for a CI run to produce confidently wrong numbers.
+  if (await isShallowRepository(git)) {
+    logger?.warn(
+      'This is a SHALLOW clone: history is truncated, so all metrics describe only the fetched commits. ' +
+        'Set `fetch-depth: 0` in actions/checkout (or `GIT_DEPTH: 0` in GitLab CI) for meaningful results.'
+    );
+  }
 
   // Detect default branch
   const defaultBranch = providedDefaultBranch || (await detectDefaultBranch(git));
