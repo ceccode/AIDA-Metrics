@@ -225,7 +225,7 @@ aida report --out-dir ./aida-output
 #### `aida blame`
 
 - `--repo <path>` - Repository path (default: current directory)
-- `--max-files <n>` - Stop after this many files (bounds runtime, flags the result as a sample)
+- `--max-files <n>` - Blame at most this many files, spread evenly across the tree (bounds runtime, flags the result as a sample)
 - `--include-generated` - Also blame lockfiles and generated output
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
@@ -451,9 +451,9 @@ aida blame          # writes blame-stream.json
 aida analyze        # picks it up automatically when present
 ```
 
-Kept in its own opt-in command because it runs one git process per file — the most expensive thing AIDA does. `--max-files` bounds the walk (and flags the result as a sample); binary files are detected and excluded, since `git blame` reports a whole blob as a single line rather than failing.
+Kept in its own opt-in command because it runs one git process per file — the most expensive thing AIDA does. Budget roughly 100ms per file: babel's 28,732-file tree is an hours-long run, where `collect` over the same repo takes 13 seconds. `--max-files` bounds the walk by striding evenly across the tree, so the sample spans the whole repo rather than the first N paths in alphabetical order, and the result is flagged as a sample. Binary files are detected and excluded, since `git blame` reports a whole blob as a single line rather than failing; files where blame genuinely errors (submodules, missing objects) are counted in `filesFailed` and warned about, never folded into the skipped count.
 
-**What it measures exactly**: the living codebase — those share figures are precise. **What it cannot measure**: deleted lines, because blame only sees what survived. The derived "approximate survival of AI-introduced lines" is therefore labelled as approximate: its denominator counts every AI addition, and a line rewritten twice was added twice.
+**What it measures exactly**: the living codebase — those share figures are precise. **What it cannot measure**: deleted lines, because blame only sees what survived. The derived "approximate survival of AI-introduced lines" is therefore labelled as approximate: a line rewritten twice was added twice, and additions to files since deleted or renamed fall outside the count. Both halves of that ratio are scoped to the files blame actually visited — otherwise a capped or filtered walk divides a fraction of the repo by all of it.
 
 ### Persistence (MVP)
 
