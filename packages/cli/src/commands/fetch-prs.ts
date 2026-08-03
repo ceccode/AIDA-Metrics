@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { AidaConfig, createLogger, parseRelativeDate, writeJSON } from '@aida-dev/core';
+import { AidaConfig, createLogger, describeError, parseRelativeDate, writeJSON } from '@aida-dev/core';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { fetchClosedPRs } from '../providers/github-prs.js';
@@ -84,7 +84,7 @@ export function createFetchPRsCommand(): Command {
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {
         logger.error(
-          `PR fetch failed: ${error instanceof Error ? error.message : String(error)}`
+          `PR fetch failed: ${describeError(error)}`
         );
         process.exit(1);
       }

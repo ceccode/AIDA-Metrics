@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { collectBlame, createLogger, writeJSON } from '@aida-dev/core';
+import { collectBlame, createLogger, describeError, writeJSON } from '@aida-dev/core';
 import { categorizeFile } from '@aida-dev/metrics';
 import { join } from 'path';
 
@@ -56,7 +56,7 @@ export function createBlameCommand(): Command {
         }
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {
-        logger.error(`Blame failed: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(`Blame failed: ${describeError(error)}`);
         process.exit(1);
       }
     });

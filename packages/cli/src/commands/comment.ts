@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { createLogger } from '@aida-dev/core';
+import { createLogger, describeError } from '@aida-dev/core';
 import { join } from 'path';
 import { promises as fs } from 'fs';
 import { CLIConfig } from '../schema/config.js';
@@ -58,7 +58,7 @@ export function createCommentCommand(): Command {
         logger.info('AIDA report posted as PR comment');
       } catch (error) {
         logger.error(
-          `Comment failed: ${error instanceof Error ? error.message : String(error)}`
+          `Comment failed: ${describeError(error)}`
         );
         process.exit(1);
       }

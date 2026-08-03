@@ -12,6 +12,7 @@ import {
   PR_STREAM_SCHEMA_VERSION,
   assertSchemaVersion,
   fileExists,
+  describeError,
 } from '@aida-dev/core';
 import { calculateMetrics } from '@aida-dev/metrics';
 import { join } from 'path';
@@ -191,7 +192,7 @@ export function createAnalyzeCommand(): Command {
         }
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {
-        logger.error(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(`Analysis failed: ${describeError(error)}`);
         process.exit(1);
       }
     });

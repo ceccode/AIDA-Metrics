@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { collectCommits, writeJSON, createLogger, AidaConfig } from '@aida-dev/core';
+import { collectCommits, writeJSON, createLogger, describeError, AidaConfig } from '@aida-dev/core';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { CLIConfig } from '../schema/config.js';
@@ -101,7 +101,7 @@ export function createCollectCommand(): Command {
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {
         logger.error(
-          `Collection failed: ${error instanceof Error ? error.message : String(error)}`
+          `Collection failed: ${describeError(error)}`
         );
         process.exit(1);
       }

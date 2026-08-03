@@ -14,4 +14,5 @@ export * from './tags/automated.js';
 export * from './tags/redact.js';
 export * from './io/fs.js';
 export * from './utils/dates.js';
+export * from './utils/errors.js';
 export * from './utils/log.js';

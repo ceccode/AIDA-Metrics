@@ -4,6 +4,7 @@ import {
   createLogger,
   METRICS_SCHEMA_VERSION,
   assertSchemaVersion,
+  describeError,
 } from '@aida-dev/core';
 import { Metrics } from '@aida-dev/metrics';
 import { join } from 'path';
@@ -302,7 +303,7 @@ export function createReportCommand(): Command {
         logger.info('Report generation completed');
       } catch (error) {
         logger.error(
-          `Report generation failed: ${error instanceof Error ? error.message : String(error)}`
+          `Report generation failed: ${describeError(error)}`
         );
         process.exit(1);
       }

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { createLogger } from '@aida-dev/core';
+import { createLogger, describeError } from '@aida-dev/core';
 import { promises as fs } from 'fs';
 import { execFile } from 'child_process';
 import { join } from 'path';
@@ -97,7 +97,7 @@ export function createInstallHooksCommand(): Command {
         );
       } catch (error) {
         logger.error(
-          `Hook installation failed: ${error instanceof Error ? error.message : String(error)}`
+          `Hook installation failed: ${describeError(error)}`
         );
         process.exit(1);
       }
