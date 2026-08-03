@@ -78,9 +78,11 @@ export const DEFAULT_TOOLS = ['copilot', 'cursor', 'windsurf', 'codeium', 'claud
 // trailer rule and by tool-name matching.
 const DEFAULT_TRAILER_DOMAINS = ['anthropic', 'openai'];
 
-// Known non-AI automation bots. Their `Co-authored-by` trailers must not be
-// counted as AI contributions even though they match the generic `.*bot.*`
-// pattern.
+// Known non-AI automation bots. Now that an AI co-author must name a tool,
+// this is no longer the first line of defence against bot false positives —
+// it stays because it also drives `automated` detection for bot-authored
+// commits (#39), and still strips a blocklisted bot's trailer before the
+// tool-name rule sees it.
 export const DEFAULT_BOT_BLOCKLIST = [
   'dependabot',
   'renovate',
@@ -102,7 +104,17 @@ function buildPatterns(tools: string, domains: string) {
     trailers: [
       '^AI:\\s*true$',
       '^X-AI:\\s*true$',
-      '^Co-authored-by:.*bot.*$',
+      // A co-author must NAME an AI tool to count as AI evidence. The rule
+      // used to be `.*bot.*`, which reads "a bot participated" as "AI wrote
+      // this" — two different claims. Found by running AIDA against babel,
+      // where 47 of 52 "AI" commits were ordinary PRs co-authored by
+      // "Babel Bot", the project's own formatting/release bot. Every one of
+      // them came out with mode 'unknown': the tagger already knew it could
+      // not name a tool, and asserted AI anyway.
+      //
+      // Named AI bots are unaffected — `copilot[bot]` and
+      // `copilot-swe-agent[bot]` match on the tool name, not on "bot".
+      `^Co-authored-by:.*\\b(${tools})\\b.*$`,
       `^Co-authored-by:.*\\b(${domains})\\b.*$`,
     ],
     implicit: [

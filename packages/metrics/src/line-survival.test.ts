@@ -24,7 +24,15 @@ function makeCommit(hash: string, tags: Partial<Commit['tags']>, additions = 0):
       sources: [],
       ...tags,
     },
-    stats: { totalAdditions: additions, totalDeletions: 0, files: [] },
+    // Additions land on a blamed path by default, so the survival
+    // denominator sees them (see `makeBlame`'s blamedPaths).
+    stats: {
+      totalAdditions: additions,
+      totalDeletions: 0,
+      files: additions
+        ? [{ path: 'src/app.ts', status: 'modified' as const, additions, deletions: 0 }]
+        : [],
+    },
   };
 }
 
@@ -42,15 +50,17 @@ function makeStream(commits: Commit[]): CommitStream {
 function makeBlame(linesBySha: Record<string, number>, overrides: Partial<BlameStream> = {}): BlameStream {
   const totalLines = Object.values(linesBySha).reduce((a, b) => a + b, 0);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     repoPath: '/test',
     generatedAt: '2026-02-01T00:00:00.000Z',
     filesBlamed: 3,
     filesSkipped: 0,
+    filesFailed: 0,
     filesExcluded: 0,
     truncated: false,
     totalLines,
     linesBySha,
+    blamedPaths: ['src/app.ts'],
     ...overrides,
   };
 }
@@ -100,6 +110,45 @@ describe('calculateLineSurvival', () => {
       makeBlame({ a1: 40 }),
       makeStream([makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 10)])
     );
+    expect(result.approxSurvivalRate).toBe(1);
+  });
+
+  // Found by running AIDA against babel: `--max-files 500` over 27,648 files
+  // reported "1.7% of AI lines survive" by dividing survivors found in 453
+  // files by additions counted across the entire history.
+  it('counts only additions to files blame actually visited', () => {
+    const commit = makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 100);
+    commit.stats.files = [
+      { path: 'src/app.ts', status: 'modified', additions: 40, deletions: 0 },
+      // Never blamed: excluded as generated, or beyond --max-files
+      { path: 'dist/bundle.js', status: 'modified', additions: 60, deletions: 0 },
+    ];
+
+    const result = calculateLineSurvival(
+      makeBlame({ a1: 20 }, { blamedPaths: ['src/app.ts'], truncated: true }),
+      makeStream([commit])
+    );
+
+    // 40, not 100: the unblamed file cannot contribute survivors, so it must
+    // not contribute additions either
+    expect(result.introducedByAI).toBe(40);
+    expect(result.approxSurvivalRate).toBe(0.5);
+  });
+
+  it('does not report a survival rate inflated by unblamed files', () => {
+    const commit = makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 1000);
+    commit.stats.files = [
+      { path: 'src/app.ts', status: 'modified', additions: 10, deletions: 0 },
+      { path: 'other/huge.ts', status: 'modified', additions: 990, deletions: 0 },
+    ];
+
+    const result = calculateLineSurvival(
+      makeBlame({ a1: 10 }, { blamedPaths: ['src/app.ts'], truncated: true }),
+      makeStream([commit])
+    );
+
+    // Before the fix this read 1% — "AI code barely survives" — when the
+    // real answer for the files examined is "all of it did".
     expect(result.approxSurvivalRate).toBe(1);
   });
 

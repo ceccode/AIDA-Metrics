@@ -281,6 +281,8 @@ export const PRAcceptance = z.object({
 export const LineSurvival = z.object({
   filesBlamed: z.number().int().nonnegative(),
   filesSkipped: z.number().int().nonnegative(),
+  // Paths where git blame errored: reported, never folded into filesSkipped
+  filesFailed: z.number().int().nonnegative(),
   filesExcluded: z.number().int().nonnegative(),
   truncated: z.boolean(),
   totalLines: z.number().int().nonnegative(),

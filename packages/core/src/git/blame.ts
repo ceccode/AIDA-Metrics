@@ -71,6 +71,18 @@ export async function findBinaryFiles(repoPath: string): Promise<Set<string>> {
   return binary;
 }
 
+// Evenly spaced subset of `items`, at most `max` long, preserving order.
+// `max >= items.length` returns everything.
+function stride<T>(items: T[], max: number): T[] {
+  if (items.length <= max) return items;
+  const step = items.length / max;
+  const picked: T[] = [];
+  for (let i = 0; picked.length < max; i++) {
+    picked.push(items[Math.floor(i * step)]);
+  }
+  return picked;
+}
+
 export interface CollectBlameOptions {
   repoPath: string;
   // Paths to skip — lockfiles and generated output would dominate the line
@@ -96,21 +108,36 @@ export async function collectBlame(options: CollectBlameOptions): Promise<BlameS
   const candidates = exclude ? textFiles.filter((f) => !exclude(f)) : textFiles;
   const excludedByFilter = textFiles.length - candidates.length;
 
-  const selected = maxFiles ? candidates.slice(0, maxFiles) : candidates;
+  // `--max-files` used to take the first N in `git ls-tree` order, which is
+  // path order — on a monorepo that is one corner of the alphabet, not a
+  // sample of the repo. On babel, `--max-files 500` never got past
+  // `packages/babel-c*`, and 183 of the 500 came from a single package.
+  // Striding instead spreads the same budget across the whole tree; it stays
+  // fully deterministic, so two runs of the same commit still agree.
+  const selected = maxFiles ? stride(candidates, maxFiles) : candidates;
   const truncated = selected.length < candidates.length;
 
   const linesBySha: Record<string, number> = {};
+  const blamedPaths: string[] = [];
   let filesBlamed = 0;
   let filesSkipped = binarySkipped;
+  let filesFailed = 0;
+  let firstFailure = '';
   let totalLines = 0;
 
   for (const file of selected) {
     let counts: Map<string, number>;
     try {
       counts = await blameFileLineCounts(repoPath, file);
-    } catch {
-      // Binary files, submodules and unreadable paths: skipped, never fatal
-      filesSkipped++;
+    } catch (error) {
+      // Submodules, unreadable paths, a missing object in a partial clone,
+      // or stdout past maxBuffer. Never fatal — but counting these as
+      // "skipped (binary/empty)" hid a failing run inside a normal-looking
+      // one, so they are tallied and reported separately.
+      filesFailed++;
+      if (!firstFailure) {
+        firstFailure = `${file}: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`;
+      }
       continue;
     }
 
@@ -120,6 +147,7 @@ export async function collectBlame(options: CollectBlameOptions): Promise<BlameS
     }
 
     filesBlamed++;
+    blamedPaths.push(file);
     for (const [sha, count] of counts) {
       linesBySha[sha] = (linesBySha[sha] ?? 0) + count;
       totalLines += count;
@@ -130,15 +158,23 @@ export async function collectBlame(options: CollectBlameOptions): Promise<BlameS
     }
   }
 
+  if (filesFailed > 0) {
+    logger?.warn(
+      `git blame failed on ${filesFailed} of ${selected.length} file(s) — their lines are missing from every figure below. First: ${firstFailure}`
+    );
+  }
+
   return {
     schemaVersion: BLAME_STREAM_SCHEMA_VERSION,
     repoPath,
     generatedAt: new Date().toISOString(),
     filesBlamed,
     filesSkipped,
+    filesFailed,
     filesExcluded: excludedByFilter,
     truncated,
     totalLines,
     linesBySha,
+    blamedPaths,
   };
 }

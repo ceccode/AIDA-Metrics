@@ -46,10 +46,13 @@ export function createBlameCommand(): Command {
 
         logger.info(
           `Blamed ${blameStream.filesBlamed} file(s), ${blameStream.totalLines} lines ` +
-            `(${blameStream.filesSkipped} skipped, ${blameStream.filesExcluded} excluded)`
+            `(${blameStream.filesSkipped} skipped, ${blameStream.filesFailed} failed, ` +
+            `${blameStream.filesExcluded} excluded)`
         );
         if (blameStream.truncated) {
-          logger.warn('Stopped at --max-files: this is a sample, not the whole tree.');
+          logger.warn(
+            '--max-files capped the walk: this is an evenly spaced sample of the tree, not the whole tree.'
+          );
         }
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {
