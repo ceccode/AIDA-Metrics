@@ -14,7 +14,7 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     parents: [],
     inDefaultBranchAncestry: true,
     revertsCommit: null,
-    tags: { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] },
+    tags: { attribution: 'unknown', automated: false, mode: 'unknown', evidence: 'none', level: 'none', sources: [] },
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,
   };
@@ -31,9 +31,9 @@ function makeStream(commits: Commit[]): CommitStream {
   };
 }
 
-const aiTags: Commit['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] };
-const humanTags: Commit['tags'] = { ai: false, attribution: 'human', mode: 'none', modeEvidence: 'declared', level: 'none', sources: [] };
-const unknownTags: Commit['tags'] = { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] };
+const aiTags: Commit['tags'] = { attribution: 'ai', automated: false, mode: 'agent', evidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] };
+const humanTags: Commit['tags'] = { attribution: 'human', automated: false, mode: 'none', evidence: 'declared', level: 'none', sources: [] };
+const unknownTags: Commit['tags'] = { attribution: 'unknown', automated: false, mode: 'unknown', evidence: 'none', level: 'none', sources: [] };
 
 describe('calculateMetrics attribution coverage', () => {
   it('reports coverage as (ai + human) / total', () => {
@@ -56,10 +56,9 @@ describe('calculateMetrics attribution coverage', () => {
 
   it('counts automated commits toward coverage — their provenance is known', () => {
     const automatedTags: Commit['tags'] = {
-      ai: false,
-      attribution: 'automated',
+      attribution: 'automated', automated: true,
       mode: 'none',
-      modeEvidence: 'inferred',
+      evidence: 'inferred',
       level: 'none',
       sources: ['automated:bot'],
     };
@@ -159,31 +158,32 @@ describe('calculateMetrics baseline cohort', () => {
     expect(metrics.delta).not.toBeNull();
   });
 
-  it('assigns unknown commits to the baseline with defaultAttribution: human, marked assumed', () => {
+  it('assigns no-evidence commits to the baseline with defaultMode: none, marked assumed', () => {
     const metrics = calculateMetrics(
       makeStream([
         makeCommit({ hash: 'a1', tags: aiTags }),
         makeCommit({ hash: 'u1', tags: unknownTags }),
         makeCommit({ hash: 'u2', tags: unknownTags }),
       ]),
-      { defaultAttribution: 'human' }
+      { defaultMode: 'none' }
     );
 
     expect(metrics.baseline).not.toBeNull();
     expect(metrics.baseline!.assumed).toBe(true);
     expect(metrics.baseline!.persistence.commitsConsidered).toBe(2);
-    // Coverage still reports the truth: unknown commits stay unknown
+    // A prior joins a cohort but is not evidence: coverage still reports how
+    // little this repo actually knows about itself (#25).
     expect(metrics.attribution.unknown).toBe(2);
+    expect(metrics.attribution.evidence.none).toBe(2);
     expect(metrics.attribution.coverage).toBeCloseTo(1 / 3);
-    expect(metrics.caveats.some((c) => c.includes('assumed human'))).toBe(true);
+    expect(metrics.caveats.some((c) => c.includes("assumed autonomy level 'none'"))).toBe(true);
   });
 
   it('never assigns automated commits to a cohort, even with a prior', () => {
     const excludedTags: Commit['tags'] = {
-      ai: false,
-      attribution: 'automated',
+      attribution: 'automated', automated: true,
       mode: 'none',
-      modeEvidence: 'declared',
+      evidence: 'declared',
       level: 'none',
       sources: ['manifest:excluded'],
     };
@@ -193,7 +193,7 @@ describe('calculateMetrics baseline cohort', () => {
         makeCommit({ hash: 'x1', tags: excludedTags }),
         makeCommit({ hash: 'u1', tags: unknownTags }),
       ]),
-      { defaultAttribution: 'ai' }
+      { defaultMode: 'assisted' }
     );
 
     // prior pulls u1 into the AI cohort, but never x1
@@ -228,18 +228,16 @@ describe('calculateMetrics baseline cohort', () => {
 
   it('computes per-mode stats, excluding automated commits, null for empty modes', () => {
     const assistedTags: Commit['tags'] = {
-      ai: true,
-      attribution: 'ai',
+      attribution: 'ai', automated: false,
       mode: 'assisted',
-      modeEvidence: 'inferred',
+      evidence: 'inferred',
       level: 'implicit',
       sources: ['implicit:x'],
     };
     const automatedTags: Commit['tags'] = {
-      ai: false,
-      attribution: 'automated',
+      attribution: 'automated', automated: true,
       mode: 'none',
-      modeEvidence: 'inferred',
+      evidence: 'inferred',
       level: 'none',
       sources: ['automated:bot'],
     };
@@ -258,17 +256,17 @@ describe('calculateMetrics baseline cohort', () => {
     expect(metrics.byMode.autocomplete).toBeNull();
   });
 
-  it('assigns unknown commits to the AI cohort with defaultAttribution: ai', () => {
+  it('assigns no-evidence commits to the AI cohort with an AI-level defaultMode', () => {
     const metrics = calculateMetrics(
       makeStream([
         makeCommit({ hash: 'a1', tags: aiTags }),
         makeCommit({ hash: 'h1', tags: humanTags }),
         makeCommit({ hash: 'u1', tags: unknownTags }),
       ]),
-      { defaultAttribution: 'ai' }
+      { defaultMode: 'assisted' }
     );
 
-    expect(metrics.persistence.commitsConsidered).toBe(2); // ai + unknown
+    expect(metrics.persistence.commitsConsidered).toBe(2); // ai + no-evidence
     expect(metrics.baseline!.persistence.commitsConsidered).toBe(1); // human only
     expect(metrics.baseline!.assumed).toBe(false);
   });
@@ -406,5 +404,105 @@ describe('outcomeCorrelation (#26)', () => {
     const metrics = calculateMetrics(makeStream([makeCommit({ hash: 'a1', tags: aiTags })]));
     expect(metrics.outcomeCorrelation.reverts.total).toBe(0);
     expect(metrics.outcomeCorrelation.hotfixes.total).toBe(0);
+  });
+});
+
+describe('coverage is the evidence axis (#25)', () => {
+  it('counts declared and inferred provenance, whatever the attribution is', () => {
+    const declaredHuman: Commit['tags'] = {
+      attribution: 'human',
+      automated: false,
+      mode: 'none',
+      evidence: 'declared',
+      level: 'none',
+      sources: ['trailer:AI-Mode'],
+    };
+    // AI participated, level unknown: real evidence, no autonomy level.
+    // The old model had to call this state 'no evidence' and undercounted it.
+    const anonymousAI: Commit['tags'] = {
+      attribution: 'ai',
+      automated: false,
+      mode: 'unknown',
+      evidence: 'inferred',
+      level: 'explicit',
+      sources: ['tag:[ai]'],
+    };
+
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'h1', tags: declaredHuman }),
+        makeCommit({ hash: 'a1', tags: anonymousAI }),
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+        makeCommit({ hash: 'u2', tags: unknownTags }),
+      ])
+    );
+
+    expect(metrics.attribution.evidence).toEqual({ declared: 1, inferred: 1, none: 2 });
+    expect(metrics.attribution.coverage).toBe(0.5);
+  });
+
+  it('is never raised by a prior — an assumption is not evidence', () => {
+    const stream = makeStream([
+      makeCommit({ hash: 'u1', tags: unknownTags }),
+      makeCommit({ hash: 'u2', tags: unknownTags }),
+    ]);
+
+    const withoutPrior = calculateMetrics(stream);
+    const withPrior = calculateMetrics(stream, { defaultMode: 'agent' });
+
+    expect(withoutPrior.attribution.coverage).toBe(0);
+    expect(withPrior.attribution.coverage).toBe(0);
+    // The prior moves cohorts, not knowledge
+    expect(withPrior.byMode.agent?.commits).toBe(2);
+    expect(withoutPrior.byMode.agent).toBeNull();
+  });
+
+  it('keeps automated commits covered — their provenance is known', () => {
+    const automated: Commit['tags'] = {
+      attribution: 'automated',
+      automated: true,
+      mode: 'none',
+      evidence: 'inferred',
+      level: 'none',
+      sources: ['automated:merge-commit'],
+    };
+    const metrics = calculateMetrics(
+      makeStream([makeCommit({ hash: 'm1', tags: automated })]),
+      { defaultMode: 'agent' }
+    );
+
+    expect(metrics.attribution.coverage).toBe(1);
+    // ...but a prior still never drags them into a cohort
+    expect(metrics.byMode.agent).toBeNull();
+    expect(metrics.byMode.none).toBeNull();
+  });
+});
+
+describe('automated commits stay off the autonomy axis (#25/#39)', () => {
+  // Found by dogfooding the two-axis report on this repo: 37 merge/bot
+  // commits carry `mode: 'none'`, and the headline table counted them as
+  // hand-written — while `byMode`, which excludes automation, showed none.
+  // Two tables in one report disagreeing about the same commits.
+  it('excludes automated commits from the per-mode counts', () => {
+    const automated: Commit['tags'] = {
+      attribution: 'automated',
+      automated: true,
+      mode: 'none',
+      evidence: 'inferred',
+      level: 'none',
+      sources: ['automated:merge-commit'],
+    };
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }),
+        makeCommit({ hash: 'm1', tags: automated }),
+        makeCommit({ hash: 'm2', tags: automated }),
+      ])
+    );
+
+    expect(metrics.attribution.modes.none).toBe(0);
+    expect(metrics.attribution.automated).toBe(2);
+    // The headline table and the per-level table now describe the same set
+    expect(metrics.byMode.none).toBeNull();
   });
 });

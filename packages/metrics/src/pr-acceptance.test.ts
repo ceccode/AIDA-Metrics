@@ -9,10 +9,10 @@ function commit(
   return {
     sha: 'a'.repeat(40),
     tags: {
-      ai: attribution === 'ai',
       attribution,
+      automated: attribution === 'automated',
       mode,
-      modeEvidence: mode === 'unknown' ? 'none' : 'inferred',
+      evidence: mode === 'unknown' ? 'none' : 'inferred',
       level: attribution === 'ai' ? 'explicit' : 'none',
       sources: [],
     },

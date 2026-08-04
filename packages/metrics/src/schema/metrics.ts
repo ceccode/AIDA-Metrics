@@ -24,8 +24,15 @@ export const Attribution = z.object({
   // Counts toward coverage, joins no cohort, untouched by priors.
   automated: z.number().int().nonnegative(),
   unknown: z.number().int().nonnegative(),
-  coverage: z.number().min(0).max(1), // (ai + human + automated) / total
-  defaultAttribution: z.enum(['ai', 'human', 'unknown']), // prior applied to unknown commits
+  // Coverage is the EVIDENCE axis (#25): the share of commits whose
+  // provenance is known at all, declared or inferred. Identical in spirit to
+  // the old (ai + human + automated) / total, but stated on the axis that
+  // actually carries the meaning — `unknown` is no longer a fourth kind of
+  // attribution, it is the absence of evidence.
+  coverage: z.number().min(0).max(1), // (declared + inferred) / total
+  // Prior applied to commits with no evidence; null when none is configured.
+  // A prior joins a cohort but never raises coverage (#25).
+  defaultMode: z.enum(['none', 'autocomplete', 'assisted', 'agent']).nullable(),
   coverageThreshold: z.number().min(0).max(1),
   belowThreshold: z.boolean(), // all-time; see `recent` for the actionable one
   // Null when the window contains no commits (#52)
@@ -38,7 +45,7 @@ export const Attribution = z.object({
     agent: z.number().int().nonnegative(),
     unknown: z.number().int().nonnegative(),
   }),
-  modeEvidence: z.object({
+  evidence: z.object({
     declared: z.number().int().nonnegative(),
     inferred: z.number().int().nonnegative(),
     none: z.number().int().nonnegative(),
@@ -114,7 +121,7 @@ export const CohortContext = z.object({
 });
 
 export const Baseline = z.object({
-  // True when the cohort includes 'unknown' commits via defaultAttribution:
+  // True when the cohort includes no-evidence commits via defaultMode:
   // the baseline is an assumption, not observed attribution.
   assumed: z.boolean(),
   persistence: Persistence,
@@ -339,7 +346,7 @@ export const Metrics = z.object({
   prAcceptance: PRAcceptance.nullable(),
   // Null unless `aida blame` produced a blame-stream.json (#23)
   lineSurvival: LineSurvival.nullable(),
-  // Null when no commit is attributed 'human' and no defaultAttribution prior
+  // Null when no commit sits at autonomy level 'none' and no defaultMode prior
   // assigns the unknowns: AIDA does not invent a comparison cohort.
   baseline: Baseline.nullable(),
   delta: Delta.nullable(),

@@ -90,7 +90,7 @@ describe('collectCommits', () => {
     const head = stream.commits[0];
 
     expect(head.message).toBe('fix: multi-line message');
-    expect(head.tags.ai).toBe(true);
+    expect(head.tags.attribution).toBe('ai');
     expect(head.tags.level).toBe('explicit');
   });
 });
@@ -148,7 +148,7 @@ describe('collectCommits with attribution manifest', () => {
 
     // The bot trailer would tag this explicit ai; excluded declares automation
     expect(byHash[releaseCommit].attribution).toBe('automated');
-    expect(byHash[releaseCommit].ai).toBe(false);
+    expect(byHash[releaseCommit].attribution).not.toBe('ai');
     expect(byHash[releaseCommit].sources).toContain('manifest:excluded');
 
     expect(byHash[plainCommit].attribution).toBe('unknown');
@@ -318,7 +318,7 @@ describe('collectCommits on degenerate repositories', () => {
 
       const stream = await collectCommits({ repoPath: emptyPath });
       expect(stream.commits).toEqual([]);
-      expect(stream.schemaVersion).toBe(1);
+      expect(stream.schemaVersion).toBe(2);
       expect(stream.defaultBranch).toBe('main');
     } finally {
       rmSync(emptyPath, { recursive: true, force: true });

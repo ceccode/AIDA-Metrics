@@ -59,7 +59,7 @@ describe('collect → analyze → report end to end', () => {
     await run(createCollectCommand(), ['--repo', repoPath, '--out-dir', outDir]);
 
     const stream = JSON.parse(readFileSync(join(outDir, 'commit-stream.json'), 'utf-8'));
-    expect(stream.schemaVersion).toBe(1);
+    expect(stream.schemaVersion).toBe(2);
     expect(stream.commits).toHaveLength(2);
     // The trailer commit is detected as AI, the other stays unknown
     const attributions = stream.commits.map((c: { tags: { attribution: string } }) => c.tags.attribution).sort();
@@ -77,7 +77,7 @@ describe('collect → analyze → report end to end', () => {
     await run(createAnalyzeCommand(), ['--out-dir', outDir]);
 
     const metrics = JSON.parse(readFileSync(join(outDir, 'metrics.json'), 'utf-8'));
-    expect(metrics.schemaVersion).toBe(1);
+    expect(metrics.schemaVersion).toBe(2);
     expect(metrics.attribution.coverage).toBeCloseTo(0.5);
     expect(metrics.attribution.modes.agent).toBe(1);
     expect(metrics.persistence).toHaveProperty('censored');
@@ -94,8 +94,11 @@ describe('collect → analyze → report end to end', () => {
 
     const report = readFileSync(join(outDir, 'report.md'), 'utf-8');
     expect(report).toContain('# AIDA Report');
-    expect(report).toContain('## Attribution Coverage');
-    expect(report).toContain('**Autonomy:**');
+    expect(report).toContain('## Autonomy');
+    // The autonomy breakdown is the primary table (#25), and the three-state
+    // view is labelled as the projection it is
+    expect(report).toContain('| Autonomy level | Commits |');
+    expect(report).toContain('*Three-state view:*');
     expect(report).toContain('## By Autonomy Level');
     expect(report).toContain('## Cohort Fairness');
     expect(report).toContain('## Persistence (file-level survival)');
@@ -114,7 +117,7 @@ describe('collect → analyze → report end to end', () => {
     });
     await run(createCommentCommand(), ['--out-dir', outDir, '--dry-run']);
     logSpy.mockRestore();
-    expect(printed.join('\n')).toContain('## Attribution Coverage');
+    expect(printed.join('\n')).toContain('## Autonomy');
   });
 
   it('applies --redact-authors through the CLI', async () => {
@@ -155,10 +158,9 @@ describe('PR acceptance (#51)', () => {
       const aiCommit = {
         sha: 'a'.repeat(40),
         tags: {
-          ai: true,
-          attribution: 'ai',
+          attribution: 'ai', automated: false,
           mode: 'agent',
-          modeEvidence: 'inferred',
+          evidence: 'inferred',
           level: 'explicit',
           sources: ['trailer'],
         },

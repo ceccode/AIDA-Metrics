@@ -12,6 +12,7 @@ import {
   PR_STREAM_SCHEMA_VERSION,
   assertSchemaVersion,
   fileExists,
+  assertNoRetiredConfigKeys,
   describeError,
 } from '@aida-dev/core';
 import { calculateMetrics } from '@aida-dev/metrics';
@@ -19,13 +20,20 @@ import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { CLIConfig } from '../schema/config.js';
 
+const MODES = ['none', 'autocomplete', 'assisted', 'agent'];
+
 async function loadAidaConfig(repoPath: string): Promise<Partial<AidaConfig>> {
+  let raw: string;
   try {
-    const raw = await readFile(join(repoPath, '.aida.json'), 'utf-8');
-    return AidaConfig.parse(JSON.parse(raw));
+    raw = await readFile(join(repoPath, '.aida.json'), 'utf-8');
   } catch {
-    return {};
+    return {}; // No config file: every setting keeps its default
   }
+  // A present-but-broken config must not be silently ignored — that would
+  // apply defaults the repo explicitly opted out of.
+  const parsed = JSON.parse(raw);
+  assertNoRetiredConfigKeys(parsed);
+  return AidaConfig.parse(parsed);
 }
 
 export function createAnalyzeCommand(): Command {
@@ -33,8 +41,8 @@ export function createAnalyzeCommand(): Command {
     .description('Analyze commit stream and generate metrics.json')
     .option('--out-dir <path>', 'Output directory', './aida-output')
     .option(
-      '--default-attribution <value>',
-      'Prior for unattributed commits: ai | human | unknown (default: unknown, or .aida.json)'
+      '--default-mode <value>',
+      'Prior for commits with no evidence: none | autocomplete | assisted | agent (default: no prior, or .aida.json)'
     )
     .option(
       '--coverage-threshold <fraction>',
@@ -72,11 +80,10 @@ export function createAnalyzeCommand(): Command {
 
         // CLI flags override .aida.json (read from the collected repo's root)
         const fileConfig = await loadAidaConfig(commitStream.repoPath);
-        const defaultAttribution =
-          options.defaultAttribution ?? fileConfig.defaultAttribution ?? 'unknown';
-        if (!['ai', 'human', 'unknown'].includes(defaultAttribution)) {
+        const defaultMode = options.defaultMode ?? fileConfig.defaultMode;
+        if (defaultMode && !MODES.includes(defaultMode)) {
           throw new Error(
-            `Invalid --default-attribution "${defaultAttribution}": expected ai, human, or unknown`
+            `Invalid --default-mode "${defaultMode}": expected ${MODES.join(', ')}`
           );
         }
         const coverageThreshold = options.coverageThreshold
@@ -142,7 +149,7 @@ export function createAnalyzeCommand(): Command {
         }
 
         const metrics = calculateMetrics(commitStream, {
-          defaultAttribution,
+          defaultMode,
           coverageThreshold,
           coverageWindowDays,
           prStream,
@@ -164,7 +171,7 @@ export function createAnalyzeCommand(): Command {
         }
         if (a.recent ? a.recent.belowThreshold : a.belowThreshold) {
           logger.warn(
-            `Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%: metrics are low-confidence. Tag AI commits or set defaultAttribution.`
+            `Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%: metrics are low-confidence. Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
           );
         }
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);

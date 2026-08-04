@@ -1,21 +1,45 @@
 export type AILevel = 'explicit' | 'implicit' | 'mention' | 'none';
 
-// Four-state attribution (#34, #39). Message heuristics can only ever
-// produce 'ai' or 'unknown': the absence of an AI signal is not evidence of
-// human authorship. 'human' requires an explicit declaration (manifest,
-// #10). 'automated' is provenance-known automation — merge commits, release
-// bots — detected at collect time or declared via the manifest; it counts
-// toward coverage but joins no cohort.
-export type Attribution = 'ai' | 'human' | 'automated' | 'unknown';
-
-// Autonomy axis (#25): what level of AI participated. The durable dimension
-// in an AI-first world, where "was AI involved" trends toward "yes".
+// PRIMARY AXIS 1 — involvement (#25): what level of AI participated. The
+// durable dimension in an AI-first world, where "was AI involved" trends
+// toward "yes" and stops discriminating anything.
 export type AIMode = 'none' | 'autocomplete' | 'assisted' | 'agent' | 'unknown';
 
-// How we know the mode: 'declared' = explicit statement (manifest mode
-// field, future commit-time hooks); 'inferred' = derived from tool identity
-// via MODE_BY_TOOL — real signal, our conclusion; 'none' = no signal at all.
-export type ModeEvidence = 'declared' | 'inferred' | 'none';
+// PRIMARY AXIS 2 — evidence (#25): how we know. 'declared' = someone stated
+// it (AI-Mode trailer, manifest); 'inferred' = we concluded it from tool
+// identity or commit structure — real signal, our conclusion; 'none' = no
+// signal at all, which is what the old `attribution: 'unknown'` meant.
+//
+// The two axes are orthogonal: `mode: 'unknown', evidence: 'inferred'` is a
+// real state — we know AI participated, we cannot say at what level.
+export type Evidence = 'declared' | 'inferred' | 'none';
+
+// DERIVED — the three-state projection (#34, #39), kept because a headline
+// needs one word. Never decided independently of the axes above: see
+// `projectAttribution`. 'automated' is provenance-known automation (merge
+// commits, release bots) — it counts toward coverage but joins no cohort,
+// because automation is not authored code.
+export type Attribution = 'ai' | 'human' | 'automated' | 'unknown';
+
+export interface AutonomyAxes {
+  mode: AIMode;
+  evidence: Evidence;
+  automated: boolean;
+}
+
+// The whole three-state model, in one function. Everything it reads is on
+// the two primary axes; nothing else in AIDA may decide an attribution.
+export function projectAttribution({ mode, evidence, automated }: AutonomyAxes): Attribution {
+  // Automation is orthogonal to autonomy: known provenance, no author.
+  if (automated) return 'automated';
+  // No signal either way. The absence of evidence is not evidence of a human.
+  if (evidence === 'none') return 'unknown';
+  // Someone stated, or we inferred, that no AI participated.
+  if (mode === 'none') return 'human';
+  // autocomplete | assisted | agent, or 'unknown' with a signal behind it:
+  // AI participated, even where we cannot name the level.
+  return 'ai';
+}
 
 // Tool identity → coarse autonomy mode. Deliberately rough: a trailer names
 // the tool, not the session mode. First match wins; multi-word names before
@@ -51,13 +75,21 @@ export function inferMode(message: string): AIMode {
   return 'unknown';
 }
 
-export interface AITagResult {
-  ai: boolean;
+export interface AITagResult extends AutonomyAxes {
+  // Derived from the axes above by `projectAttribution`
   attribution: Attribution;
-  mode: AIMode;
-  modeEvidence: ModeEvidence;
   level: AILevel;
   sources: string[];
+}
+
+// Single construction point for a tag, so `attribution` can never drift out
+// of agreement with the axes it is supposed to project.
+export function tagFromAxes(
+  axes: AutonomyAxes,
+  level: AILevel,
+  sources: string[]
+): AITagResult {
+  return { ...axes, attribution: projectAttribution(axes), level, sources };
 }
 
 export interface AITagConfig {
@@ -235,33 +267,40 @@ export function createAITagger(
       }
     }
 
-    // A declared mode is itself an AI signal: `AI-Mode: agent` states that an
-    // agent wrote this, and `AI-Mode: none` states a human did (#61).
+    // The two axes are settled here, in order of evidence strength, and the
+    // three-state attribution falls out of them (#25). Nothing below decides
+    // "is this AI?" directly — that question is now a projection.
+
+    // 1. Declared. `AI-Mode: agent` states an agent wrote this; `AI-Mode:
+    //    none` states a human did (#61). A declaration outranks everything.
     const declared = declaredMode(message);
     if (declared) {
       sources.push('trailer:AI-Mode');
-      const declaredAI = declared !== 'none';
-      return {
-        ai: declaredAI,
-        attribution: declaredAI ? 'ai' : 'human',
-        mode: declared,
-        modeEvidence: 'declared',
-        level: declaredAI ? 'explicit' : level,
-        sources,
-      };
+      return tagFromAxes(
+        { mode: declared, evidence: 'declared', automated: false },
+        // A declared mode is itself explicit evidence, except `none`, which
+        // asserts absence and leaves the message heuristics to speak
+        declared === 'none' ? level : 'explicit',
+        sources
+      );
     }
 
-    // ai: true only for explicit and implicit
-    const ai = level === 'explicit' || level === 'implicit';
-    // Mode inference only makes sense once AI involvement is established
-    const mode = ai ? inferMode(message) : 'unknown';
-    return {
-      ai,
-      attribution: ai ? 'ai' : 'unknown',
-      mode,
-      modeEvidence: mode === 'unknown' ? 'none' : 'inferred',
+    // 2. No AI signal in the message. Not a human commit — just no signal,
+    //    which is exactly what `evidence: 'none'` means.
+    const hasAISignal = level === 'explicit' || level === 'implicit';
+    if (!hasAISignal) {
+      return tagFromAxes({ mode: 'unknown', evidence: 'none', automated: false }, level, sources);
+    }
+
+    // 3. AI participated. `inferMode` names the level when the message names
+    //    a tool; when it does not, the level stays 'unknown' while the
+    //    evidence remains 'inferred' — we did conclude something, just not
+    //    the autonomy level. That pairing is the reason the axes are
+    //    separate: the old model had to call this state 'no evidence'.
+    return tagFromAxes(
+      { mode: inferMode(message), evidence: 'inferred', automated: false },
       level,
-      sources,
-    };
+      sources
+    );
   };
 }
