@@ -18,11 +18,12 @@ export const PR_STREAM_SCHEMA_VERSION = 1;
 
 export const PRCommit = z.object({
   sha: z.string(),
+  // Same two-axis shape as a Commit's tags (#25)
   tags: z.object({
-    ai: z.boolean(),
-    attribution: z.enum(['ai', 'human', 'automated', 'unknown']),
     mode: z.enum(['none', 'autocomplete', 'assisted', 'agent', 'unknown']),
-    modeEvidence: z.enum(['declared', 'inferred', 'none']),
+    evidence: z.enum(['declared', 'inferred', 'none']),
+    automated: z.boolean(),
+    attribution: z.enum(['ai', 'human', 'automated', 'unknown']),
     level: z.enum(['explicit', 'implicit', 'mention', 'none']),
     sources: z.array(z.string()),
   }),

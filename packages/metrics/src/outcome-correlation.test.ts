@@ -14,7 +14,7 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     parents: [],
     inDefaultBranchAncestry: true,
     revertsCommit: null,
-    tags: { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] },
+    tags: { attribution: 'unknown', automated: false, mode: 'unknown', evidence: 'none', level: 'none', sources: [] },
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,
   };
@@ -31,8 +31,8 @@ function makeStream(commits: Commit[]): CommitStream {
   };
 }
 
-const aiTags: Commit['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: [] };
-const humanTags: Commit['tags'] = { ai: false, attribution: 'human', mode: 'none', modeEvidence: 'declared', level: 'none', sources: [] };
+const aiTags: Commit['tags'] = { attribution: 'ai', automated: false, mode: 'agent', evidence: 'inferred', level: 'explicit', sources: [] };
+const humanTags: Commit['tags'] = { attribution: 'human', automated: false, mode: 'none', evidence: 'declared', level: 'none', sources: [] };
 
 describe('reverts', () => {
   it('attributes a resolved revert to the reverted commit, not the revert itself', () => {
@@ -253,10 +253,9 @@ describe('outcome rates against the base rate', () => {
 
   it('excludes automated commits from the base rate — they are not authored work', () => {
     const automatedTags: Commit['tags'] = {
-      ai: false,
-      attribution: 'automated',
+      attribution: 'automated', automated: true,
       mode: 'none',
-      modeEvidence: 'inferred',
+      evidence: 'inferred',
       level: 'none',
       sources: ['automated:bot'],
     };

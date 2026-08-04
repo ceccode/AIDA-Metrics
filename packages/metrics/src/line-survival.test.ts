@@ -16,10 +16,9 @@ function makeCommit(hash: string, tags: Partial<Commit['tags']>, additions = 0):
     inDefaultBranchAncestry: true,
     revertsCommit: null,
     tags: {
-      ai: false,
-      attribution: 'unknown',
+      attribution: 'unknown', automated: false,
       mode: 'unknown',
-      modeEvidence: 'none',
+      evidence: 'none',
       level: 'none',
       sources: [],
       ...tags,
@@ -70,9 +69,9 @@ describe('calculateLineSurvival', () => {
     const result = calculateLineSurvival(
       makeBlame({ a1: 300, h1: 100, b1: 50 }),
       makeStream([
-        makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'declared' }, 400),
-        makeCommit('h1', { attribution: 'human', mode: 'none', modeEvidence: 'declared' }),
-        makeCommit('b1', { attribution: 'automated', mode: 'none', modeEvidence: 'inferred' }),
+        makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent', evidence: 'declared' }, 400),
+        makeCommit('h1', { attribution: 'human', automated: false, mode: 'none', evidence: 'declared' }),
+        makeCommit('b1', { attribution: 'automated', automated: true, mode: 'none', evidence: 'inferred' }),
       ])
     );
 
@@ -85,7 +84,7 @@ describe('calculateLineSurvival', () => {
   it('reports lines from commits outside the collected window separately', () => {
     const result = calculateLineSurvival(
       makeBlame({ a1: 100, ancient: 900 }),
-      makeStream([makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 100)])
+      makeStream([makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent' }, 100)])
     );
 
     expect(result.linesOutsideWindow).toBe(900);
@@ -96,7 +95,7 @@ describe('calculateLineSurvival', () => {
   it('derives an approximate survival rate against AI additions', () => {
     const result = calculateLineSurvival(
       makeBlame({ a1: 60 }),
-      makeStream([makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 200)])
+      makeStream([makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent' }, 200)])
     );
     expect(result.introducedByAI).toBe(200);
     expect(result.approxSurvivalRate).toBe(0.3);
@@ -108,7 +107,7 @@ describe('calculateLineSurvival', () => {
     // above 1, so it is capped rather than reported as 400%.
     const result = calculateLineSurvival(
       makeBlame({ a1: 40 }),
-      makeStream([makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 10)])
+      makeStream([makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent' }, 10)])
     );
     expect(result.approxSurvivalRate).toBe(1);
   });
@@ -117,7 +116,7 @@ describe('calculateLineSurvival', () => {
   // reported "1.7% of AI lines survive" by dividing survivors found in 453
   // files by additions counted across the entire history.
   it('counts only additions to files blame actually visited', () => {
-    const commit = makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 100);
+    const commit = makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent' }, 100);
     commit.stats.files = [
       { path: 'src/app.ts', status: 'modified', additions: 40, deletions: 0 },
       // Never blamed: excluded as generated, or beyond --max-files
@@ -136,7 +135,7 @@ describe('calculateLineSurvival', () => {
   });
 
   it('does not report a survival rate inflated by unblamed files', () => {
-    const commit = makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 1000);
+    const commit = makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent' }, 1000);
     commit.stats.files = [
       { path: 'src/app.ts', status: 'modified', additions: 10, deletions: 0 },
       { path: 'other/huge.ts', status: 'modified', additions: 990, deletions: 0 },
@@ -162,7 +161,7 @@ describe('calculateLineSurvival', () => {
   it('carries the truncation flag and file counters through', () => {
     const result = calculateLineSurvival(
       makeBlame({ a1: 10 }, { truncated: true, filesSkipped: 2, filesExcluded: 5 }),
-      makeStream([makeCommit('a1', { ai: true, attribution: 'ai', mode: 'agent' }, 10)])
+      makeStream([makeCommit('a1', { attribution: 'ai', automated: false, mode: 'agent' }, 10)])
     );
     expect(result.truncated).toBe(true);
     expect(result.filesSkipped).toBe(2);

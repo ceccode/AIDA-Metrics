@@ -29,12 +29,12 @@ function generateMarkdownReport(metrics: Metrics): string {
   const warnOnRecent = a.recent ? a.recent.belowThreshold : a.belowThreshold;
 
   const coverageWarning = warnOnRecent
-    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** Provenance is largely unknown, so every metric below is low-confidence. Install the commit hook (\`aida install-hooks\`), tag AI commits, or set \`defaultAttribution\` in \`.aida.json\`.\n`
+    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** Provenance is largely unknown, so every metric below is low-confidence. Install the commit hook (\`aida install-hooks\`) so new commits declare their autonomy mode, or set \`defaultMode\` in \`.aida.json\` for the history that predates it.\n`
     : '';
 
   const priorNote =
-    a.defaultAttribution !== 'unknown' && a.unknown > 0
-      ? `\nUnattributed commits are **assumed \`${a.defaultAttribution}\`** via \`defaultAttribution\` — this is a prior, not observed data.\n`
+    a.defaultMode !== null && a.evidence.none > 0
+      ? `\nCommits with no evidence are **assumed \`${a.defaultMode}\`** via \`defaultMode\` — this is a prior, not observed data, and it does not count toward coverage.\n`
       : '';
 
   const baselineLabel = metrics.baseline?.assumed
@@ -64,7 +64,7 @@ function generateMarkdownReport(metrics: Metrics): string {
 ${fairComparisonSection}`
     : `## AI vs Baseline
 
-**No baseline available** — no commits are attributed as human, so there is nothing honest to compare against. If unattributed commits in this repo are human-authored, set \`"defaultAttribution": "human"\` in \`.aida.json\`.
+**No baseline available** — no commits sit at autonomy level \`none\`, so there is nothing honest to compare against. If the commits with no evidence in this repo were hand-written, set \`"defaultMode": "none"\` in \`.aida.json\`.
 `;
 
   const categories = ['source', 'tests', 'migrations', 'config', 'docs', 'generated'] as const;
@@ -244,15 +244,24 @@ ${[
 **Window:** ${metrics.window.since || 'beginning'} → ${metrics.window.until || 'now'}  
 **Generated:** ${metrics.generatedAt}
 
-## Attribution Coverage
+## Autonomy
 
-**${coveragePct}% of commits have known provenance** — ai: ${a.ai} · human: ${a.human} · automated: ${a.automated} · unknown: ${a.unknown} (${unknownPct}%)
+**${coveragePct}% of commits have known provenance** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · no evidence ${a.evidence.none} (${unknownPct}%)
+
+| Autonomy level | Commits |
+|---|---:|
+| agent | ${a.modes.agent} |
+| assisted | ${a.modes.assisted} |
+| autocomplete | ${a.modes.autocomplete} |
+| none (hand-written) | ${a.modes.none} |
+| unknown | ${a.modes.unknown} |
+| _automated (no cohort)_ | ${a.automated} |
 
 ${recentLine}
-**Autonomy:** agent ${a.modes.agent} · assisted ${a.modes.assisted} · autocomplete ${a.modes.autocomplete} · none ${a.modes.none} · unknown ${a.modes.unknown} — evidence: declared ${a.modeEvidence.declared} / inferred ${a.modeEvidence.inferred} / none ${a.modeEvidence.none}
+*Three-state view:* ai ${a.ai} · human ${a.human} · automated ${a.automated} · unknown ${a.unknown} — a projection of the table above, kept for a one-word headline. What AI participation *was* is the question that keeps discriminating once "was AI involved?" is answered yes everywhere.
 ${coverageWarning}${priorNote}
-${comparisonSection}
-${byModeSection}${lineSection}${outcomeSection}${prSection}${fairnessSection}
+${byModeSection}${comparisonSection}
+${lineSection}${outcomeSection}${prSection}${fairnessSection}
 ## Persistence (file-level survival)
 - Commits considered: ${metrics.persistence.commitsConsidered}
 - Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)

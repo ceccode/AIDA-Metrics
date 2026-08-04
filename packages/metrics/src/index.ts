@@ -1,4 +1,5 @@
 import {
+  AIMode,
   BlameStream,
   Commit,
   CommitStream,
@@ -31,8 +32,9 @@ export * from './outcome-correlation.js';
 export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
 
 export interface MetricsOptions {
-  // Prior applied to 'unknown' commits: which cohort (if any) they join.
-  defaultAttribution?: 'ai' | 'human' | 'unknown';
+  // Prior for commits with no evidence (#25): which cohort, if any, they
+  // join. Undefined = no assumption.
+  defaultMode?: 'none' | 'autocomplete' | 'assisted' | 'agent';
   coverageThreshold?: number;
   // Window for the actionable coverage figure (#52)
   coverageWindowDays?: number;
@@ -54,7 +56,7 @@ export function calculateMetrics(
   options: MetricsOptions = {}
 ): Metrics {
   const {
-    defaultAttribution = 'unknown',
+    defaultMode,
     coverageThreshold = 0.7,
     coverageWindowDays = DEFAULT_COVERAGE_WINDOW_DAYS,
     prStream = null,
@@ -64,15 +66,22 @@ export function calculateMetrics(
 
   const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
   const modes = { none: 0, autocomplete: 0, assisted: 0, agent: 0, unknown: 0 };
-  const modeEvidence = { declared: 0, inferred: 0, none: 0 };
+  const evidence = { declared: 0, inferred: 0, none: 0 };
   for (const commit of commitStream.commits) {
     counts[commit.tags.attribution]++;
-    modes[commit.tags.mode]++;
-    modeEvidence[commit.tags.modeEvidence]++;
+    evidence[commit.tags.evidence]++;
+    // Automation is off the autonomy axis (#39). Counting a merge commit's
+    // `mode: 'none'` under "hand-written" would both overstate the human
+    // cohort and contradict `byMode`, which excludes automation — two tables
+    // in the same report disagreeing about the same commits.
+    if (!commit.tags.automated) modes[commit.tags.mode]++;
   }
   const total = commitStream.commits.length;
-  // Automated commits have known provenance (#39): they count as covered
-  const coverage = total > 0 ? (counts.ai + counts.human + counts.automated) / total : 0;
+  // Coverage is the evidence axis (#25): how much of the history has known
+  // provenance, declared or inferred. Automated commits count as covered
+  // because their provenance IS known (#39) — they carry evidence
+  // 'inferred', so they need no special case here any more.
+  const coverage = total > 0 ? (evidence.declared + evidence.inferred) / total : 0;
 
   // Coverage over a recent window (#52): the number a team can actually move.
   // All-time coverage is a permanent verdict on history predating adoption.
@@ -81,11 +90,13 @@ export function calculateMetrics(
     (commit) => new Date(commit.authorDate) >= windowStart
   );
   const recentCounts = { ai: 0, human: 0, automated: 0, unknown: 0 };
-  for (const commit of recentCommits) recentCounts[commit.tags.attribution]++;
+  let recentWithEvidence = 0;
+  for (const commit of recentCommits) {
+    recentCounts[commit.tags.attribution]++;
+    if (commit.tags.evidence !== 'none') recentWithEvidence++;
+  }
   const recentCoverage =
-    recentCommits.length > 0
-      ? (recentCounts.ai + recentCounts.human + recentCounts.automated) / recentCommits.length
-      : 0;
+    recentCommits.length > 0 ? recentWithEvidence / recentCommits.length : 0;
 
   const attribution: Attribution = {
     commitsTotal: total,
@@ -94,7 +105,7 @@ export function calculateMetrics(
     automated: counts.automated,
     unknown: counts.unknown,
     coverage: round(coverage, 4),
-    defaultAttribution,
+    defaultMode: defaultMode ?? null,
     coverageThreshold,
     belowThreshold: coverage < coverageThreshold,
     recent:
@@ -111,18 +122,30 @@ export function calculateMetrics(
           }
         : null,
     modes,
-    modeEvidence,
+    evidence,
   };
 
-  // Cohort membership: unknown commits join a cohort only via the prior.
-  // 'automated' is its own state (#39): it joins no cohort and priors never
-  // touch it — automation is not authored code.
-  const isAI = (commit: Commit) =>
-    commit.tags.attribution === 'ai' ||
-    (defaultAttribution === 'ai' && commit.tags.attribution === 'unknown');
-  const isBaseline = (commit: Commit) =>
-    commit.tags.attribution === 'human' ||
-    (defaultAttribution === 'human' && commit.tags.attribution === 'unknown');
+  // Cohort membership is decided on the mode axis (#25), with the prior
+  // filling in only where there is no evidence at all. Automation joins
+  // nothing and priors never touch it: it is not authored code.
+  //
+  // `effectiveMode` is the one place the prior is applied. It deliberately
+  // does not write back into the tags — a prior is an assumption, and the
+  // moment it looked like evidence, coverage would start flattering itself.
+  const effectiveMode = (commit: Commit): AIMode => {
+    if (commit.tags.automated) return 'unknown';
+    if (commit.tags.evidence === 'none' && defaultMode) return defaultMode;
+    return commit.tags.mode;
+  };
+
+  // The AI cohort is every autonomy level above 'none'; the baseline is the
+  // 'none' cohort. In an AI-first world this is the projection, not the
+  // question — the question is the per-level breakdown below.
+  const isAI = (commit: Commit) => {
+    const mode = effectiveMode(commit);
+    return mode === 'autocomplete' || mode === 'assisted' || mode === 'agent';
+  };
+  const isBaseline = (commit: Commit) => effectiveMode(commit) === 'none';
 
   const persistence = calculatePersistence(commitStream, isAI);
 
@@ -146,8 +169,7 @@ export function calculateMetrics(
   const MODES = ['agent', 'assisted', 'autocomplete', 'none', 'unknown'] as const;
   const byMode = Object.fromEntries(
     MODES.map((mode) => {
-      const isMode = (commit: Commit) =>
-        commit.tags.mode === mode && commit.tags.attribution !== 'automated';
+      const isMode = (commit: Commit) => !commit.tags.automated && effectiveMode(commit) === mode;
       const modeCommits = commitStream.commits.filter(isMode);
       if (modeCommits.length === 0) {
         return [mode, null];
@@ -163,7 +185,7 @@ export function calculateMetrics(
   // No baseline cohort → no baseline, no delta. AIDA does not invent a
   // comparison out of unattributed commits.
   const baselineSize = baselineCommits.length;
-  const baselineAssumed = defaultAttribution === 'human' && counts.unknown > 0;
+  const baselineAssumed = defaultMode === 'none' && evidence.none > 0;
 
   const baseline =
     baselineSize > 0
@@ -256,7 +278,7 @@ export function calculateMetrics(
   );
 
   const caveats = [
-    `Attribution coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known.`,
+    `Evidence coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known, declared or inferred.`,
     'Rework rate is file-level: consecutive commits from one working session touching the same file count as rework, which inflates it for iterative workflows. Files too recent to judge are excluded from both sides. Line-level tracking will refine this.',
     'Persistence is file-level, not line-level.',
     'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',
@@ -292,12 +314,12 @@ export function calculateMetrics(
   }
   if (baseline?.assumed) {
     caveats.push(
-      `Baseline includes ${counts.unknown} unattributed commit(s) assumed human via defaultAttribution — undetected AI usage may leak into it.`
+      `Baseline includes ${evidence.none} commit(s) with no evidence, assumed autonomy level 'none' via defaultMode — undeclared AI usage may leak into it.`
     );
   }
   if (!baseline) {
     caveats.push(
-      'No baseline: no commits are attributed as human. Set defaultAttribution to "human" in .aida.json if unattributed commits in this repo are human-authored.'
+      'No baseline: no commits sit at autonomy level \'none\'. Set defaultMode to "none" in .aida.json if the commits with no evidence in this repo were hand-written.'
     );
   }
 

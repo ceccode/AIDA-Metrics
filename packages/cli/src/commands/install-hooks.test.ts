@@ -111,7 +111,7 @@ describe('the installed hook, running for real', () => {
       const stream = JSON.parse(readFileSync(join(outDir, 'commit-stream.json'), 'utf-8'));
       const commit = stream.commits[0];
       expect(commit.tags.mode).toBe('agent');
-      expect(commit.tags.modeEvidence).toBe('declared');
+      expect(commit.tags.evidence).toBe('declared');
       expect(commit.tags.attribution).toBe('ai');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
@@ -128,7 +128,7 @@ describe('the installed hook, running for real', () => {
       // The first real source of `human` attribution that isn't the manifest
       expect(stream.commits[0].tags.attribution).toBe('human');
       expect(stream.commits[0].tags.mode).toBe('none');
-      expect(stream.commits[0].tags.modeEvidence).toBe('declared');
+      expect(stream.commits[0].tags.evidence).toBe('declared');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }

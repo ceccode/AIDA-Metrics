@@ -12,8 +12,14 @@
 //     one DOES bump it.
 //   - Readers refuse a version they don't understand, with a fix in the
 //     message, instead of parsing it half-way.
-export const COMMIT_STREAM_SCHEMA_VERSION = 1;
-export const METRICS_SCHEMA_VERSION = 1;
+// v2 (#25): `tags` is now two orthogonal axes — `mode` (involvement) and
+// `evidence` (how we know) — with `attribution` demoted to a derived
+// projection of them. `modeEvidence` was renamed `evidence`, `automated`
+// became its own boolean, and the redundant `ai` boolean was dropped.
+export const COMMIT_STREAM_SCHEMA_VERSION = 2;
+// v2 (#25): coverage is measured on the evidence axis, and the prior is
+// `defaultMode` (an autonomy level) rather than `defaultAttribution`.
+export const METRICS_SCHEMA_VERSION = 2;
 
 export class SchemaVersionError extends Error {
   constructor(

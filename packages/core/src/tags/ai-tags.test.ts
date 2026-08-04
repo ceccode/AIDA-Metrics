@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAITagger } from './ai-tags.js';
+import { createAITagger , projectAttribution } from './ai-tags.js';
 
 describe('AI Tagging', () => {
   const tagger = createAITagger();
@@ -16,14 +16,14 @@ describe('AI Tagging', () => {
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(true);
+        expect(result.attribution).toBe('ai');
         expect(result.level).toBe('explicit');
       });
     });
 
     it('should classify [AI] tag as explicit', () => {
       const result = tagger('[AI] automated code generation');
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
       expect(result.sources).toContain('tag:[ai]');
     });
@@ -39,7 +39,7 @@ describe('AI Tagging', () => {
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(true);
+        expect(result.attribution).toBe('ai');
         expect(result.level).toBe('explicit');
       });
     });
@@ -51,7 +51,7 @@ Generated with Claude Code
 Co-Authored-By: Claude <noreply@anthropic.com>`;
 
       const result = tagger(claudeCommit);
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
     });
   });
@@ -67,7 +67,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(true);
+        expect(result.attribution).toBe('ai');
         expect(result.level).toBe('implicit');
       });
     });
@@ -85,7 +85,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(false);
+        expect(result.attribution).not.toBe('ai');
         expect(result.level).toBe('mention');
       });
     });
@@ -98,7 +98,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(false);
+        expect(result.attribution).not.toBe('ai');
         expect(result.level).toBe('mention');
       });
     });
@@ -115,7 +115,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(false);
+        expect(result.attribution).not.toBe('ai');
         expect(result.level).toBe('none');
       });
     });
@@ -124,20 +124,20 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
   describe('edge cases', () => {
     it('should not match human Co-authored-by', () => {
       const result = tagger('feat: new feature\n\nCo-authored-by: John <john@example.com>');
-      expect(result.ai).toBe(false);
+      expect(result.attribution).not.toBe('ai');
       expect(result.level).toBe('none');
     });
 
     it('should handle custom patterns as explicit', () => {
       const customTagger = createAITagger({ patterns: ['custom-ai-tool'] });
       const result = customTagger('fix: custom-ai-tool generated code');
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
     });
 
     it('should prioritize explicit over mention context', () => {
       const result = tagger('fix: generated with claude');
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
     });
   });
@@ -152,7 +152,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
       cases.forEach((message) => {
         const result = tagger(message);
-        expect(result.ai).toBe(false);
+        expect(result.attribution).not.toBe('ai');
         expect(result.level).toBe('none');
       });
     });
@@ -161,7 +161,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       const result = tagger(
         'feat: new feature\n\nCo-authored-by: copilot[bot] <copilot@github.com>'
       );
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
     });
 
@@ -170,7 +170,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       const result = customTagger(
         'chore: automated\n\nCo-authored-by: acme-bot <bot@github.com>'
       );
-      expect(result.ai).toBe(false);
+      expect(result.attribution).not.toBe('ai');
       expect(result.level).toBe('none');
     });
 
@@ -181,7 +181,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
 Co-authored-by: Claude <noreply@anthropic.com>`
       );
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
     });
   });
@@ -208,7 +208,7 @@ Co-authored-by: Claude <noreply@anthropic.com>`
       const customTagger = createAITagger({ patterns: [], trailerDomains: ['mycompany\\.com'] });
 
       const result = customTagger('feat: new feature\n\nCo-authored-by: Bot <bot@mycompany.com>');
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.level).toBe('explicit');
     });
   });
@@ -219,7 +219,7 @@ Co-authored-by: Claude <noreply@anthropic.com>`
         'fix: bug\n\nGenerated with Claude Code\nCo-Authored-By: Claude <noreply@anthropic.com>'
       );
       expect(result.mode).toBe('agent');
-      expect(result.modeEvidence).toBe('inferred');
+      expect(result.evidence).toBe('inferred');
     });
 
     it('infers autocomplete from copilot and assisted from IDE tools', () => {
@@ -228,18 +228,22 @@ Co-authored-by: Claude <noreply@anthropic.com>`
       expect(tagger('feat: written using chatgpt').mode).toBe('assisted');
     });
 
-    it('leaves mode unknown with no evidence for anonymous AI signals', () => {
+    // The two axes exist precisely for this state: we concluded AI
+    // participated, we cannot say at what level. The old single-axis model
+    // had to call it `evidence: 'none'`, which contradicted the 'ai' it had
+    // just asserted — and made coverage disagree with attribution.
+    it('reports an anonymous AI signal as inferred evidence with an unknown mode', () => {
       const result = tagger('[AI] automated change');
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.mode).toBe('unknown');
-      expect(result.modeEvidence).toBe('none');
+      expect(result.evidence).toBe('inferred');
     });
 
     it('never infers a mode for non-AI commits', () => {
       const result = tagger('fix: update claude detection pattern'); // mention only
-      expect(result.ai).toBe(false);
+      expect(result.attribution).not.toBe('ai');
       expect(result.mode).toBe('unknown');
-      expect(result.modeEvidence).toBe('none');
+      expect(result.evidence).toBe('none');
     });
   });
 
@@ -250,7 +254,7 @@ Co-authored-by: Claude <noreply@anthropic.com>`
       );
       // The Copilot trailer would infer autocomplete; the declaration wins
       expect(result.mode).toBe('agent');
-      expect(result.modeEvidence).toBe('declared');
+      expect(result.evidence).toBe('declared');
       expect(result.attribution).toBe('ai');
       expect(result.sources).toContain('trailer:AI-Mode');
     });
@@ -258,9 +262,9 @@ Co-authored-by: Claude <noreply@anthropic.com>`
     it('treats AI-Mode: none as a declaration of human authorship', () => {
       const result = tagger('fix: hand written\n\nAI-Mode: none');
       expect(result.attribution).toBe('human');
-      expect(result.ai).toBe(false);
+      expect(result.attribution).not.toBe('ai');
       expect(result.mode).toBe('none');
-      expect(result.modeEvidence).toBe('declared');
+      expect(result.evidence).toBe('declared');
     });
 
     it('accepts every documented mode, case-insensitively', () => {
@@ -273,7 +277,7 @@ Co-authored-by: Claude <noreply@anthropic.com>`
     it('ignores an unrecognized mode value rather than trusting it', () => {
       const result = tagger('feat: x\n\nAI-Mode: wizard');
       expect(result.mode).toBe('unknown');
-      expect(result.modeEvidence).toBe('none');
+      expect(result.evidence).toBe('none');
     });
   });
 
@@ -302,13 +306,13 @@ describe('github.com is not an AI signal by itself (external-repo false positive
     ];
     for (const message of cases) {
       const result = tagger(message);
-      expect(result.ai).toBe(false);
+      expect(result.attribution).not.toBe('ai');
       expect(result.attribution).toBe('unknown');
     }
   });
 
   it('still flags AI bots hosted on github.com via the tool-name rule', () => {
-    expect(tagger('feat: x\n\nCo-authored-by: copilot[bot] <copilot@github.com>').ai).toBe(true);
+    expect(tagger('feat: x\n\nCo-authored-by: copilot[bot] <copilot@github.com>').attribution).toBe('ai');
   });
 
   it('classifies copilot-swe-agent as an agent, not autocomplete', () => {
@@ -339,7 +343,7 @@ describe('an unnamed bot co-author is not an AI signal (external-repo false posi
     ];
     for (const message of cases) {
       const result = tagger(message);
-      expect(result.ai).toBe(false);
+      expect(result.attribution).not.toBe('ai');
       expect(result.attribution).toBe('unknown');
     }
   });
@@ -348,7 +352,7 @@ describe('an unnamed bot co-author is not an AI signal (external-repo false posi
   // so any co-author whose name merely contains "bot" was read as AI.
   it('does not flag a human whose name contains "bot"', () => {
     const result = tagger('Fix parser\n\nCo-authored-by: Tim Abbott <tabbott@example.com>');
-    expect(result.ai).toBe(false);
+    expect(result.attribution).not.toBe('ai');
     expect(result.attribution).toBe('unknown');
   });
 
@@ -362,8 +366,56 @@ describe('an unnamed bot co-author is not an AI signal (external-repo false posi
     ];
     for (const message of detected) {
       const result = tagger(message);
-      expect(result.ai).toBe(true);
+      expect(result.attribution).toBe('ai');
       expect(result.mode).not.toBe('unknown');
     }
+  });
+});
+
+describe('two-axis model (#25)', () => {
+  const tagger = createAITagger();
+
+  // The whole point of the refactor: `attribution` is a view, not a second
+  // opinion. If anything ever decides it independently, this fails.
+  it('always agrees with the projection of its own axes', () => {
+    const messages = [
+      'feat: plain commit',
+      '[AI] anonymous signal',
+      'feat: generated by copilot',
+      'feat: x\n\nCo-authored-by: Claude <noreply@anthropic.com>',
+      'chore: release\n\nAI-Mode: none',
+      'feat: y\n\nAI-Mode: agent',
+      'fix: update cursor detection pattern',
+    ];
+    for (const message of messages) {
+      const result = tagger(message);
+      expect(result.attribution).toBe(projectAttribution(result));
+    }
+  });
+
+  // `unknown` used to be a fourth kind of attribution. It is now exactly one
+  // thing: the absence of evidence. Coverage depends on this holding.
+  it('ties attribution unknown to evidence none, in both directions', () => {
+    const withoutEvidence = tagger('feat: plain commit');
+    expect(withoutEvidence.evidence).toBe('none');
+    expect(withoutEvidence.attribution).toBe('unknown');
+
+    const withEvidence = tagger('feat: y\n\nAI-Mode: assisted');
+    expect(withEvidence.evidence).not.toBe('none');
+    expect(withEvidence.attribution).not.toBe('unknown');
+  });
+
+  it('reads AI-Mode: none as a human declaration, not as absent evidence', () => {
+    const result = tagger('chore: hand-written\n\nAI-Mode: none');
+    expect(result.mode).toBe('none');
+    expect(result.evidence).toBe('declared');
+    expect(result.attribution).toBe('human');
+  });
+
+  it('never marks a message-tagged commit as automated', () => {
+    // Automation is orthogonal: it is set at collect time from commit
+    // structure and authorship, never from message heuristics.
+    expect(tagger('Merge branch main').automated).toBe(false);
+    expect(tagger('feat: y\n\nAI-Mode: agent').automated).toBe(false);
   });
 });

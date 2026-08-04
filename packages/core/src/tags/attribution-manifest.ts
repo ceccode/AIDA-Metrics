@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { AIMode, AITagResult } from './ai-tags.js';
+import { AIMode, AITagResult, tagFromAxes } from './ai-tags.js';
 import { Logger } from '../utils/log.js';
 
 export const MANIFEST_FILENAME = 'aida-attribution.json';
@@ -98,31 +98,33 @@ export function applyManifest(
 ): AITagResult {
   if (index.excluded.has(hash)) {
     index.matched.add(hash);
-    return {
-      ai: false,
-      // Excluded = declared automation (#39): provenance known, no cohort
-      attribution: 'automated',
-      mode: 'none',
-      modeEvidence: 'declared',
-      level: 'none',
-      sources: [...heuristic.sources, 'manifest:excluded'],
-    };
+    // Excluded = declared automation (#39): provenance known, no cohort
+    return tagFromAxes(
+      { mode: 'none', evidence: 'declared', automated: true },
+      'none',
+      [...heuristic.sources, 'manifest:excluded']
+    );
   }
 
   if (index.ai.has(hash)) {
     index.matched.add(hash);
     const declaredMode = index.ai.get(hash) ?? null;
-    return {
-      ai: true,
-      attribution: 'ai',
-      // A declared mode beats heuristic inference; without one, keep
-      // whatever the heuristics inferred from tool identity.
-      mode: declaredMode ?? heuristic.mode,
-      modeEvidence: declaredMode ? 'declared' : heuristic.modeEvidence,
-      // A manifest declaration is explicit, whatever the heuristics said
-      level: 'explicit',
-      sources: [...heuristic.sources, 'manifest'],
-    };
+    // Precedence on the mode axis: a declared mode beats heuristic
+    // inference; without one, keep whatever the heuristics inferred from
+    // tool identity. When neither names a level, the manifest has still
+    // *declared* that AI participated — the provenance is known, only its
+    // granularity is missing, so the evidence is 'declared' with an unknown
+    // mode rather than no evidence at all (#25).
+    const mode = declaredMode ?? heuristic.mode;
+    const evidence = declaredMode
+      ? 'declared'
+      : heuristic.mode === 'unknown'
+        ? 'declared'
+        : heuristic.evidence;
+    return tagFromAxes({ mode, evidence, automated: false }, 'explicit', [
+      ...heuristic.sources,
+      'manifest',
+    ]);
   }
 
   if (index.human.has(hash)) {
@@ -134,15 +136,11 @@ export function applyManifest(
       );
       return heuristic;
     }
-    return {
-      ai: false,
-      attribution: 'human',
-      // A human declaration is a mode declaration: no AI participated
-      mode: 'none',
-      modeEvidence: 'declared',
-      level: heuristic.level,
-      sources: [...heuristic.sources, 'manifest'],
-    };
+    // A human declaration is a mode declaration: no AI participated
+    return tagFromAxes({ mode: 'none', evidence: 'declared', automated: false }, heuristic.level, [
+      ...heuristic.sources,
+      'manifest',
+    ]);
   }
 
   return heuristic;

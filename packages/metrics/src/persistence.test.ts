@@ -15,7 +15,7 @@ function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStrea
     parents: [],
     inDefaultBranchAncestry: true,
     revertsCommit: null,
-    tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
+    tags: { attribution: 'unknown' as const, automated: false, mode: 'unknown' as const, evidence: 'none' as const, level: 'none', sources: [] },
     stats: { totalAdditions: 10, totalDeletions: 0, files: [] },
     ...overrides,
   };
@@ -45,12 +45,12 @@ describe('calculatePersistence', () => {
     const stream = makeStream([
       makeCommit({
         hash: 'a1',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
       }),
       makeCommit({
         hash: 'a2',
-        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
+        tags: { attribution: 'unknown' as const, automated: false, mode: 'unknown' as const, evidence: 'none' as const, level: 'none', sources: [] },
       }),
     ]);
     const result = calculatePersistence(stream);
@@ -62,7 +62,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -72,7 +72,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a2',
         authorDate: '2024-01-11T00:00:00.000Z',
-        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
+        tags: { attribution: 'unknown' as const, automated: false, mode: 'unknown' as const, evidence: 'none' as const, level: 'none', sources: [] },
         stats: {
           totalAdditions: 2,
           totalDeletions: 1,
@@ -92,7 +92,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -103,7 +103,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a2',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -114,7 +114,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a3',
         authorDate: '2024-01-06T00:00:00.000Z',
-        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
+        tags: { attribution: 'unknown' as const, automated: false, mode: 'unknown' as const, evidence: 'none' as const, level: 'none', sources: [] },
         stats: {
           totalAdditions: 2,
           totalDeletions: 0,
@@ -136,7 +136,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -151,7 +151,7 @@ describe('calculatePersistence', () => {
   });
 
   it('ends the survival clock at the first subsequent touch, same cohort included', () => {
-    const aiTags: CommitStream['commits'][0]['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] };
+    const aiTags: CommitStream['commits'][0]['tags'] = { attribution: 'ai', automated: false, mode: 'agent', evidence: 'inferred', level: 'explicit', sources: ['tag:[ai]'] };
     const stream = makeStream([
       makeCommit({
         hash: 'a1',
@@ -182,7 +182,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 3,
           totalDeletions: 0,
@@ -204,7 +204,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: {
           totalAdditions: 5,
           totalDeletions: 0,
@@ -214,7 +214,7 @@ describe('calculatePersistence', () => {
       makeCommit({
         hash: 'a2',
         authorDate: '2024-01-20T00:00:00.000Z',
-        tags: { ai: false, attribution: 'unknown' as const, mode: 'unknown' as const, modeEvidence: 'none' as const, level: 'none', sources: [] },
+        tags: { attribution: 'unknown' as const, automated: false, mode: 'unknown' as const, evidence: 'none' as const, level: 'none', sources: [] },
         stats: {
           totalAdditions: 0,
           totalDeletions: 5,
@@ -230,7 +230,7 @@ describe('calculatePersistence', () => {
 });
 
 describe('rework rate (#22)', () => {
-  const aiTags: CommitStream['commits'][0]['tags'] = { ai: true, attribution: 'ai', mode: 'agent', modeEvidence: 'inferred', level: 'explicit', sources: [] };
+  const aiTags: CommitStream['commits'][0]['tags'] = { attribution: 'ai', automated: false, mode: 'agent', evidence: 'inferred', level: 'explicit', sources: [] };
 
   it('counts a file reworked inside the window', () => {
     const stream = makeStream([
@@ -320,13 +320,13 @@ describe('calculateBaselinePersistence', () => {
       makeCommit({
         hash: 'h1',
         authorDate: '2024-01-01T00:00:00.000Z',
-        tags: { ai: false, attribution: 'human' as const, mode: 'none' as const, modeEvidence: 'declared' as const, level: 'none', sources: [] },
+        tags: { attribution: 'human' as const, automated: false, mode: 'none' as const, evidence: 'declared' as const, level: 'none', sources: [] },
         stats: { totalAdditions: 5, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 5, deletions: 0 }] },
       }),
       makeCommit({
         hash: 'ai1',
         authorDate: '2024-01-06T00:00:00.000Z',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: { totalAdditions: 2, totalDeletions: 0, files: [{ path: 'foo.ts', additions: 2, deletions: 0, status: 'modified' }] },
       }),
     ]);
@@ -340,7 +340,7 @@ describe('calculateBaselinePersistence', () => {
     const stream = makeStream([
       makeCommit({
         hash: 'ai1',
-        tags: { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
+        tags: { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit', sources: ['tag:[ai]'] },
         stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'x.ts', additions: 1, deletions: 0 }] },
       }),
     ]);
@@ -351,7 +351,7 @@ describe('calculateBaselinePersistence', () => {
 });
 
 describe('maxObservationDays (#29 age-normalization)', () => {
-  const aiTags = { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
+  const aiTags = { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
 
   it('caps survival for a file reworked after the cap, treating it as censored at the cap', () => {
     const stream = makeStream([
@@ -425,7 +425,7 @@ describe('maxObservationDays (#29 age-normalization)', () => {
 });
 
 describe('onlyCategory (#36 within-category comparison)', () => {
-  const aiTags = { ai: true, attribution: 'ai' as const, mode: 'agent' as const, modeEvidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
+  const aiTags = { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
 
   it('restricts consideration to a single category, bypassing the default exclusions', () => {
     const stream = makeStream([

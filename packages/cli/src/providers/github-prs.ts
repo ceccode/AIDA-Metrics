@@ -1,5 +1,6 @@
 import {
   AITagResult,
+  tagFromAxes,
   Logger,
   PRCommit,
   PR_STREAM_SCHEMA_VERSION,
@@ -143,16 +144,12 @@ export async function fetchClosedPRs(options: FetchPROptions): Promise<PRStream>
 
       const taggedCommits: PRCommit[] = commits.map((commit) => {
         let tags: AITagResult = tagger(commit.commit.message);
-        if (tags.attribution === 'unknown' && (commit.parents?.length ?? 0) > 1) {
+        if (tags.evidence === 'none' && (commit.parents?.length ?? 0) > 1) {
           // Merge commits inside a PR branch are automation, not authored work
-          tags = {
-            ai: false,
-            attribution: 'automated',
-            mode: 'none',
-            modeEvidence: 'inferred',
-            level: 'none',
-            sources: [...tags.sources, 'automated:merge-commit'],
-          };
+          tags = tagFromAxes({ mode: 'none', evidence: 'inferred', automated: true }, 'none', [
+            ...tags.sources,
+            'automated:merge-commit',
+          ]);
         }
         return { sha: commit.sha, tags };
       });

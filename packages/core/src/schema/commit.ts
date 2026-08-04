@@ -22,15 +22,25 @@ export const Commit = z.object({
   // collect time ("This reverts commit <sha>."). Null for non-revert
   // commits, or when the target isn't in the standard git-generated form.
   revertsCommit: z.string().nullable().default(null),
+  // Two orthogonal axes (#25). `mode` is what happened, `evidence` is how we
+  // know it; everything else here is derived from them.
   tags: z.object({
-    ai: z.boolean(),
-    // Four-state attribution (#34, #39). Heuristics emit 'ai' or 'unknown';
-    // 'human' requires an explicit declaration (manifest, #10); 'automated'
-    // is provenance-known automation (merge commits, bots, manifest-excluded).
-    attribution: z.enum(['ai', 'human', 'automated', 'unknown']),
-    // Autonomy axis (#25): what level of AI participated, and how we know
+    // PRIMARY AXIS — involvement. The question that still discriminates risk
+    // once "was AI involved?" trends to yes everywhere.
     mode: z.enum(['none', 'autocomplete', 'assisted', 'agent', 'unknown']),
-    modeEvidence: z.enum(['declared', 'inferred', 'none']),
+    // PRIMARY AXIS — evidence. 'declared' = stated at commit time (AI-Mode
+    // trailer, manifest); 'inferred' = derived from tool identity or
+    // structure; 'none' = no signal, which is what `unknown` used to mean.
+    evidence: z.enum(['declared', 'inferred', 'none']),
+    // Automation with known provenance (#39): merge commits, release bots.
+    // Orthogonal to the two axes — automation is not authored code, so it
+    // joins no autonomy cohort regardless of what mode it would infer.
+    automated: z.boolean(),
+    // DERIVED — the three-state projection (#34), kept because a headline
+    // needs one word. See `projectAttribution`: it is a view of the axes
+    // above, never an independent judgement.
+    attribution: z.enum(['ai', 'human', 'automated', 'unknown']),
+    // DERIVED — strength of the message heuristic that fired, if any
     level: z.enum(['explicit', 'implicit', 'mention', 'none']),
     sources: z.array(z.string()), // which heuristic matched
   }),

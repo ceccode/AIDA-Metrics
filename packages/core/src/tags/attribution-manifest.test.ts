@@ -9,7 +9,7 @@ import {
   loadAttributionManifest,
   unmatchedManifestHashes,
 } from './attribution-manifest.js';
-import { AITagResult } from './ai-tags.js';
+import { AITagResult, tagFromAxes } from './ai-tags.js';
 
 const HASH_AI = 'a'.repeat(40);
 const HASH_HUMAN = 'b'.repeat(40);
@@ -27,21 +27,25 @@ function makeIndex() {
   );
 }
 
-const unknownTag: AITagResult = { ai: false, attribution: 'unknown', mode: 'unknown', modeEvidence: 'none', level: 'none', sources: [] };
-const aiTag: AITagResult = {
-  ai: true,
-  attribution: 'ai',
-  mode: 'unknown',
-  modeEvidence: 'none',
-  level: 'explicit',
-  sources: ['trailer:^AI:\\s*true$'],
-};
+// Built through tagFromAxes so the fixtures cannot encode a state the
+// tagger would never produce — `attribution` is a projection, not a value
+// a test gets to choose independently of the axes.
+const unknownTag: AITagResult = tagFromAxes(
+  { mode: 'unknown', evidence: 'none', automated: false },
+  'none',
+  []
+);
+const aiTag: AITagResult = tagFromAxes(
+  { mode: 'unknown', evidence: 'inferred', automated: false },
+  'explicit',
+  ['trailer:^AI:\\s*true$']
+);
 
 describe('applyManifest precedence', () => {
   it('tags manifest ai_assisted commits as explicit ai with source manifest', () => {
     const result = applyManifest(unknownTag, HASH_AI, makeIndex());
     expect(result.attribution).toBe('ai');
-    expect(result.ai).toBe(true);
+    expect(result.attribution).toBe('ai');
     expect(result.level).toBe('explicit');
     expect(result.sources).toContain('manifest');
   });
@@ -55,7 +59,7 @@ describe('applyManifest precedence', () => {
   it('tags manifest human_authored commits as human when heuristics found nothing', () => {
     const result = applyManifest(unknownTag, HASH_HUMAN, makeIndex());
     expect(result.attribution).toBe('human');
-    expect(result.ai).toBe(false);
+    expect(result.attribution).not.toBe('ai');
     expect(result.sources).toContain('manifest');
   });
 
@@ -75,9 +79,9 @@ describe('applyManifest precedence', () => {
   it('excluded overrides heuristics and declares automation', () => {
     const result = applyManifest(aiTag, HASH_EXCLUDED, makeIndex());
     expect(result.attribution).toBe('automated');
-    expect(result.ai).toBe(false);
+    expect(result.attribution).not.toBe('ai');
     expect(result.mode).toBe('none');
-    expect(result.modeEvidence).toBe('declared');
+    expect(result.evidence).toBe('declared');
     expect(result.sources).toContain('manifest:excluded');
   });
 
@@ -96,7 +100,7 @@ describe('applyManifest precedence', () => {
     );
     const result = applyManifest(unknownTag, HASH_AI, index);
     expect(result.mode).toBe('agent');
-    expect(result.modeEvidence).toBe('declared');
+    expect(result.evidence).toBe('declared');
   });
 
   it('lets an entry-level mode override the manifest-level default', () => {
@@ -111,16 +115,16 @@ describe('applyManifest precedence', () => {
   });
 
   it('keeps the heuristic inferred mode when the manifest declares none', () => {
-    const inferredTag: AITagResult = { ...aiTag, mode: 'agent', modeEvidence: 'inferred' };
+    const inferredTag: AITagResult = { ...aiTag, mode: 'agent', evidence: 'inferred' };
     const result = applyManifest(inferredTag, HASH_AI, makeIndex());
     expect(result.mode).toBe('agent');
-    expect(result.modeEvidence).toBe('inferred');
+    expect(result.evidence).toBe('inferred');
   });
 
   it('declares mode none for human_authored commits', () => {
     const result = applyManifest(unknownTag, HASH_HUMAN, makeIndex());
     expect(result.mode).toBe('none');
-    expect(result.modeEvidence).toBe('declared');
+    expect(result.evidence).toBe('declared');
   });
 
   it('reports manifest hashes that matched no collected commit', () => {

@@ -1,7 +1,7 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 import { Commit, CommitStream } from '../schema/commit.js';
 import { COMMIT_STREAM_SCHEMA_VERSION } from '../schema/version.js';
-import { createAITagger } from '../tags/ai-tags.js';
+import { createAITagger, tagFromAxes } from '../tags/ai-tags.js';
 import { createAutomatedDetector } from '../tags/automated.js';
 import {
   applyManifest,
@@ -228,21 +228,20 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
 
     logger?.debug(`Processing commit ${rawCommit.hash}`);
 
-    // Tag AI on the full message (body included, for trailers like Co-Authored-By)
+    // Tag on the full message (body included, for trailers like Co-Authored-By)
     let aiTag = aiTagger(rawCommit.message);
-    // Automated detection only when heuristics found no AI signal:
-    // in-commit evidence wins over structural heuristics
-    if (aiTag.attribution === 'unknown') {
+    // Automated detection only when the message carried no signal at all:
+    // in-commit evidence wins over structural heuristics. Automation sits
+    // beside the autonomy axes rather than on them (#25) — a merge commit
+    // has known provenance and no author, so `mode: none` states that no AI
+    // wrote it while `automated` keeps it out of every cohort.
+    if (aiTag.evidence === 'none') {
       const automatedSource = detectAutomated(rawCommit);
       if (automatedSource) {
-        aiTag = {
-          ai: false,
-          attribution: 'automated',
-          mode: 'none',
-          modeEvidence: 'inferred',
-          level: 'none',
-          sources: [...aiTag.sources, automatedSource],
-        };
+        aiTag = tagFromAxes({ mode: 'none', evidence: 'inferred', automated: true }, 'none', [
+          ...aiTag.sources,
+          automatedSource,
+        ]);
       }
     }
     // Manifest declarations beat structural heuristics
