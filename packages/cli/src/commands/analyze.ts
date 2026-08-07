@@ -19,6 +19,7 @@ import { calculateMetrics } from '@aida-dev/metrics';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { CLIConfig } from '../schema/config.js';
+import { HOOK_NAME, isAidaHookInstalled } from '../hooks/detect.js';
 
 const MODES = ['none', 'autocomplete', 'assisted', 'agent'];
 
@@ -170,8 +171,17 @@ export function createAnalyzeCommand(): Command {
           );
         }
         if (a.recent ? a.recent.belowThreshold : a.belowThreshold) {
+          const threshold = (a.coverageThreshold * 100).toFixed(0);
+          // A hook is per-clone state while `.aida.json` is committed, so a
+          // repo can be set up for AIDA while the clone in front of you is
+          // not — and nothing breaks, the unknown bucket just grows (#75).
+          // Worth naming precisely rather than repeating generic advice.
+          const configured = await fileExists(join(commitStream.repoPath, '.aida.json'));
+          const hooked = await isAidaHookInstalled(commitStream.repoPath);
           logger.warn(
-            `Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%: metrics are low-confidence. Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
+            configured && !hooked
+              ? `Coverage is below ${threshold}%: metrics are low-confidence. This repo is set up for AIDA (.aida.json) but THIS CLONE has no ${HOOK_NAME} hook, so its commits declare nothing. Run 'aida install-hooks' — or add "prepare": "aida install-hooks --if-git" to package.json so every clone gets it.`
+              : `Coverage is below ${threshold}%: metrics are low-confidence. Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
           );
         }
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);

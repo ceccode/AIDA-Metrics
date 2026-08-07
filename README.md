@@ -220,6 +220,7 @@ aida report --out-dir ./aida-output
 - `--repo <path>` - Repository path (default: current directory)
 - `--force` - Overwrite an existing unrelated hook
 - `--uninstall` - Remove the AIDA hook block
+- `--if-git` - Exit quietly when there is no git repository (for `prepare` scripts)
 - `--verbose` - Verbose logging
 
 #### `aida blame`
@@ -289,6 +290,24 @@ The manifest is retroactive; a hook is **prospective** — it declares provenanc
 aida install-hooks          # writes .git/hooks/prepare-commit-msg
 aida install-hooks --uninstall
 ```
+
+#### Installing it in every clone
+
+A hook is **per-clone state**, while `.aida.json` is committed and shared. So a repo can be set up for AIDA while the clone in front of you declares nothing — and nothing visibly breaks: the no-evidence bucket just grows and the 90-day coverage figure degrades without anyone deciding it should ([#75](https://github.com/ceccode/AIDA-Metrics/issues/75)).
+
+Meet people at the one command every clone runs:
+
+```json
+{
+  "scripts": {
+    "prepare": "aida install-hooks --if-git"
+  }
+}
+```
+
+`--if-git` exits 0 silently where there is no git to hook into — a tarball install, `npm ci` in a container, a Docker build context — instead of failing an unrelated install. Installation is idempotent and still refuses to overwrite a hook AIDA did not write, so `prepare` re-runs cost nothing.
+
+AIDA deliberately does **not** install the hook from a `postinstall` script: mutating `.git` as a side effect of `npm install` violates least surprise, and install scripts are disabled in exactly the hardened setups that would care most. When it notices the gap it says so instead — if a repo has `.aida.json` but the local clone has no hook, the low-coverage warning names that specifically rather than repeating generic advice.
 
 The hook appends an `AI-Mode:` trailer when the mode is known:
 
@@ -660,6 +679,7 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.21** ✅ Line-level survival via `aida blame` — exact per-line attribution, binaries excluded ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)).
 - **v0.22** ✅ Age-normalized fair comparison ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)), within-category comparison ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)), git-scoped outcome correlation — reverts and hotfixes ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
 - **v0.23** ✅ Autonomy as the primary axis — involvement × evidence, with three-state attribution demoted to a derived projection; coverage measured on the evidence axis; `defaultAttribution` replaced by `defaultMode` ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Schema v2.
+- **v0.24** ✅ `--if-git` and a documented `prepare` recipe, so hook installation reaches every clone; the low-coverage warning names a missing hook in a configured repo ([#75](https://github.com/ceccode/AIDA-Metrics/issues/75)).
 - **Next** → Bitbucket PR comment provider ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 

@@ -6,6 +6,7 @@ import { join } from 'path';
 import type { Command } from 'commander';
 import { createInstallHooksCommand } from './install-hooks.js';
 import { createCollectCommand } from './collect.js';
+import { createAnalyzeCommand } from './analyze.js';
 
 let repoPath: string;
 
@@ -85,6 +86,47 @@ describe('aida install-hooks', () => {
     await run(createInstallHooksCommand(), ['--repo', repoPath]);
     await run(createInstallHooksCommand(), ['--repo', repoPath, '--uninstall']);
     expect(existsSync(hookPath())).toBe(false);
+  });
+
+  // #75: `prepare` runs on every install, including the many that have no
+  // git to hook into — a tarball install, `npm ci` in a container, a Docker
+  // build. Erroring there would break unrelated installs.
+  describe('--if-git (safe in a package.json prepare script)', () => {
+    it('exits quietly outside a git repository instead of failing', async () => {
+      const bare = mkdtempSync(join(tmpdir(), 'aida-nogit-'));
+      try {
+        await expect(
+          run(createInstallHooksCommand(), ['--repo', bare, '--if-git'])
+        ).resolves.toBeDefined();
+        expect(existsSync(join(bare, '.git'))).toBe(false);
+      } finally {
+        rmSync(bare, { recursive: true, force: true });
+      }
+    });
+
+    it('still installs normally when there IS a git repository', async () => {
+      await run(createInstallHooksCommand(), ['--repo', repoPath, '--if-git']);
+      expect(existsSync(hookPath())).toBe(true);
+    });
+
+    it('stays idempotent across repeated prepare runs', async () => {
+      await run(createInstallHooksCommand(), ['--repo', repoPath, '--if-git']);
+      const first = readFileSync(hookPath(), 'utf-8');
+      await run(createInstallHooksCommand(), ['--repo', repoPath, '--if-git']);
+      expect(readFileSync(hookPath(), 'utf-8')).toBe(first);
+    });
+
+    it('still refuses to clobber a foreign hook, prepare script or not', async () => {
+      writeFileSync(hookPath(), '#!/bin/sh\necho someone elses hook\n', { mode: 0o755 });
+      const exit = vi.spyOn(process, 'exit').mockImplementation((() => {
+        throw new Error('exit');
+      }) as never);
+      await expect(
+        run(createInstallHooksCommand(), ['--repo', repoPath, '--if-git'])
+      ).rejects.toThrow();
+      exit.mockRestore();
+      expect(readFileSync(hookPath(), 'utf-8')).toContain('someone elses hook');
+    });
   });
 
   it('uninstall is a no-op when no AIDA hook is present', async () => {
@@ -170,5 +212,65 @@ describe('the installed hook, running for real', () => {
       { mode: 0o755 }
     );
     expect(() => git('git commit -q --allow-empty -m "chore: survives"')).not.toThrow();
+  });
+});
+
+// #75 point 3: the low-coverage warning is where eyes already are, so when
+// the repo is configured for AIDA but this clone is not, say exactly that
+// instead of repeating generic advice.
+describe('low-coverage warning names a missing hook in a configured repo', () => {
+  let outDir: string;
+
+  async function analyzeAndCaptureWarnings(): Promise<string> {
+    const warnings: string[] = [];
+    const spy = vi.spyOn(console, 'warn').mockImplementation((m: string) => {
+      warnings.push(String(m));
+    });
+    try {
+      await run(createCollectCommand(), ['--repo', repoPath, '--out-dir', outDir]);
+      await run(createAnalyzeCommand(), ['--out-dir', outDir]);
+    } finally {
+      spy.mockRestore();
+    }
+    return warnings.join('\n');
+  }
+
+  beforeEach(() => {
+    outDir = mkdtempSync(join(tmpdir(), 'aida-warn-out-'));
+    // A commit with no declaration at all: coverage 0%, warning guaranteed
+    git('git commit -q --allow-empty -m "chore: undeclared"');
+  });
+
+  afterEach(() => {
+    rmSync(outDir, { recursive: true, force: true });
+  });
+
+  it('names the hook when .aida.json exists but the clone has none', async () => {
+    writeFileSync(join(repoPath, '.aida.json'), JSON.stringify({ coverageThreshold: 0.7 }));
+
+    const warnings = await analyzeAndCaptureWarnings();
+
+    expect(warnings).toContain('THIS CLONE');
+    expect(warnings).toContain('prepare-commit-msg');
+    expect(warnings).toContain('--if-git');
+  });
+
+  it('stays generic when the clone already has the hook', async () => {
+    writeFileSync(join(repoPath, '.aida.json'), JSON.stringify({ coverageThreshold: 0.7 }));
+    await run(createInstallHooksCommand(), ['--repo', repoPath]);
+
+    const warnings = await analyzeAndCaptureWarnings();
+
+    expect(warnings).toContain('Coverage is below');
+    expect(warnings).not.toContain('THIS CLONE');
+  });
+
+  it('stays generic on a repo that never opted into AIDA', async () => {
+    // e.g. someone running AIDA over a repo they do not own: no .aida.json,
+    // so a missing hook is not a misconfiguration to complain about
+    const warnings = await analyzeAndCaptureWarnings();
+
+    expect(warnings).toContain('Coverage is below');
+    expect(warnings).not.toContain('THIS CLONE');
   });
 });

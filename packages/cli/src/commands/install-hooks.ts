@@ -1,32 +1,9 @@
 import { Command } from 'commander';
 import { createLogger, describeError } from '@aida-dev/core';
 import { promises as fs } from 'fs';
-import { execFile } from 'child_process';
 import { join } from 'path';
-import { promisify } from 'util';
 import { HOOK_END_MARKER, HOOK_MARKER, HOOK_SCRIPT } from '../hooks/prepare-commit-msg.js';
-
-const execFileAsync = promisify(execFile);
-
-const HOOK_NAME = 'prepare-commit-msg';
-
-// Resolves the real hooks directory: worktrees and `core.hooksPath` both
-// move it away from `.git/hooks`.
-async function resolveHooksDir(repoPath: string): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--git-path', 'hooks'], {
-      cwd: repoPath,
-    });
-    const relative = stdout.trim();
-    return relative.startsWith('/') ? relative : join(repoPath, relative);
-  } catch {
-    return join(repoPath, '.git', 'hooks');
-  }
-}
-
-function isAidaHook(content: string): boolean {
-  return content.includes(HOOK_MARKER);
-}
+import { HOOK_NAME, isAidaHook, isGitRepository, resolveHooksDir } from '../hooks/detect.js';
 
 // Removes only AIDA's marked block, leaving any surrounding hook intact.
 function stripAidaBlock(content: string): string {
@@ -46,11 +23,25 @@ export function createInstallHooksCommand(): Command {
     .option('--repo <path>', 'Repository path', process.cwd())
     .option('--force', 'Overwrite an existing unrelated hook', false)
     .option('--uninstall', 'Remove the AIDA hook block', false)
+    .option(
+      '--if-git',
+      'Exit quietly when there is no git repository (for use in a package.json prepare script)',
+      false
+    )
     .option('--verbose', 'Verbose logging', false)
     .action(async (options) => {
       const logger = createLogger(Boolean(options.verbose));
 
       try {
+        // `prepare` runs on every install, including the ones with no git to
+        // hook into: tarball installs, `npm ci` in a container, a Docker
+        // build context. Failing there would break unrelated installs for a
+        // hook nobody asked for in that context (#75).
+        if (options.ifGit && !(await isGitRepository(options.repo))) {
+          logger.debug('No git repository here — skipping hook installation (--if-git).');
+          return;
+        }
+
         const hooksDir = await resolveHooksDir(options.repo);
         const hookPath = join(hooksDir, HOOK_NAME);
 
