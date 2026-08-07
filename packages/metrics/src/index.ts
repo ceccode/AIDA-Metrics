@@ -176,6 +176,9 @@ export function calculateMetrics(
       }
       const stats: ModeStats = {
         commits: modeCommits.length,
+        // Observed vs assumed, kept apart so the cohort size can never read
+        // as evidence it isn't (#25)
+        assumed: modeCommits.filter((c) => c.tags.evidence === 'none').length,
         persistence: calculatePersistence(commitStream, isMode),
       };
       return [mode, stats];

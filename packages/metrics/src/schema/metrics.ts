@@ -241,6 +241,12 @@ export const OutcomeCorrelation = z.object({
 // mode has no commits.
 export const ModeStats = z.object({
   commits: z.number().int().nonnegative(),
+  // How many of `commits` are here only because of the `defaultMode` prior
+  // (#25). Without this the per-level table and the observed-counts table
+  // report different numbers for the same cohort with nothing to explain
+  // the gap — found running AIDA against varano-239, where the header said
+  // `agent 5` and this table said `agent 16`.
+  assumed: z.number().int().nonnegative(),
   persistence: Persistence,
 });
 

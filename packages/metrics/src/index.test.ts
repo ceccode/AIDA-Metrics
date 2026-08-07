@@ -506,3 +506,40 @@ describe('automated commits stay off the autonomy axis (#25/#39)', () => {
     expect(metrics.byMode.none).toBeNull();
   });
 });
+
+describe('per-mode cohorts separate observed from assumed (#25)', () => {
+  // Found running AIDA against varano-239: one report said `agent 5` in the
+  // observed table and `agent 16` in the per-level table. Both were correct
+  // under their own definition, neither said which definition it used, and
+  // the reader takes the bigger number for the real one.
+  it('reports how many commits a prior placed in each cohort', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }),
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+        makeCommit({ hash: 'u2', tags: unknownTags }),
+      ]),
+      { defaultMode: 'agent' }
+    );
+
+    expect(metrics.byMode.agent!.commits).toBe(3);
+    expect(metrics.byMode.agent!.assumed).toBe(2);
+    // The observed table keeps reporting only what commits actually declare
+    expect(metrics.attribution.modes.agent).toBe(1);
+    expect(metrics.attribution.evidence.none).toBe(2);
+  });
+
+  it('reports zero assumed when no prior is configured', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }),
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+      ])
+    );
+
+    expect(metrics.byMode.agent!.commits).toBe(1);
+    expect(metrics.byMode.agent!.assumed).toBe(0);
+    // With no prior the two tables agree exactly
+    expect(metrics.byMode.agent!.commits).toBe(metrics.attribution.modes.agent);
+  });
+});

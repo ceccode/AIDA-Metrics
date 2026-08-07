@@ -114,13 +114,15 @@ ${byCategorySection}`;
     .filter((row) => row.stats !== null)
     .map(
       ({ mode, stats }) =>
-        `| ${mode} | ${stats!.commits} | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} | ${stats!.persistence.censored} |`
+        `| ${mode} | ${stats!.commits}${stats!.assumed > 0 ? ` (${stats!.assumed} assumed)` : ''} | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} | ${stats!.persistence.censored} |`
     );
   const byModeSection =
     modeRows.length > 0
       ? `## By Autonomy Level
 
 The comparison that stays meaningful when everything is AI-assisted: how code holds up per autonomy level (automated commits excluded).
+
+Cohorts here include commits placed by the \`defaultMode\` prior, marked *assumed* — so these counts can exceed the observed ones above, which only ever report what the commits themselves declare.
 
 | Mode | Commits | Avg persistence (d) | Median (d) | Surviving |
 |---|---:|---:|---:|---:|
