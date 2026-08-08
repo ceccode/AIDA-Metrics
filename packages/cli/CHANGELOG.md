@@ -1,5 +1,36 @@
 # @aida/cli
 
+## 0.19.0
+
+### Minor Changes
+
+- 6785ed6: A prior can no longer conjure a cohort overlay out of assumption alone (#77 step 4)
+
+  The last step of the quality-first migration. Earlier work made the prior's contribution _visible_ — `(N assumed)` next to each cohort size. This stops it from creating an overlay at all: a cohort whose every commit was placed there by `defaultMode` is not a measurement, it is the assumption describing itself with numbers next to it.
+  - **Per-level rows** in `By Autonomy Level` render only where at least one commit carries real evidence. `unknown` is exempt — it _is_ the no-evidence bucket, and reporting its size is the honest part.
+  - **The AI-vs-baseline comparison is withheld** when either side is pure prior, because a measured cohort against an assumed one yields a delta that describes the prior rather than the repo.
+  - **Nothing is dropped silently.** When every cohort is gated, the section still renders and explains why, and names the prior responsible — a configured `defaultMode` doing nothing is itself worth knowing. Writing the gate surfaced this: the first implementation made the section vanish, which its own test caught.
+  - **Cohort Fairness** is gated only when _neither_ side has evidence. With one real cohort its age and task mix are information the repo genuinely has, so the table stays as it was.
+
+  The gate is on presentation only — every cohort remains in `metrics.json`, so a consumer that wants the prior's view still has it.
+
+  Dogfooded on both repos: this one (full evidence) renders the agent cohort unchanged; varano-239 renders `agent 26 (11 assumed)` because 15 commits genuinely declare `agent`, while a synthetic 0%-evidence repo with `--default-mode agent` gets the explained withholding instead of a fabricated table.
+
+### Patch Changes
+
+- 8d4ca58: Refresh documentation to match the shipped tool, and dogfood our own hook recipe
+
+  Six places still described a tool that no longer exists — found by auditing the docs against the four #77 PRs rather than trusting them:
+  - The **demo site** (`docs/index.html`) advertised **merge ratio** in its terminal demo, a metric removed in v0.14, and led its feature grid with coverage-as-headline. Now shows repo-level quality and a trend line, with the feature cards rewritten around quality-first.
+  - **`### By Autonomy Level`** claimed merge ratio was computed per mode.
+  - **`### Comparative Baseline`** claimed merge ratio was computed for the human cohort, and that the comparison table renders "at the top" — it has been below Code Quality since the report reframe.
+  - **Schema versioning** still said `commit-stream.json v1, metrics.json v1`; both are v2, and `blame-stream.json` is v2 as well. Now states what each bump changed.
+  - **Output Files** described `metrics.json` without the `repo` and `trend` blocks, and `commit-stream.json` in four-state terms rather than the two axes.
+
+  Also: **this repo now follows the `prepare` recipe it recommends** (#75). `scripts/install-hooks.mjs` installs the hook on `pnpm install`, with the one guard the published recipe does not need — AIDA is the CLI here, so on a fresh clone `pnpm install` runs before `pnpm build` and there is nothing to install from yet. It skips with a reason rather than silently, and never fails an install over a hook.
+
+  New **`AGENTS.md`** for coding agents: the honesty bar, the dogfood-before-PR and never-stack-PRs agreements, how to stamp provenance truthfully, four behaviours that look like bugs and are not (empty cohorts, priors that are not evidence, immature trend periods, `unknown` as a real answer), and the recurring defect class this project has now found four times — two tables describing the same commits under different definitions without saying so.
+
 ## 0.18.0
 
 ### Minor Changes
