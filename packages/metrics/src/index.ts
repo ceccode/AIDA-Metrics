@@ -20,6 +20,7 @@ import {
   FileCategory,
   Metrics,
   ModeStats,
+  RepoQuality,
 } from './schema/metrics.js';
 
 export * from './schema/metrics.js';
@@ -146,6 +147,18 @@ export function calculateMetrics(
     return mode === 'autocomplete' || mode === 'assisted' || mode === 'agent';
   };
   const isBaseline = (commit: Commit) => effectiveMode(commit) === 'none';
+
+  // Repo-level quality (#77, step 1): the primary object. Computed over ALL
+  // authored commits — no cohort, no evidence requirement, and deliberately
+  // no `effectiveMode`: the prior must not be able to move these numbers,
+  // or "assume everything is AI" would quietly become "trust the assumption".
+  const isAuthored = (commit: Commit) => !commit.tags.automated;
+  const authoredCount = commitStream.commits.filter(isAuthored).length;
+  const repo: RepoQuality = {
+    commitsAuthored: authoredCount,
+    commitsAutomated: total - authoredCount,
+    persistence: calculatePersistence(commitStream, isAuthored),
+  };
 
   const persistence = calculatePersistence(commitStream, isAI);
 
@@ -336,6 +349,7 @@ export function calculateMetrics(
     repoPath: commitStream.repoPath,
     defaultBranch: commitStream.defaultBranch,
     attribution,
+    repo,
     persistence,
     cohorts,
     byMode,

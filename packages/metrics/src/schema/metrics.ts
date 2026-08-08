@@ -320,6 +320,20 @@ export const LineSurvival = z.object({
   approxSurvivalRate: z.number().min(0).max(1),
 });
 
+// Repo-level quality (#77, step 1): the quality of the codebase as a
+// property of the REPO, not of a cohort. Everything here is computable at
+// 0% evidence coverage and is untouched by the `defaultMode` prior — the
+// primary object in a world where cohorts are empty by default, with the
+// cohort views below as optional overlays.
+export const RepoQuality = z.object({
+  // Authored commits: everything except automation (merge commits, release
+  // bots). Automation is not authored code, whoever ran it.
+  commitsAuthored: z.number().int().nonnegative(),
+  commitsAutomated: z.number().int().nonnegative(),
+  // Persistence and rework over ALL authored commits, cohort-free
+  persistence: Persistence,
+});
+
 export const Metrics = z.object({
   // Bumped when a field is removed or changes meaning (#53)
   schemaVersion: z.number().int().positive(),
@@ -331,6 +345,8 @@ export const Metrics = z.object({
   repoPath: z.string(),
   defaultBranch: z.string(),
   attribution: Attribution,
+  // Repo-level quality (#77): cohort-free, prior-free, the primary object
+  repo: RepoQuality,
   persistence: Persistence,
   // Fairness context (#29, #36): age and task mix per cohort, so consumers
   // can judge whether the AI-vs-baseline comparison is apples-to-apples.
@@ -380,6 +396,7 @@ export type HotfixStats = z.infer<typeof HotfixStats>;
 export type OutcomeCorrelation = z.infer<typeof OutcomeCorrelation>;
 export type LineSurvival = z.infer<typeof LineSurvival>;
 export type Persistence = z.infer<typeof Persistence>;
+export type RepoQuality = z.infer<typeof RepoQuality>;
 export type Baseline = z.infer<typeof Baseline>;
 export type Delta = z.infer<typeof Delta>;
 export type Metrics = z.infer<typeof Metrics>;
