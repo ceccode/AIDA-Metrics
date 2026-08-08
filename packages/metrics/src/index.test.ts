@@ -282,8 +282,13 @@ describe('fairComparison (#29 age-normalization)', () => {
     // Baseline: old commit whose file was never touched again — accumulates
     // a lot of raw persistence purely from clock time.
     const oldDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString();
-    // AI: recent commit, also never touched again.
-    const recentDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    // AI: recent commit, also never touched again. 9.5 days, not 10:
+    // `daysBetween` ceils, and the age is measured against a `new Date()`
+    // taken inside calculateMetrics, milliseconds AFTER this line — an
+    // exact 10-day offset ceils to 10 or 11 depending on whether that
+    // millisecond has ticked, which made this test flaky under load.
+    // Anywhere strictly inside the (9, 10] interval ceils to 10 stably.
+    const recentDate = new Date(Date.now() - 9.5 * 24 * 60 * 60 * 1000).toISOString();
 
     const metrics = calculateMetrics({
       ...makeStream([
@@ -541,5 +546,68 @@ describe('per-mode cohorts separate observed from assumed (#25)', () => {
     expect(metrics.byMode.agent!.assumed).toBe(0);
     // With no prior the two tables agree exactly
     expect(metrics.byMode.agent!.commits).toBe(metrics.attribution.modes.agent);
+  });
+});
+
+describe('repo-level quality (#77 step 1)', () => {
+  // The quality-first premise: these numbers must mean something on a repo
+  // where nobody declares anything — the normal case, per #77's assumption.
+  it('is fully populated at 0% evidence coverage', () => {
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+        makeCommit({ hash: 'u2', tags: unknownTags }),
+        makeCommit({ hash: 'u3', tags: unknownTags }),
+      ])
+    );
+
+    expect(metrics.attribution.coverage).toBe(0);
+    expect(metrics.repo.commitsAuthored).toBe(3);
+    expect(metrics.repo.persistence.commitsConsidered).toBe(3);
+    // ...while the cohort view is rightly empty: no evidence, no cohorts
+    expect(metrics.persistence.commitsConsidered).toBe(0);
+  });
+
+  // The honesty property: "assume everything is AI" must never become
+  // "trust the assumption". The prior moves cohorts; it must not be able to
+  // move the repo-level numbers by a single unit.
+  it('is byte-identical with and without a defaultMode prior', () => {
+    const commits = [
+      makeCommit({ hash: 'a1', tags: aiTags }),
+      makeCommit({ hash: 'u1', tags: unknownTags }),
+      makeCommit({ hash: 'u2', tags: unknownTags }),
+    ];
+
+    const withoutPrior = calculateMetrics(makeStream(commits));
+    const withPrior = calculateMetrics(makeStream(commits), { defaultMode: 'agent' });
+
+    expect(withPrior.repo).toEqual(withoutPrior.repo);
+    // Sanity: the prior did change the cohort view, so the comparison above
+    // is not vacuous
+    expect(withPrior.persistence.commitsConsidered).not.toBe(
+      withoutPrior.persistence.commitsConsidered
+    );
+  });
+
+  it('excludes automation from authored commits and from persistence', () => {
+    const automated: Commit['tags'] = {
+      attribution: 'automated',
+      automated: true,
+      mode: 'none',
+      evidence: 'inferred',
+      level: 'none',
+      sources: ['automated:merge-commit'],
+    };
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }),
+        makeCommit({ hash: 'u1', tags: unknownTags }),
+        makeCommit({ hash: 'm1', tags: automated }),
+      ])
+    );
+
+    expect(metrics.repo.commitsAuthored).toBe(2);
+    expect(metrics.repo.commitsAutomated).toBe(1);
+    expect(metrics.repo.persistence.commitsConsidered).toBe(2);
   });
 });
