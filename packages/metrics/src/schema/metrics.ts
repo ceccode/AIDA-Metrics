@@ -334,6 +334,54 @@ export const RepoQuality = z.object({
   persistence: Persistence,
 });
 
+// Quality over time (#77, step 3): the comparator that replaces cohorts
+// once "AI vs human" has no second side left. Derived from the commit stream
+// in one run, so a trend exists on first use rather than after months of
+// archived runs.
+export const TrendGranularity = z.enum(['month', 'quarter']);
+
+export const TrendPeriod = z.object({
+  label: z.string(), // '2026-06' or '2026-Q2'
+  start: z.string().datetime(),
+  end: z.string().datetime(), // exclusive
+  // Both denominators, stated: coverage spans every commit (automation has
+  // known provenance), quality spans authored ones only.
+  commitsTotal: z.number().int().nonnegative(),
+  commitsAuthored: z.number().int().nonnegative(),
+  // Null when the period contains no commits at all
+  coverage: z.number().min(0).max(1).nullable(),
+  // Null when the period has no authored commits. Every period is measured
+  // through the same observation window, so periods are comparable with each
+  // other rather than with the clock.
+  persistence: Persistence.nullable(),
+  // False until the period has been over for `observationDays`: its files
+  // have not all had the full window yet, so it is reported but never
+  // compared. Without this every report would find quality "declining".
+  mature: z.boolean(),
+});
+
+export const TrendDelta = z.object({
+  from: z.number(),
+  to: z.number(),
+  delta: z.number(),
+});
+
+export const Trend = z.object({
+  granularity: TrendGranularity,
+  observationDays: z.number().int().positive(),
+  periods: z.array(TrendPeriod),
+  // The two most recent MATURE periods. Null when fewer than two exist —
+  // a young repo gets no trend rather than a trend built on one point.
+  latestComparison: z
+    .object({
+      from: z.string(),
+      to: z.string(),
+      avgPersistenceDays: TrendDelta,
+      reworkRate: TrendDelta.nullable(),
+    })
+    .nullable(),
+});
+
 export const Metrics = z.object({
   // Bumped when a field is removed or changes meaning (#53)
   schemaVersion: z.number().int().positive(),
@@ -347,6 +395,8 @@ export const Metrics = z.object({
   attribution: Attribution,
   // Repo-level quality (#77): cohort-free, prior-free, the primary object
   repo: RepoQuality,
+  // The same quality, over time (#77 step 3)
+  trend: Trend,
   persistence: Persistence,
   // Fairness context (#29, #36): age and task mix per cohort, so consumers
   // can judge whether the AI-vs-baseline comparison is apples-to-apples.
@@ -399,4 +449,7 @@ export type Persistence = z.infer<typeof Persistence>;
 export type RepoQuality = z.infer<typeof RepoQuality>;
 export type Baseline = z.infer<typeof Baseline>;
 export type Delta = z.infer<typeof Delta>;
+export type TrendGranularity = z.infer<typeof TrendGranularity>;
+export type TrendPeriod = z.infer<typeof TrendPeriod>;
+export type Trend = z.infer<typeof Trend>;
 export type Metrics = z.infer<typeof Metrics>;

@@ -54,6 +54,15 @@ export function createAnalyzeCommand(): Command {
       'Window in days for the actionable coverage figure (default: 90)'
     )
     .option(
+      '--trend-granularity <value>',
+      'Trend period: month | quarter (default: month)'
+    )
+    .option(
+      '--trend-window <days>',
+      'Observation window applied equally to every trend period (default: 30)'
+    )
+    .option('--trend-periods <n>', 'How many recent periods to report (default: 12)')
+    .option(
       '--hotfix-window <days>',
       'Window in days for linking a hotfix to its likely antecedent (default: 7)'
     )
@@ -149,8 +158,32 @@ export function createAnalyzeCommand(): Command {
           );
         }
 
+        const trendGranularity = options.trendGranularity ?? 'month';
+        if (!['month', 'quarter'].includes(trendGranularity)) {
+          throw new Error(
+            `Invalid --trend-granularity "${trendGranularity}": expected month or quarter`
+          );
+        }
+        const trendWindow = options.trendWindow ? Number(options.trendWindow) : undefined;
+        if (trendWindow !== undefined && (!Number.isInteger(trendWindow) || trendWindow <= 0)) {
+          throw new Error(
+            `Invalid --trend-window "${options.trendWindow}": expected a positive integer`
+          );
+        }
+        const trendPeriods = options.trendPeriods ? Number(options.trendPeriods) : undefined;
+        if (trendPeriods !== undefined && (!Number.isInteger(trendPeriods) || trendPeriods <= 0)) {
+          throw new Error(
+            `Invalid --trend-periods "${options.trendPeriods}": expected a positive integer`
+          );
+        }
+
         const metrics = calculateMetrics(commitStream, {
           defaultMode,
+          trend: {
+            granularity: trendGranularity as 'month' | 'quarter',
+            observationDays: trendWindow,
+            maxPeriods: trendPeriods,
+          },
           coverageThreshold,
           coverageWindowDays,
           prStream,
@@ -184,6 +217,15 @@ export function createAnalyzeCommand(): Command {
               : `Coverage is below ${threshold}%: attribution-dependent metrics are low-confidence (repo-level quality is unaffected). Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
           );
         }
+        const lc = metrics.trend.latestComparison;
+        logger.info(
+          lc
+            ? `Trend ${lc.from} -> ${lc.to}: persistence ${lc.avgPersistenceDays.from}d -> ${lc.avgPersistenceDays.to}d` +
+                (lc.reworkRate
+                  ? `, rework ${(lc.reworkRate.from * 100).toFixed(1)}% -> ${(lc.reworkRate.to * 100).toFixed(1)}%`
+                  : '')
+            : `Trend: fewer than two mature periods (${metrics.trend.observationDays}d window) — no comparison yet`
+        );
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);
         if (metrics.lineSurvival) {
           const ls = metrics.lineSurvival;

@@ -83,6 +83,10 @@ describe('collect → analyze → report end to end', () => {
     expect(metrics.persistence).toHaveProperty('censored');
     expect(metrics.cohorts.ai.taskMix).not.toBeNull();
     expect(metrics.byMode.agent).not.toBeNull();
+    // Trend is always present, and refuses to compare immature periods (#77)
+    expect(metrics.trend.periods.length).toBeGreaterThan(0);
+    expect(metrics.trend.periods.every((p: { mature: boolean }) => !p.mature)).toBe(true);
+    expect(metrics.trend.latestComparison).toBeNull();
     // No human-attributed commits → no invented comparison
     expect(metrics.baseline).toBeNull();
     expect(metrics.delta).toBeNull();
@@ -106,6 +110,12 @@ describe('collect → analyze → report end to end', () => {
     expect(report).toContain('| Autonomy level | Commits |');
     expect(report).toContain('*Three-state view:*');
     expect(report).toContain('## By Autonomy Level');
+    // Quality over time (#77 step 3) lives inside Code Quality
+    expect(report).toContain('### Trend (monthly, 30-day observation window)');
+    // Every commit in this fixture was made moments ago, so no period can be
+    // mature: the report must decline to compare rather than invent a trend
+    expect(report).toContain('**No comparison yet**');
+    expect(report).toContain('Too recent to judge');
     expect(report).toContain('## Cohort Fairness');
     // The old generic-looking persistence section rendered the AI cohort's
     // numbers under a repo-level label; Code Quality replaced it (#77)
