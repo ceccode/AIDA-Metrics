@@ -41,6 +41,20 @@ function generateMarkdownReport(metrics: Metrics): string {
       ? `\nCommits with no evidence are **assumed \`${a.defaultMode}\`** via \`defaultMode\` — this is a prior, not observed data, and it does not count toward coverage.\n`
       : '';
 
+  // Overlay gating (#77 step 4). A cohort whose every commit was placed
+  // there by the `defaultMode` prior is not a measurement — it is the
+  // assumption describing itself, rendered as a table with numbers in it.
+  // The earlier `(N assumed)` labelling made the prior's contribution
+  // visible; this stops it from conjuring an overlay on its own. Cohorts
+  // stay in `metrics.json` either way: the gate is on presentation, not on
+  // data, so a consumer that wants the prior's view can still have it.
+  const evidenceBacked = (stats: Metrics['byMode']['agent']) =>
+    stats !== null && stats.commits - stats.assumed > 0;
+
+  const AI_MODES = ['agent', 'assisted', 'autocomplete'] as const;
+  const aiCohortHasEvidence = AI_MODES.some((mode) => evidenceBacked(metrics.byMode[mode]));
+  const baselineHasEvidence = evidenceBacked(metrics.byMode.none);
+
   const baselineLabel = metrics.baseline?.assumed
     ? 'Human baseline (assumed)'
     : 'Human baseline';
@@ -57,7 +71,7 @@ function generateMarkdownReport(metrics: Metrics): string {
 `
     : '';
 
-  const comparisonSection = metrics.baseline && metrics.delta
+  const comparisonSection = metrics.baseline && metrics.delta && aiCohortHasEvidence && baselineHasEvidence
     ? `## AI vs Baseline
 
 | Metric | AI commits | ${baselineLabel} | Delta |
@@ -68,7 +82,15 @@ function generateMarkdownReport(metrics: Metrics): string {
 ${fairComparisonSection}`
     : `## AI vs Baseline
 
-**No baseline available** — no commits sit at autonomy level \`none\`, so there is nothing honest to compare against. If the commits with no evidence in this repo were hand-written, set \`"defaultMode": "none"\` in \`.aida.json\`.
+${
+      metrics.baseline && metrics.delta
+        ? `**Comparison withheld** — one side of it exists only because of the \`${a.defaultMode}\` prior: ${
+            aiCohortHasEvidence
+              ? 'every commit in the baseline cohort was placed there by assumption'
+              : 'every commit in the AI cohort was placed there by assumption'
+          }, not by evidence. A measured cohort against an assumed one yields a delta that describes the prior, not the repo. Install the commit hook (\`aida install-hooks\`) so commits declare their own mode — the cohorts stay in \`metrics.json\` meanwhile.`
+        : `**No baseline available** — no commits sit at autonomy level \`none\`, so there is nothing honest to compare against. If the commits with no evidence in this repo were hand-written, set \`"defaultMode": "none"\` in \`.aida.json\`.`
+    }
 `;
 
   const categories = ['source', 'tests', 'migrations', 'config', 'docs', 'generated'] as const;
@@ -100,7 +122,13 @@ ${categoryRows.join('\n')}
 `
       : '';
 
-  const fairnessSection = `## Cohort Fairness
+  // Gated only when NEITHER side has evidence — then every column would be
+  // the prior's doing. With one real cohort the table still carries its age
+  // and task mix, which is information the repo genuinely has; the empty
+  // column speaks for itself, as it did before this gate existed.
+  const fairnessSection = !(aiCohortHasEvidence || baselineHasEvidence)
+    ? ''
+    : `## Cohort Fairness
 
 Persistence comparisons are only meaningful between cohorts of similar **age** and **task mix**.
 
@@ -115,25 +143,49 @@ ${byCategorySection}`;
   const modeOrder = ['agent', 'assisted', 'autocomplete', 'none', 'unknown'] as const;
   const modeRows = modeOrder
     .map((mode) => ({ mode, stats: metrics.byMode[mode] }))
+    // Gated (#77 step 4): a row with no evidence behind it is the prior
+    // talking to itself. `unknown` is exempt — it IS the no-evidence bucket,
+    // and reporting its size is the honest part.
+    .filter((row) => row.mode === 'unknown' || evidenceBacked(row.stats))
     .filter((row) => row.stats !== null)
     .map(
       ({ mode, stats }) =>
         `| ${mode} | ${stats!.commits}${stats!.assumed > 0 ? ` (${stats!.assumed} assumed)` : ''} | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} | ${stats!.persistence.censored} |`
     );
+  const gatedModes = modeOrder.filter(
+    (mode) => mode !== 'unknown' && metrics.byMode[mode] !== null && !evidenceBacked(metrics.byMode[mode])
+  );
+  // Three states, not two: a rendered table, an explained withholding, or
+  // nothing at all when there is genuinely no cohort data. The middle case
+  // matters — dropping the section silently would hide the fact that a prior
+  // is configured and doing nothing, which is itself worth knowing.
+  const hasAnyCohort = modeOrder.some((mode) => metrics.byMode[mode] !== null);
   const byModeSection =
     modeRows.length > 0
       ? `## By Autonomy Level
 
 The comparison that stays meaningful when everything is AI-assisted: how code holds up per autonomy level (automated commits excluded).
 
-Cohorts here include commits placed by the \`defaultMode\` prior, marked *assumed* — so these counts can exceed the observed ones above, which only ever report what the commits themselves declare.
+Cohorts here include commits placed by the \`defaultMode\` prior, marked *assumed* — so these counts can exceed the observed ones above, which only ever report what the commits themselves declare.${
+          gatedModes.length > 0
+            ? `\n\n> ${gatedModes.length === 1 ? `The \`${gatedModes[0]}\` level is` : `The \`${gatedModes.join('`, `')}\` levels are`} not shown: every commit in ${gatedModes.length === 1 ? 'it' : 'them'} is there by prior, with no evidence behind it. The data is still in \`metrics.json\`.`
+            : ''
+        }
 
 | Mode | Commits | Avg persistence (d) | Median (d) | Surviving |
 |---|---:|---:|---:|---:|
 ${modeRows.join('\n')}
 
 `
-      : '';
+      : hasAnyCohort
+        ? `## By Autonomy Level
+
+**Withheld** — every autonomy cohort in this repo exists only because of the \`${a.defaultMode}\` prior${gatedModes.length > 0 ? ` (${gatedModes.join(', ')})` : ''}: not one commit carries evidence of the level it was written at, so a table here would be the assumption describing itself. The cohorts are still in \`metrics.json\` for anyone who wants the prior's view.
+
+Install the commit hook (\`aida install-hooks\`) so commits declare their own mode — see Data Quality below.
+
+`
+        : '';
 
   const ls = metrics.lineSurvival;
   const lineSection = ls
@@ -298,7 +350,7 @@ How the code holds up, as a property of the **repo** — measured over all ${rq.
 ${trendSection}
 `;
 
-  const baselineDetail = metrics.baseline
+  const baselineDetail = metrics.baseline && baselineHasEvidence
     ? `## ${baselineLabel}
 - Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
 

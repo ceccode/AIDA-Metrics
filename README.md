@@ -457,6 +457,8 @@ Coverage is reported over **two windows** ([#52](https://github.com/ceccode/AIDA
 
 `defaultMode` lets a team consciously assign no-evidence commits to an autonomy level (`none` for traditional repos, `assisted`/`agent` for AI-first ones). The prior affects cohort metrics but never coverage: an assumption is not evidence, so a repo leaning on it still reports how little it actually knows, and an assumed baseline is labeled as such.
 
+**A prior can never create an overlay on its own** ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77) step 4). A cohort whose every commit was placed there by `defaultMode` is the assumption describing itself, so the report withholds it — with an explanation, never silently — and says the same for an AI-vs-baseline comparison where one side is pure prior. One commit with real evidence is enough to unlock the overlay, with the prior's share still labelled `(N assumed)`. The cohorts stay in `metrics.json` either way: the gate is on presentation, not on collection.
+
 ### By Autonomy Level
 
 Merge ratio and persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) — the comparison that stays meaningful when everything is AI-assisted ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`.
@@ -699,6 +701,7 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.24** ✅ `--if-git` and a documented `prepare` recipe, so hook installation reaches every clone; the low-coverage warning names a missing hook in a configured repo ([#75](https://github.com/ceccode/AIDA-Metrics/issues/75)).
 - **v0.25** ✅ Quality-first, steps 1–2 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): repo-level `repo` block in `metrics.json` (cohort-free persistence and rework, prior-proof), and the report reframe — Code Quality opens, the autonomy lens follows, coverage demoted to a Data Quality footnote.
 - **v0.26** ✅ Quality over time, step 3 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): `metrics.trend` — per-period persistence, rework and coverage derived from the commit stream in a single run, every period measured through the same observation window, immature periods reported but never compared.
+- **v0.27** ✅ Overlay gating, step 4 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)) — cohort tables render only where real evidence backs them; a `defaultMode` prior can no longer conjure an autonomy cohort or a baseline comparison out of assumption alone. Completes the quality-first migration.
 - **Next** → Bitbucket PR comment provider ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 
