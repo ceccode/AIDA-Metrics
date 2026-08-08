@@ -94,14 +94,22 @@ describe('collect → analyze → report end to end', () => {
 
     const report = readFileSync(join(outDir, 'report.md'), 'utf-8');
     expect(report).toContain('# AIDA Report');
+    // Quality first (#77 step 2): the repo-level section opens the report,
+    // the autonomy lens follows, coverage sits at the bottom as Data Quality
+    expect(report).toContain('## Code Quality');
     expect(report).toContain('## Autonomy');
+    expect(report).toContain('## Data Quality');
+    expect(report.indexOf('## Code Quality')).toBeLessThan(report.indexOf('## Autonomy'));
+    expect(report.indexOf('## Data Quality')).toBeGreaterThan(report.indexOf('## By Autonomy Level'));
     // The autonomy breakdown is the primary table (#25), and the three-state
     // view is labelled as the projection it is
     expect(report).toContain('| Autonomy level | Commits |');
     expect(report).toContain('*Three-state view:*');
     expect(report).toContain('## By Autonomy Level');
     expect(report).toContain('## Cohort Fairness');
-    expect(report).toContain('## Persistence (file-level survival)');
+    // The old generic-looking persistence section rendered the AI cohort's
+    // numbers under a repo-level label; Code Quality replaced it (#77)
+    expect(report).not.toContain('## Persistence (file-level survival)');
     expect(report).toContain('### Caveats');
     // Removed metric must not resurface anywhere
     expect(report.toLowerCase()).not.toContain('merge ratio');

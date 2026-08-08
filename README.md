@@ -38,7 +38,8 @@ AIDA provides **tangible, auditable metrics** to distinguish between **AI noise*
 
 - **4-Level AI Detection** — Classifies commits as explicit, implicit, mention, or none across Claude Code, Copilot, ChatGPT, Cursor, Windsurf/Devin, Gemini, Codeium
 - **Configurable Tools** — Add custom AI tools via `.aida.json` or CLI flags
-- **Autonomy** — Two orthogonal axes: *involvement* (`none`/`autocomplete`/`assisted`/`agent`) and *evidence* (`declared`/`inferred`/`none`), with evidence coverage as the headline metric
+- **Quality First** — Repo-level persistence and rework as the primary object ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)), valid at any coverage; autonomy as the lens over it
+- **Autonomy** — Two orthogonal axes: *involvement* (`none`/`autocomplete`/`assisted`/`agent`) and *evidence* (`declared`/`inferred`/`none`)
 - **Persistence** — Measure how long AI-generated code survives in your codebase
 - **Comparative Baseline** — AI vs non-AI side-by-side with delta, so metrics are interpretable
 - **Fast & Deterministic** — Versioned JSON output schemas, so consumers detect breaking changes instead of reading silent `undefined`s
@@ -64,8 +65,8 @@ pnpm build
 
 ## Core Metrics
 
-1. **Attribution Coverage**  
-   Share of commits with known provenance (`ai` / `human` / `automated`), reported first because every other number is only as trustworthy as this one.
+1. **Code Quality (repo-level)**  
+   How long code survives and how often it is reworked, as a property of the repo — no attribution evidence required, so it opens the report and means something on any repository.
 
 2. **Persistence**  
    How long AI-generated code survives in the codebase before being rewritten or removed (file-level survival with censoring).
@@ -430,7 +431,7 @@ They are separate because they fail separately. `mode: unknown, evidence: inferr
 
 `declared` means someone stated it: the `AI-Mode:` trailer written by the commit hook, or the attribution manifest. `inferred` means AIDA concluded it from tool identity or commit structure. Automation ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39) — merge commits, known bots, manifest `excluded_commits`) is a third, orthogonal flag: its provenance is known, so it counts toward coverage, but it joins no autonomy cohort, because automation is not authored code.
 
-**Coverage** = share of commits with any evidence at all (`declared` + `inferred`). It is reported first in every output, because every other number is only as trustworthy as coverage says it is.
+**Coverage** = share of commits with any evidence at all (`declared` + `inferred`). Since the quality-first reframe ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)) it gates the *attribution-dependent* sections, not the report: repo-level Code Quality needs no evidence and opens the report, while coverage lives in a Data Quality section at the end.
 
 **The three-state view survives as a projection.** `ai` (mode above `none`), `human` (declared `none`), `automated`, `unknown` (no evidence) are derived from the axes above — never decided independently — and kept because a headline needs one word. The rich model underneath, the one-line summary on top.
 
@@ -680,6 +681,7 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.22** ✅ Age-normalized fair comparison ([#29](https://github.com/ceccode/AIDA-Metrics/issues/29)), within-category comparison ([#36](https://github.com/ceccode/AIDA-Metrics/issues/36)), git-scoped outcome correlation — reverts and hotfixes ([#26](https://github.com/ceccode/AIDA-Metrics/issues/26)).  
 - **v0.23** ✅ Autonomy as the primary axis — involvement × evidence, with three-state attribution demoted to a derived projection; coverage measured on the evidence axis; `defaultAttribution` replaced by `defaultMode` ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Schema v2.
 - **v0.24** ✅ `--if-git` and a documented `prepare` recipe, so hook installation reaches every clone; the low-coverage warning names a missing hook in a configured repo ([#75](https://github.com/ceccode/AIDA-Metrics/issues/75)).
+- **v0.25** ✅ Quality-first, steps 1–2 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): repo-level `repo` block in `metrics.json` (cohort-free persistence and rework, prior-proof), and the report reframe — Code Quality opens, the autonomy lens follows, coverage demoted to a Data Quality footnote.
 - **Next** → Bitbucket PR comment provider ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 

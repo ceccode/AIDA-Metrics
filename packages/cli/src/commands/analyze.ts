@@ -180,8 +180,8 @@ export function createAnalyzeCommand(): Command {
           const hooked = await isAidaHookInstalled(commitStream.repoPath);
           logger.warn(
             configured && !hooked
-              ? `Coverage is below ${threshold}%: metrics are low-confidence. This repo is set up for AIDA (.aida.json) but THIS CLONE has no ${HOOK_NAME} hook, so its commits declare nothing. Run 'aida install-hooks' — or add "prepare": "aida install-hooks --if-git" to package.json so every clone gets it.`
-              : `Coverage is below ${threshold}%: metrics are low-confidence. Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
+              ? `Coverage is below ${threshold}%: attribution-dependent metrics are low-confidence (repo-level quality is unaffected). This repo is set up for AIDA (.aida.json) but THIS CLONE has no ${HOOK_NAME} hook, so its commits declare nothing. Run 'aida install-hooks' — or add "prepare": "aida install-hooks --if-git" to package.json so every clone gets it.`
+              : `Coverage is below ${threshold}%: attribution-dependent metrics are low-confidence (repo-level quality is unaffected). Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
           );
         }
         logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);

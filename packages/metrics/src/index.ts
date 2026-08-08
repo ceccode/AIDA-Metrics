@@ -294,7 +294,7 @@ export function calculateMetrics(
   );
 
   const caveats = [
-    `Evidence coverage is ${(coverage * 100).toFixed(1)}%: metrics only describe commits whose provenance is known, declared or inferred.`,
+    `Evidence coverage is ${(coverage * 100).toFixed(1)}%: attribution-dependent metrics only describe commits whose provenance is known. Repo-level quality (the \`repo\` block) covers all authored commits regardless of evidence.`,
     'Rework rate is file-level: consecutive commits from one working session touching the same file count as rework, which inflates it for iterative workflows. Files too recent to judge are excluded from both sides. Line-level tracking will refine this.',
     'Persistence is file-level, not line-level.',
     'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',

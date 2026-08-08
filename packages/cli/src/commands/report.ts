@@ -29,7 +29,7 @@ function generateMarkdownReport(metrics: Metrics): string {
   const warnOnRecent = a.recent ? a.recent.belowThreshold : a.belowThreshold;
 
   const coverageWarning = warnOnRecent
-    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** Provenance is largely unknown, so every metric below is low-confidence. Install the commit hook (\`aida install-hooks\`) so new commits declare their autonomy mode, or set \`defaultMode\` in \`.aida.json\` for the history that predates it.\n`
+    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** The sections from here down depend on attribution evidence and are low-confidence — the Code Quality section above is unaffected, it needs no evidence. Install the commit hook (\`aida install-hooks\`) so new commits declare their autonomy mode, or set \`defaultMode\` in \`.aida.json\` for the history that predates it.\n`
     : '';
 
   const priorNote =
@@ -232,6 +232,33 @@ ${[
 `
     : '';
 
+  // Code Quality opens the report (#77 step 2): the repo-level block from
+  // step 1, rendered first because it is the only view that needs no
+  // attribution evidence — valid at 0% coverage, untouched by the prior.
+  // It also replaces the old "Persistence (file-level survival)" section,
+  // which rendered the AI cohort's numbers under a generic-looking heading —
+  // the same defect class as the assumed-cohort and automated-mode bugs:
+  // cohort data wearing a repo-level label.
+  const rq = metrics.repo;
+  const rqp = rq.persistence;
+  const codeQualitySection = `## Code Quality
+
+How the code holds up, as a property of the **repo** — measured over all ${rq.commitsAuthored} authored commits (${rq.commitsAutomated} automated excluded). No attribution evidence required: these numbers do not move with coverage or with the \`defaultMode\` prior.
+
+- Files measured: ${rqp.filesConsidered} (${rqp.censored} still surviving at collection time; ${rqp.filesExcluded} excluded: migrations/generated)
+- Average persistence: ${rqp.avgDays} days · median: ${rqp.medianDays}${
+    rqp.rework
+      ? `
+- **Rework rate (${rqp.rework.windowDays}d):** ${(rqp.rework.rate * 100).toFixed(1)}% — ${rqp.rework.reworked} of ${rqp.rework.determined} files with a determined outcome${rqp.rework.undetermined > 0 ? ` (${rqp.rework.undetermined} too recent to judge)` : ''}`
+      : ''
+  }
+
+| 0–1d | 2–7d | 8–30d | 31–90d | 90d+ |
+|---:|---:|---:|---:|---:|
+| ${rqp.buckets.d0_1} | ${rqp.buckets.d2_7} | ${rqp.buckets.d8_30} | ${rqp.buckets.d31_90} | ${rqp.buckets.d90_plus} |
+
+`;
+
   const baselineDetail = metrics.baseline
     ? `## ${baselineLabel}
 - Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
@@ -246,10 +273,10 @@ ${[
 **Window:** ${metrics.window.since || 'beginning'} → ${metrics.window.until || 'now'}  
 **Generated:** ${metrics.generatedAt}
 
-## Autonomy
+${codeQualitySection}${lineSection}${outcomeSection}${prSection}## Autonomy
 
-**${coveragePct}% of commits have known provenance** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · no evidence ${a.evidence.none} (${unknownPct}%)
-
+The lens over the quality above: **at what level of AI autonomy** the code was written. Everything from here down depends on attribution evidence — see Data Quality below for how much of it this repo has.
+${coverageWarning}
 | Autonomy level | Commits |
 |---|---:|
 | agent | ${a.modes.agent} |
@@ -259,27 +286,14 @@ ${[
 | unknown | ${a.modes.unknown} |
 | _automated (no cohort)_ | ${a.automated} |
 
-${recentLine}
-*Three-state view:* ai ${a.ai} · human ${a.human} · automated ${a.automated} · unknown ${a.unknown} — a projection of the table above, kept for a one-word headline. What AI participation *was* is the question that keeps discriminating once "was AI involved?" is answered yes everywhere.
-${coverageWarning}${priorNote}
+*Three-state view:* ai ${a.ai} · human ${a.human} · automated ${a.automated} · unknown ${a.unknown} — a projection of the table above, kept for a one-word headline.
+${priorNote}
 ${byModeSection}${comparisonSection}
-${lineSection}${outcomeSection}${prSection}${fairnessSection}
-## Persistence (file-level survival)
-- Commits considered: ${metrics.persistence.commitsConsidered}
-- Files measured: ${metrics.persistence.filesConsidered} (${metrics.persistence.censored} still surviving at collection time; ${metrics.persistence.filesExcluded} excluded: migrations/generated)
-- Average days: ${metrics.persistence.avgDays}
-- Median days: ${metrics.persistence.medianDays}${
-    metrics.persistence.rework
-      ? `
-- **Rework rate (${metrics.persistence.rework.windowDays}d):** ${(metrics.persistence.rework.rate * 100).toFixed(1)}% — ${metrics.persistence.rework.reworked} of ${metrics.persistence.rework.determined} files with a determined outcome${metrics.persistence.rework.undetermined > 0 ? ` (${metrics.persistence.rework.undetermined} too recent to judge)` : ''}`
-      : ''
-  }
+${fairnessSection}${baselineDetail}## Data Quality
 
-| 0–1d | 2–7d | 8–30d | 31–90d | 90d+ |
-|---:|---:|---:|---:|---:|
-| ${metrics.persistence.buckets.d0_1} | ${metrics.persistence.buckets.d2_7} | ${metrics.persistence.buckets.d8_30} | ${metrics.persistence.buckets.d31_90} | ${metrics.persistence.buckets.d90_plus} |
-
-${baselineDetail}### Caveats
+**${coveragePct}% of commits carry attribution evidence** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · none ${a.evidence.none} (${unknownPct}%). Evidence gates the autonomy sections above, never Code Quality.
+${recentLine}
+### Caveats
 ${metrics.caveats.map((caveat) => `- ${caveat}`).join('\n')}
 `;
 }
