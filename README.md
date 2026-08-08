@@ -124,6 +124,10 @@ node packages/cli/dist/index.js analyze
 node packages/cli/dist/index.js report
 ```
 
+## For AI agents
+
+[AGENTS.md](AGENTS.md) carries the working agreements for coding agents on this repo: how provenance is stamped, what counts as a regression test here, and the recurring defect class to watch for.
+
 ## Architecture
 
 This is a TypeScript monorepo with three main packages:
@@ -309,6 +313,8 @@ Meet people at the one command every clone runs:
 }
 ```
 
+This repo follows its own advice — see [`scripts/install-hooks.mjs`](scripts/install-hooks.mjs), which adds one guard the published recipe does not need: AIDA *is* the CLI here, so on a fresh clone `pnpm install` runs before `pnpm build` and there is nothing to install from yet.
+
 `--if-git` exits 0 silently where there is no git to hook into — a tarball install, `npm ci` in a container, a Docker build context — instead of failing an unrelated install. Installation is idempotent and still refuses to overwrite a hook AIDA did not write, so `prepare` re-runs cost nothing.
 
 AIDA deliberately does **not** install the hook from a `postinstall` script: mutating `.git` as a side effect of `npm install` violates least surprise, and install scripts are disabled in exactly the hardened setups that would care most. When it notices the gap it says so instead — if a repo has `.aida.json` but the local clone has no hook, the low-coverage warning names that specifically rather than repeating generic advice.
@@ -461,7 +467,7 @@ Coverage is reported over **two windows** ([#52](https://github.com/ceccode/AIDA
 
 ### By Autonomy Level
 
-Merge ratio and persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) — the comparison that stays meaningful when everything is AI-assisted ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`.
+Persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`. A mode whose every commit was placed by the `defaultMode` prior is withheld from the report rather than rendered as a measurement ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77) step 4) — the data stays in `metrics.json`.
 
 ### PR Acceptance
 
@@ -517,10 +523,10 @@ File-level survival: days from the first target-cohort touch of a file until the
 
 ### Comparative Baseline
 
-Both merge ratio and persistence are computed for the human cohort as well.  
-The `metrics.json` output includes `baseline` (human cohort) and `delta` (AI minus human) sections.  
-The markdown report renders a side-by-side comparison table at the top.  
-If no commits sit at autonomy level `none` and no `defaultMode` prior assigns the no-evidence ones, `baseline` and `delta` are `null`: AIDA does not invent a comparison cohort.
+Persistence is computed for the baseline (autonomy level `none`) cohort as well.  
+The `metrics.json` output includes `baseline` and `delta` (AI minus baseline) sections.  
+The markdown report renders the side-by-side table under `## AI vs Baseline`, below the repo-level Code Quality section — the comparison is a lens, not the headline ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)).  
+If no commits sit at autonomy level `none` and no `defaultMode` prior assigns the no-evidence ones, `baseline` and `delta` are `null`: AIDA does not invent a comparison cohort. And when one side exists *only* because of the prior, the comparison is withheld with an explanation rather than shown — a measured cohort against an assumed one yields a delta that describes the prior, not the repo.
 
 ### Fair Comparison (age-normalized)
 
@@ -564,8 +570,8 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 
 ## Output Files
 
-- `commit-stream.json` - Normalized commit data with four-state attribution and autonomy mode
-- `metrics.json` - Attribution coverage, persistence, per-cohort and per-autonomy-level metrics
+- `commit-stream.json` - Normalized commit data on the two axes: autonomy `mode` and `evidence`, with the three-state `attribution` derived from them
+- `metrics.json` - Repo-level quality (`repo`), quality over time (`trend`), evidence coverage, per-cohort and per-autonomy-level metrics
 - `blame-stream.json` - Per-commit surviving line counts (only when `aida blame` ran)
 - `pr-stream.json` - PR outcomes and per-PR attribution (only when `aida fetch-prs` ran)
 - `report.md` - Human-readable Markdown report
@@ -578,7 +584,9 @@ Both JSON files carry a `schemaVersion` ([#53](https://github.com/ceccode/AIDA-M
 - **Removing a field, renaming it, or changing its meaning** bumps `schemaVersion`.
 - Readers **refuse** a version they don't understand rather than parsing it half-way: `aida analyze` on a stale `commit-stream.json` fails with `Rerun 'aida collect'`, not a silent wrong result.
 
-Current: `commit-stream.json` v1, `metrics.json` v1, `pr-stream.json` v1, `blame-stream.json` v1.
+Current: `commit-stream.json` **v2**, `metrics.json` **v2**, `pr-stream.json` v1, `blame-stream.json` **v2**.
+
+The v2 bumps: `commit-stream.json` and `metrics.json` moved to the two-axis model ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)) — `mode` + `evidence` primary, `attribution` derived, `defaultAttribution` replaced by `defaultMode`. `blame-stream.json` gained `blamedPaths` so a survival rate can scope its denominator to the files blame actually visited.
 
 ## CI/CD Integration
 

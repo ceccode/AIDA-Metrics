@@ -8,6 +8,7 @@
   "description": "AI Development Accounting - Monorepo for AIDA metrics tools",
   "packageManager": "pnpm@9.0.0",
   "scripts": {
+    "prepare": "node scripts/install-hooks.mjs",
     "build": "pnpm -r run build",
     "dev": "pnpm -r --parallel --filter ./packages/* run dev",
     "test": "pnpm -r run test",

@@ -81,16 +81,16 @@
                             ✓ Collected 247 commits from last 30 days
                         </div>
                         <div class="terminal-line output">
-                            ✓ AI-tagged commits: 89 (Claude, Copilot, ChatGPT)
+                            ✓ Autonomy: agent 71 · assisted 18 · no evidence 158
                         </div>
                         <div class="terminal-line">
                             <span class="prompt">$</span> aida analyze
                         </div>
                         <div class="terminal-line output">
-                            ✓ Merge ratio: 78.5% (baseline: 84.2%, Δ −5.7 pp)
+                            ✓ Code quality: avg persistence 45.3d · rework 27.8% (7d)
                         </div>
                         <div class="terminal-line output">
-                            ✓ Avg persistence: 45.3d (baseline: 62.1d, Δ −16.8)
+                            ✓ Trend 2026-05 → 2026-06: rework 41.4% → 27.8% (−13.6pt)
                         </div>
                         <div class="terminal-line">
                             <span class="prompt">$</span> aida report
@@ -115,23 +115,23 @@
                 <div class="features-grid">
                     <div class="feature-card">
                         <div class="feature-icon">📊</div>
-                        <h3>Attribution Coverage</h3>
-                        <p>Four-state provenance — ai, human, automated, unknown — with coverage as the headline: every metric is only as trustworthy as this number.</p>
+                        <h3>Code Quality</h3>
+                        <p>How long code survives and how often it is reworked, as a property of the repo. No attribution evidence required — it means something on any repository, at any coverage.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">⏱️</div>
-                        <h3>Persistence</h3>
-                        <p>Measure how long AI-generated code survives in your codebase before being modified.</p>
+                        <h3>Quality Over Time</h3>
+                        <p>The repo compared with its own past — the comparator that still works once AI touches nearly every commit. Every period measured through the same window; periods too recent to judge are never compared.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">⚖️</div>
-                        <h3>Comparative Baseline</h3>
-                        <p>Every metric computed for AI and non-AI commits side by side, with a signed delta. Numbers mean nothing without a term of comparison.</p>
+                        <h3>Autonomy, not the binary</h3>
+                        <p>Two orthogonal axes: what level of AI participated (autocomplete / assisted / agent) and how we know. Cohort tables render only where real evidence backs them — an assumption never becomes a table.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">🎯</div>
-                        <h3>AI Detection</h3>
-                        <p>4-level attribution classification (explicit, implicit, mention, none) for Claude Code, Copilot, ChatGPT, Cursor, Windsurf, Gemini, Codeium and more.</p>
+                        <h3>Evidence, free of charge</h3>
+                        <p>A commit hook stamps the autonomy mode automatically when it detects an agent session; tool trailers do the rest. Provenance that needs no per-commit discipline, because per-commit discipline never survives contact with a real team.</p>
                     </div>
                     <div class="feature-card">
                         <div class="feature-icon">💬</div>
