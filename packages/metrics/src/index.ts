@@ -12,6 +12,7 @@ import { calculateBaselinePersistence, calculatePersistence } from './persistenc
 import { calculateLineSurvival } from './line-survival.js';
 import { calculateOutcomeCorrelation } from './outcome-correlation.js';
 import { calculatePRAcceptance } from './pr-acceptance.js';
+import { calculateTrend, TrendOptions } from './trend.js';
 import {
   Attribution,
   ByCategory,
@@ -29,6 +30,7 @@ export * from './persistence.js';
 export * from './pr-acceptance.js';
 export * from './line-survival.js';
 export * from './outcome-correlation.js';
+export * from './trend.js';
 
 export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
 
@@ -45,6 +47,8 @@ export interface MetricsOptions {
   blameStream?: BlameStream | null;
   // Window for linking a hotfix to its likely antecedent (#26)
   hotfixWindowDays?: number;
+  // Quality-over-time series (#77 step 3)
+  trend?: TrendOptions;
 }
 
 function round(value: number, decimals: number): number {
@@ -63,6 +67,7 @@ export function calculateMetrics(
     prStream = null,
     blameStream = null,
     hotfixWindowDays,
+    trend: trendOptions,
   } = options;
 
   const counts = { ai: 0, human: 0, automated: 0, unknown: 0 };
@@ -159,6 +164,11 @@ export function calculateMetrics(
     commitsAutomated: total - authoredCount,
     persistence: calculatePersistence(commitStream, isAuthored),
   };
+
+  // Quality over time (#77 step 3): the same repo-level measurement, sliced
+  // by period, so the repo can be compared with its own past instead of with
+  // a cohort that no longer exists.
+  const trend = calculateTrend(commitStream, trendOptions);
 
   const persistence = calculatePersistence(commitStream, isAI);
 
@@ -350,6 +360,7 @@ export function calculateMetrics(
     defaultBranch: commitStream.defaultBranch,
     attribution,
     repo,
+    trend,
     persistence,
     cohorts,
     byMode,

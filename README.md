@@ -65,8 +65,8 @@ pnpm build
 
 ## Core Metrics
 
-1. **Code Quality (repo-level)**  
-   How long code survives and how often it is reworked, as a property of the repo — no attribution evidence required, so it opens the report and means something on any repository.
+1. **Code Quality (repo-level), and its trend**  
+   How long code survives and how often it is reworked, as a property of the repo — no attribution evidence required, so it opens the report and means something on any repository. Reported over time as well as in total: the repo compared with its own past is the comparator that still works once every commit is AI-assisted.
 
 2. **Persistence**  
    How long AI-generated code survives in the codebase before being rewritten or removed (file-level survival with censoring).
@@ -207,6 +207,9 @@ aida report --out-dir ./aida-output
 - `--default-mode <value>` - Prior for commits with no evidence: `none` | `autocomplete` | `assisted` | `agent`
 - `--coverage-threshold <fraction>` - Coverage below this flags metrics as low-confidence (default: 0.7)
 - `--coverage-window <days>` - Window for the actionable coverage figure (default: 90)
+- `--trend-granularity <value>` - Trend period: `month` | `quarter` (default: month)
+- `--trend-window <days>` - Observation window applied equally to every trend period (default: 30)
+- `--trend-periods <n>` - How many recent periods to report (default: 12)
 - `--hotfix-window <days>` - Window for linking a hotfix to its likely antecedent (default: 7)
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
@@ -417,6 +420,19 @@ aida analyze --default-mode none --coverage-threshold 0.8
 ```
 
 ## Metrics
+
+### Quality Over Time
+
+The comparator that replaces cohorts ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77) step 3). Once AI participates in nearly every commit, "AI vs human" has no second side left — `No baseline cohort` becomes the normal outcome, not bad luck. What still answers *"is this getting better or worse?"* is the repo compared with **its own past**.
+
+`metrics.trend` slices the same repo-level quality by calendar period (month or quarter), derived from the commit stream in a single run — a team gets a trend the first time they run AIDA, not after months of archiving reports.
+
+Two mechanisms keep it honest, because the naive version is guaranteed to lie:
+
+- **Every period is measured through the same observation window** (`--trend-window`, default 30 days). A period from last year would otherwise accumulate survival simply by having existed longer. This is the age-normalization of [#29](https://github.com/ceccode/AIDA-Metrics/issues/29), applied to time instead of cohorts.
+- **A period is *mature* only once it has been over for that full window.** Before then its files have had less time to be reworked than every earlier period. Immature periods are reported and marked, never compared — without this, *every report ever generated* would find quality declining, because the newest period is always the least observed.
+
+When fewer than two mature periods exist, AIDA says so instead of drawing a line through one point.
 
 ### Autonomy
 
@@ -682,6 +698,7 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.23** ✅ Autonomy as the primary axis — involvement × evidence, with three-state attribution demoted to a derived projection; coverage measured on the evidence axis; `defaultAttribution` replaced by `defaultMode` ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Schema v2.
 - **v0.24** ✅ `--if-git` and a documented `prepare` recipe, so hook installation reaches every clone; the low-coverage warning names a missing hook in a configured repo ([#75](https://github.com/ceccode/AIDA-Metrics/issues/75)).
 - **v0.25** ✅ Quality-first, steps 1–2 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): repo-level `repo` block in `metrics.json` (cohort-free persistence and rework, prior-proof), and the report reframe — Code Quality opens, the autonomy lens follows, coverage demoted to a Data Quality footnote.
+- **v0.26** ✅ Quality over time, step 3 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): `metrics.trend` — per-period persistence, rework and coverage derived from the commit stream in a single run, every period measured through the same observation window, immature periods reported but never compared.
 - **Next** → Bitbucket PR comment provider ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
 - **v1.0** → Dashboard / GitHub Action for continuous tracking.  
 

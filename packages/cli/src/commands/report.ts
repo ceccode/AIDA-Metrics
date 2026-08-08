@@ -11,6 +11,10 @@ import { join } from 'path';
 import { promises as fs } from 'fs';
 import { CLIConfig } from '../schema/config.js';
 
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
 function formatDelta(value: number, suffix: string): string {
   const sign = value > 0 ? '+' : '';
   return `${sign}${value}${suffix}`;
@@ -241,6 +245,41 @@ ${[
   // cohort data wearing a repo-level label.
   const rq = metrics.repo;
   const rqp = rq.persistence;
+
+  // Quality over time (#77 step 3). The headline of a quality-first report is
+  // the direction of travel, not the snapshot — and the direction is only
+  // readable between periods that have had the same amount of time to be
+  // reworked, hence the maturity marker below.
+  const tr = metrics.trend;
+  const lc = tr.latestComparison;
+  const trendHeadline = lc
+    ? `**${lc.from} → ${lc.to}:** average persistence ${lc.avgPersistenceDays.from}d → **${lc.avgPersistenceDays.to}d** (${formatDelta(lc.avgPersistenceDays.delta, 'd')})${
+        lc.reworkRate
+          ? `, rework ${(lc.reworkRate.from * 100).toFixed(1)}% → **${(lc.reworkRate.to * 100).toFixed(1)}%** (${formatDelta(round1(lc.reworkRate.delta * 100), 'pt')})`
+          : ''
+      }.`
+    : `**No comparison yet** — fewer than two periods have been over for the full ${tr.observationDays}-day observation window. A trend needs two points that have had the same amount of time.`;
+
+  const immature = tr.periods.filter((p) => !p.mature).length;
+  const trendRows = tr.periods.map((p) => {
+    const persistence = p.persistence;
+    return `| ${p.label}${p.mature ? '' : ' *(immature)*'} | ${p.commitsAuthored} | ${persistence ? persistence.avgDays : '—'} | ${persistence?.rework ? `${(persistence.rework.rate * 100).toFixed(1)}%` : '—'} | ${p.coverage === null ? '—' : `${(p.coverage * 100).toFixed(0)}%`} |`;
+  });
+
+  const trendSection =
+    tr.periods.length > 0
+      ? `
+### Trend (${tr.granularity}ly, ${tr.observationDays}-day observation window)
+
+${trendHeadline}
+
+Every period is measured through the same ${tr.observationDays}-day window, so no period gets credit for time the others have not had.
+
+| Period | Commits | Avg persistence (d) | Rework | Coverage |
+|---|---:|---:|---:|---:|
+${trendRows.join('\n')}
+${immature > 0 ? `\n*(immature)* — Too recent to judge: the period has not been over for the full ${tr.observationDays}-day window, so its files have had less time to be reworked than every period above. Shown for completeness, excluded from the comparison — otherwise every report would find quality declining.\n` : ''}`
+      : '';
   const codeQualitySection = `## Code Quality
 
 How the code holds up, as a property of the **repo** — measured over all ${rq.commitsAuthored} authored commits (${rq.commitsAutomated} automated excluded). No attribution evidence required: these numbers do not move with coverage or with the \`defaultMode\` prior.
@@ -256,7 +295,7 @@ How the code holds up, as a property of the **repo** — measured over all ${rq.
 | 0–1d | 2–7d | 8–30d | 31–90d | 90d+ |
 |---:|---:|---:|---:|---:|
 | ${rqp.buckets.d0_1} | ${rqp.buckets.d2_7} | ${rqp.buckets.d8_30} | ${rqp.buckets.d31_90} | ${rqp.buckets.d90_plus} |
-
+${trendSection}
 `;
 
   const baselineDetail = metrics.baseline
