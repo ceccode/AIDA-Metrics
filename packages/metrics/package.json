@@ -1,6 +1,6 @@
 {
   "name": "@aida-dev/metrics",
-  "version": "0.16.0",
+  "version": "1.0.0",
   "description": "Deterministic rapid-retouch, trend, attribution, and outcome metrics for AIDA",
   "type": "module",
   "main": "dist/index.js",
