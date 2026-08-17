@@ -1,5 +1,13 @@
 # @aida/cli
 
+## 1.0.1
+
+### Patch Changes
+
+- c696963: Clarify the released 1.0 roadmap and the provenance contract: a commit-time default can declare new work through the hook, while the same setting remains only a prior for untagged history during analysis. Document the post-1.0 direction for evidence-backed AI cost scenarios without presenting estimates as observed spend or accounting value.
+- Updated dependencies [1d9ecf0]
+  - @aida-dev/metrics@1.0.1
+
 ## 1.0.0
 
 ### Major Changes
