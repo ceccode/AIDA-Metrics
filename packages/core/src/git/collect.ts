@@ -24,6 +24,7 @@ export interface CollectOptions {
   aiTrailerDomains?: string[];
   aiBotBlocklist?: string[];
   defaultBranch?: string;
+  scope?: 'default-branch' | 'all-refs';
   redactAuthors?: boolean;
   logger?: Logger;
 }
@@ -79,9 +80,15 @@ export async function detectDefaultBranch(git: SimpleGit): Promise<string> {
     return 'master';
   }
 
+  // Repositories without a remote are common locally. A feature checkout
+  // must not redefine the default branch merely because origin/HEAD is
+  // absent; prefer conventional local integration branches first.
+  const localBranches = await git.branchLocal();
+  if (localBranches.all.includes('main')) return 'main';
+  if (localBranches.all.includes('master')) return 'master';
+
   // Last resort: use current branch
-  const current = await git.branch();
-  return current.current || 'main';
+  return localBranches.current || 'main';
 }
 
 export async function collectCommits(options: CollectOptions): Promise<CommitStream> {
@@ -95,6 +102,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     aiTrailerDomains = [],
     aiBotBlocklist = [],
     defaultBranch: providedDefaultBranch,
+    scope: requestedScope = 'default-branch',
     redactAuthors = false,
     logger,
   } = options;
@@ -110,6 +118,8 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       schemaVersion: COMMIT_STREAM_SCHEMA_VERSION,
       repoPath,
       defaultBranch: providedDefaultBranch ?? 'main',
+      scope: diffBase ? 'pr' : requestedScope,
+      headSha: '',
       generatedAt: formatISODate(new Date()),
       since,
       until,
@@ -133,6 +143,18 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const defaultBranch = providedDefaultBranch || (await detectDefaultBranch(git));
   logger?.info(`Using default branch: ${defaultBranch}`);
 
+  // A detached checkout may expose only origin/main. Keep the user-facing
+  // branch label while resolving the ref git can actually walk.
+  let defaultBranchRef = defaultBranch;
+  try {
+    await git.raw(['rev-parse', '--verify', defaultBranchRef]);
+  } catch {
+    defaultBranchRef = `origin/${defaultBranch.replace(/^origin\//, '')}`;
+    await git.raw(['rev-parse', '--verify', defaultBranchRef]);
+  }
+
+  const scope = diffBase ? 'pr' : requestedScope;
+
   // Parse dates once (avoids duplicate parsing and timestamp drift)
   const sinceDate = since ? parseRelativeDate(since) : undefined;
   const untilDate = until ? parseRelativeDate(until) : new Date();
@@ -144,11 +166,13 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     logger?.info(`PR-scoped analysis: ${diffBase}..HEAD`);
     rangeArgs = [`${diffBase}..HEAD`];
   } else {
-    // Standard mode: collect from all branches within date range
+    // Standard reports describe integrated history. Walking every ref is
+    // still available for exploration, but must be requested explicitly:
+    // stale feature branches otherwise change a production-looking metric.
     logger?.info(
-      `Collecting commits from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
+      `Collecting ${scope === 'all-refs' ? 'all refs' : defaultBranch} from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
     );
-    rangeArgs = ['--all'];
+    rangeArgs = scope === 'all-refs' ? ['--all'] : [defaultBranchRef];
     if (sinceDate) {
       rangeArgs.push(`--after=${sinceDate.toISOString()}`);
     }
@@ -157,7 +181,9 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
 
   // Single batched pass: metadata, parents, and diff stats for all commits
   const rawCommits = await logWithStats(git, rangeArgs);
-  logger?.info(`Found ${rawCommits.length} commits${diffBase ? ' in PR' : ' (all branches)'}`);
+  logger?.info(
+    `Found ${rawCommits.length} commits${diffBase ? ' in PR' : scope === 'all-refs' ? ' across all refs' : ` on ${defaultBranch}`}`
+  );
 
   // Get the set of commit hashes reachable from the default branch
   let defaultBranchHashes: Set<string>;
@@ -178,7 +204,7 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     }
   } else {
     // Standard mode: use date filters
-    const revListArgs = [defaultBranch];
+    const revListArgs = [defaultBranchRef];
     if (sinceDate) {
       revListArgs.push(`--after=${sinceDate.toISOString()}`);
     }
@@ -292,6 +318,10 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     schemaVersion: COMMIT_STREAM_SCHEMA_VERSION,
     repoPath,
     defaultBranch,
+    scope,
+    headSha: (
+      await git.raw(['rev-parse', diffBase ? 'HEAD' : scope === 'default-branch' ? defaultBranchRef : 'HEAD'])
+    ).trim(),
     generatedAt: formatISODate(new Date()),
     since,
     until,

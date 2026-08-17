@@ -59,7 +59,7 @@ describe('collect → analyze → report end to end', () => {
     await run(createCollectCommand(), ['--repo', repoPath, '--out-dir', outDir]);
 
     const stream = JSON.parse(readFileSync(join(outDir, 'commit-stream.json'), 'utf-8'));
-    expect(stream.schemaVersion).toBe(2);
+    expect(stream.schemaVersion).toBe(3);
     expect(stream.commits).toHaveLength(2);
     // The trailer commit is detected as AI, the other stays unknown
     const attributions = stream.commits.map((c: { tags: { attribution: string } }) => c.tags.attribution).sort();
@@ -77,12 +77,14 @@ describe('collect → analyze → report end to end', () => {
     await run(createAnalyzeCommand(), ['--out-dir', outDir]);
 
     const metrics = JSON.parse(readFileSync(join(outDir, 'metrics.json'), 'utf-8'));
-    expect(metrics.schemaVersion).toBe(2);
+    expect(metrics.schemaVersion).toBe(3);
     expect(metrics.attribution.coverage).toBeCloseTo(0.5);
-    expect(metrics.attribution.modes.agent).toBe(1);
+    expect(metrics.attribution.modes.agent).toBe(0);
+    expect(metrics.attribution.modes.unknown).toBe(2);
     expect(metrics.persistence).toHaveProperty('censored');
     expect(metrics.cohorts.ai.taskMix).not.toBeNull();
-    expect(metrics.byMode.agent).not.toBeNull();
+    expect(metrics.byMode.agent).toBeNull();
+    expect(metrics.byMode.unknown).not.toBeNull();
     // Trend is always present, and refuses to compare immature periods (#77)
     expect(metrics.trend.periods.length).toBeGreaterThan(0);
     expect(metrics.trend.periods.every((p: { mature: boolean }) => !p.mature)).toBe(true);
@@ -100,17 +102,17 @@ describe('collect → analyze → report end to end', () => {
     expect(report).toContain('# AIDA Report');
     // Quality first (#77 step 2): the repo-level section opens the report,
     // the autonomy lens follows, coverage sits at the bottom as Data Quality
-    expect(report).toContain('## Code Quality');
+    expect(report).toContain('## Repository Change Signals');
     expect(report).toContain('## Autonomy');
     expect(report).toContain('## Data Quality');
-    expect(report.indexOf('## Code Quality')).toBeLessThan(report.indexOf('## Autonomy'));
+    expect(report.indexOf('## Repository Change Signals')).toBeLessThan(report.indexOf('## Autonomy'));
     expect(report.indexOf('## Data Quality')).toBeGreaterThan(report.indexOf('## By Autonomy Level'));
     // The autonomy breakdown is the primary table (#25), and the three-state
     // view is labelled as the projection it is
     expect(report).toContain('| Autonomy level | Commits |');
     expect(report).toContain('*Three-state view:*');
     expect(report).toContain('## By Autonomy Level');
-    // Quality over time (#77 step 3) lives inside Code Quality
+    // The trend lives inside Repository Change Signals
     expect(report).toContain('### Trend (monthly, 30-day observation window)');
     // Every commit in this fixture was made moments ago, so no period can be
     // mature: the report must decline to compare rather than invent a trend
@@ -118,7 +120,7 @@ describe('collect → analyze → report end to end', () => {
     expect(report).toContain('Too recent to judge');
     expect(report).toContain('## Cohort Fairness');
     // The old generic-looking persistence section rendered the AI cohort's
-    // numbers under a repo-level label; Code Quality replaced it (#77)
+    // numbers under a repo-level label; bounded change signals replaced it
     expect(report).not.toContain('## Persistence (file-level survival)');
     expect(report).toContain('### Caveats');
     // Removed metric must not resurface anywhere
@@ -165,7 +167,7 @@ describe('PR acceptance (#51)', () => {
     expect(metrics.caveats.join(' ')).toContain("run 'aida fetch-prs'");
 
     const report = readFileSync(join(outDir, 'report.md'), 'utf-8');
-    expect(report).not.toContain('## PR Acceptance');
+    expect(report).not.toContain('## PR Merge Outcome');
   });
 
   it('is computed and rendered when a pr-stream.json is present', async () => {
@@ -186,7 +188,7 @@ describe('PR acceptance (#51)', () => {
       writeFileSync(
         join(prDir, 'pr-stream.json'),
         JSON.stringify({
-          schemaVersion: 1,
+          schemaVersion: 2,
           provider: 'github',
           repo: 'owner/name',
           fetchedAt: '2026-01-03T00:00:00.000Z',
@@ -199,6 +201,7 @@ describe('PR acceptance (#51)', () => {
               closedAt: '2026-01-02T00:00:00.000Z',
               mergedAt: '2026-01-02T00:00:00.000Z',
               commits: [aiCommit],
+              commitsComplete: true,
             },
             {
               number: 2,
@@ -207,6 +210,7 @@ describe('PR acceptance (#51)', () => {
               closedAt: '2026-01-02T00:00:00.000Z',
               mergedAt: null,
               commits: [aiCommit],
+              commitsComplete: true,
             },
           ],
         })
@@ -224,7 +228,7 @@ describe('PR acceptance (#51)', () => {
 
       await run(createReportCommand(), ['--out-dir', prDir]);
       const report = readFileSync(join(prDir, 'report.md'), 'utf-8');
-      expect(report).toContain('## PR Acceptance');
+      expect(report).toContain('## PR Merge Outcome');
       expect(report).toContain('Closed unmerged');
       expect(report).not.toContain('undefined');
     } finally {
@@ -271,6 +275,45 @@ describe('schema version gate', () => {
       );
       expect(errorSpy.mock.calls.flat().join(' ')).toMatch(
         /no schemaVersion field.*Rerun 'aida collect'/
+      );
+    } finally {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
+      rmSync(staleDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to join blame data from another repository snapshot', async () => {
+    const staleDir = mkdtempSync(join(tmpdir(), 'aida-e2e-blame-snapshot-'));
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('process.exit');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await run(createCollectCommand(), ['--repo', repoPath, '--out-dir', staleDir]);
+      writeFileSync(
+        join(staleDir, 'blame-stream.json'),
+        JSON.stringify({
+          schemaVersion: 3,
+          repoPath,
+          headSha: 'f'.repeat(40),
+          generatedAt: new Date().toISOString(),
+          filesBlamed: 0,
+          filesSkipped: 0,
+          filesFailed: 0,
+          filesExcluded: 0,
+          truncated: false,
+          totalLines: 0,
+          linesBySha: {},
+          blamedPaths: [],
+        })
+      );
+
+      await expect(run(createAnalyzeCommand(), ['--out-dir', staleDir])).rejects.toThrow(
+        'process.exit'
+      );
+      expect(errorSpy.mock.calls.flat().join(' ')).toContain(
+        'Rerun collect and blame from the same checkout'
       );
     } finally {
       exitSpy.mockRestore();

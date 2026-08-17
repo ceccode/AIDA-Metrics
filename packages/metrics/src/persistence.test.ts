@@ -3,7 +3,7 @@ import { calculateBaselinePersistence, calculatePersistence } from './persistenc
 import type { CommitStream } from '@aida-dev/core';
 
 function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStream['commits'][0] {
-  return {
+  const commit: CommitStream['commits'][0] = {
     hash: 'abc123',
     authorName: 'Test',
     authorEmail: 'test@test.com',
@@ -19,16 +19,22 @@ function makeCommit(overrides: Partial<CommitStream['commits'][0]>): CommitStrea
     stats: { totalAdditions: 10, totalDeletions: 0, files: [] },
     ...overrides,
   };
+  if (overrides.authorDate && overrides.committerDate === undefined) {
+    commit.committerDate = overrides.authorDate;
+  }
+  return commit;
 }
 
 function makeStream(commits: CommitStream['commits']): CommitStream {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     repoPath: '/test',
     defaultBranch: 'main',
+    scope: 'default-branch',
+    headSha: 'head',
     generatedAt: '2024-06-01T00:00:00.000Z',
     aiPatterns: [],
-    commits,
+    commits: [...commits].reverse(),
   };
 }
 
@@ -465,5 +471,81 @@ describe('onlyCategory (#36 within-category comparison)', () => {
       excludeCategories: [],
     });
     expect(migrationsOnly.filesConsidered).toBe(1);
+  });
+});
+
+describe('fixed-horizon rapid retouch contract', () => {
+  const aiTags = { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'inferred' as const, level: 'explicit' as const, sources: [] };
+
+  it('includes an event exactly on the horizon boundary', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'first',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'boundary',
+        authorDate: '2024-01-08T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }] },
+      }),
+    ]);
+
+    expect(calculatePersistence(stream).rapidRetouch[0]).toEqual({
+      windowDays: 7,
+      retouched: 1,
+      eligible: 1,
+      tooRecent: 0,
+      rate: 1,
+    });
+  });
+
+  it('uses stream topology when commit timestamps move backwards', () => {
+    const stream = makeStream([
+      makeCommit({
+        hash: 'parent',
+        authorDate: '2024-01-10T00:00:00.000Z',
+        committerDate: '2024-01-10T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }] },
+      }),
+      makeCommit({
+        hash: 'child',
+        parents: ['parent'],
+        // A bad/replayed clock must not move this child before its parent.
+        authorDate: '2024-01-05T00:00:00.000Z',
+        committerDate: '2024-01-05T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }] },
+      }),
+    ]);
+
+    const result = calculatePersistence(stream);
+    expect(result.censored).toBe(0);
+    expect(result.avgDays).toBe(0); // elapsed time clamps an impossible negative clock gap
+  });
+
+  it('keeps a too-recent file outside the denominator', () => {
+    const stream = {
+      ...makeStream([
+        makeCommit({
+          hash: 'fresh',
+          authorDate: '2024-01-01T00:00:00.000Z',
+          tags: aiTags,
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'src/a.ts', additions: 1, deletions: 0 }] },
+        }),
+      ]),
+      generatedAt: '2024-01-06T00:00:00.000Z',
+    };
+
+    expect(calculatePersistence(stream).rapidRetouch[0]).toEqual({
+      windowDays: 7,
+      retouched: 0,
+      eligible: 0,
+      tooRecent: 1,
+      rate: null,
+    });
   });
 });

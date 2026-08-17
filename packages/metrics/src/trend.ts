@@ -90,7 +90,7 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
   if (authored.length === 0) return empty;
 
   const earliest = new Date(
-    Math.min(...authored.map((commit) => new Date(commit.authorDate).getTime()))
+    Math.min(...authored.map((commit) => new Date(commit.committerDate).getTime()))
   );
 
   // Every calendar period from the first authored commit to the collection
@@ -110,7 +110,7 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
     const end = nextPeriodStart(start, granularity);
 
     const inPeriod = (commit: Commit) => {
-      const date = new Date(commit.authorDate);
+      const date = new Date(commit.committerDate);
       return date.getTime() >= start.getTime() && date.getTime() < end.getTime();
     };
     const isTarget = (commit: Commit) => !commit.tags.automated && inPeriod(commit);
@@ -138,6 +138,7 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
           ? calculatePersistence(commitStream, isTarget, {
               observationEnd,
               maxObservationDays: observationDays,
+              retouchHorizons: [observationDays],
             })
           : null,
       // Not "has enough data" but "has had enough time": every file first
@@ -174,6 +175,17 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
                   ),
                 }
               : null,
+          rapidRetouchRate: (() => {
+            const from = previous.persistence!.rapidRetouch.find(
+              (result) => result.windowDays === observationDays
+            )?.rate;
+            const to = latest.persistence!.rapidRetouch.find(
+              (result) => result.windowDays === observationDays
+            )?.rate;
+            return from !== null && from !== undefined && to !== null && to !== undefined
+              ? { from, to, delta: round(to - from, 4) }
+              : null;
+          })(),
         }
       : null;
 

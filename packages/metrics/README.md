@@ -1,6 +1,6 @@
 # @aida-dev/metrics
 
-Metrics calculation for AIDA (AI Development Accounting).
+Deterministic metrics calculation for AIDA repository snapshots.
 
 ## Features
 
@@ -14,8 +14,8 @@ Metrics calculation for AIDA (AI Development Accounting).
 import { calculateMetrics } from '@aida-dev/metrics';
 
 const metrics = calculateMetrics(commitStream);
-console.log(`Merge ratio: ${metrics.mergeRatio.mergeRatio * 100}%`);
-console.log(`Avg persistence: ${metrics.persistence.avgDays} days`);
+const retouch30 = metrics.repo.persistence.rapidRetouch.find(r => r.windowDays === 30);
+console.log(`30-day rapid retouch: ${retouch30?.rate ?? 'unavailable'}`);
 ```
 
 ## Metrics

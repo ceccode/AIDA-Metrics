@@ -5,7 +5,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "description": "AI Development Accounting - Monorepo for AIDA metrics tools",
+  "description": "An auditable evidence ledger for AI-assisted software development",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "prepare": "node scripts/install-hooks.mjs",

@@ -1,18 +1,9 @@
 import { Command } from 'commander';
-import { collectCommits, writeJSON, createLogger, describeError, AidaConfig } from '@aida-dev/core';
+import { collectCommits, writeJSON, createLogger, describeError } from '@aida-dev/core';
 import { join } from 'path';
-import { readFile } from 'fs/promises';
 import { CLIConfig } from '../schema/config.js';
 import { detectPRBaseRef } from '../providers/pr-base.js';
-
-async function loadAidaConfig(repoPath: string): Promise<Partial<AidaConfig>> {
-  try {
-    const raw = await readFile(join(repoPath, '.aida.json'), 'utf-8');
-    return AidaConfig.parse(JSON.parse(raw));
-  } catch {
-    return {};
-  }
-}
+import { loadAidaConfig } from '../config/load.js';
 
 function collectRepeatable(value: string, previous: string[]): string[] {
   return previous ? [...previous, value] : [value];
@@ -31,6 +22,11 @@ export function createCollectCommand(): Command {
     .option('--ai-trailer-domain <domain>', 'Additional Co-authored-by domain (repeatable)', collectRepeatable, [])
     .option('--ai-bot-blocklist <name>', 'Non-AI bot to exclude from trailer matching (repeatable)', collectRepeatable, [])
     .option('--default-branch <name>', 'Default branch name')
+    .option(
+      '--scope <value>',
+      'Commit universe: default-branch | all-refs (default: default-branch)',
+      'default-branch'
+    )
     .option(
       '--redact-authors',
       'Replace author/committer identities with a per-run salted hash (recommended in CI)'
@@ -71,6 +67,9 @@ export function createCollectCommand(): Command {
             logger.warn('--pr flag used but no PR context detected. Falling back to --since mode.');
           }
         }
+        if (diffBase && config.scope !== 'default-branch') {
+          throw new Error('--scope all-refs cannot be combined with --pr or --diff-base');
+        }
 
         logger.info('Starting commit collection...');
 
@@ -84,6 +83,7 @@ export function createCollectCommand(): Command {
           aiTrailerDomains,
           aiBotBlocklist,
           defaultBranch: config.defaultBranch,
+          scope: config.scope,
           // CLI flag wins over .aida.json
           redactAuthors: config.redactAuthors ?? fileConfig.redactAuthors ?? false,
           logger,

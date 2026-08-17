@@ -1,6 +1,6 @@
 # @aida-dev/core
 
-Core functionality for AIDA (AI Development Accounting) metrics collection.
+Core Git collection, attribution, and versioned schemas for AIDA metrics.
 
 ## Features
 

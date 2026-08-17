@@ -56,6 +56,10 @@ function round(value: number, decimals: number): number {
   return Math.round(value * factor) / factor;
 }
 
+function retouchRate(persistence: ReturnType<typeof calculatePersistence>, days: number) {
+  return persistence.rapidRetouch.find((result) => result.windowDays === days)?.rate ?? null;
+}
+
 export function calculateMetrics(
   commitStream: CommitStream,
   options: MetricsOptions = {}
@@ -91,9 +95,13 @@ export function calculateMetrics(
 
   // Coverage over a recent window (#52): the number a team can actually move.
   // All-time coverage is a permanent verdict on history predating adoption.
-  const windowStart = new Date(Date.now() - coverageWindowDays * 24 * 60 * 60 * 1000);
+  // A metrics artifact is a pure function of its input artifact. Using wall
+  // clock time here made an unchanged commit-stream.json produce different
+  // coverage, cohort ages and bytes on different days.
+  const asOf = new Date(commitStream.generatedAt);
+  const windowStart = new Date(asOf.getTime() - coverageWindowDays * 24 * 60 * 60 * 1000);
   const recentCommits = commitStream.commits.filter(
-    (commit) => new Date(commit.authorDate) >= windowStart
+    (commit) => new Date(commit.committerDate) >= windowStart
   );
   const recentCounts = { ai: 0, human: 0, automated: 0, unknown: 0 };
   let recentWithEvidence = 0;
@@ -148,6 +156,10 @@ export function calculateMetrics(
   // 'none' cohort. In an AI-first world this is the projection, not the
   // question — the question is the per-level breakdown below.
   const isAI = (commit: Commit) => {
+    // A named tool can prove AI involvement without proving an autonomy
+    // level. Keep that commit in the AI projection while leaving byMode in
+    // `unknown`; otherwise the two views contradict each other.
+    if (commit.tags.evidence !== 'none') return commit.tags.attribution === 'ai';
     const mode = effectiveMode(commit);
     return mode === 'autocomplete' || mode === 'assisted' || mode === 'agent';
   };
@@ -173,7 +185,7 @@ export function calculateMetrics(
   const persistence = calculatePersistence(commitStream, isAI);
 
   // Fairness context (#29, #36): cohort age and task mix
-  const now = new Date();
+  const now = asOf;
   const aiCommits = commitStream.commits.filter(isAI);
   const baselineCommits = commitStream.commits.filter(isBaseline);
   const cohorts = {
@@ -228,6 +240,11 @@ export function calculateMetrics(
           persistence.medianDays - baseline.persistence.medianDays,
           2
         ),
+        rapidRetouch30Rate:
+          retouchRate(persistence, 30) !== null &&
+          retouchRate(baseline.persistence, 30) !== null
+            ? round(retouchRate(persistence, 30)! - retouchRate(baseline.persistence, 30)!, 4)
+            : null,
       }
     : null;
 
@@ -252,6 +269,10 @@ export function calculateMetrics(
             delta: {
               avgPersistenceDays: round(cappedAI.avgDays - cappedBaseline.avgDays, 2),
               medianPersistenceDays: round(cappedAI.medianDays - cappedBaseline.medianDays, 2),
+              rapidRetouch30Rate:
+                retouchRate(cappedAI, 30) !== null && retouchRate(cappedBaseline, 30) !== null
+                  ? round(retouchRate(cappedAI, 30)! - retouchRate(cappedBaseline, 30)!, 4)
+                  : null,
             },
           };
         })()
@@ -266,7 +287,12 @@ export function calculateMetrics(
     CATEGORIES.map((category) => {
       const toLean = (p: ReturnType<typeof calculatePersistence>) =>
         p.filesConsidered > 0
-          ? { filesConsidered: p.filesConsidered, avgDays: p.avgDays, medianDays: p.medianDays }
+          ? {
+              filesConsidered: p.filesConsidered,
+              avgDays: p.avgDays,
+              medianDays: p.medianDays,
+              rapidRetouch30: p.rapidRetouch.find((result) => result.windowDays === 30) ?? null,
+            }
           : null;
 
       const aiCat = toLean(
@@ -304,11 +330,11 @@ export function calculateMetrics(
   );
 
   const caveats = [
-    `Evidence coverage is ${(coverage * 100).toFixed(1)}%: attribution-dependent metrics only describe commits whose provenance is known. Repo-level quality (the \`repo\` block) covers all authored commits regardless of evidence.`,
-    'Rework rate is file-level: consecutive commits from one working session touching the same file count as rework, which inflates it for iterative workflows. Files too recent to judge are excluded from both sides. Line-level tracking will refine this.',
-    'Persistence is file-level, not line-level.',
-    'Persistence is survival: days until the first subsequent modification. Files never modified again are censored at collection time. Migrations and generated files (convention-driven lifecycles) are excluded.',
-    'Persistence comparisons are only meaningful between cohorts of similar age and task mix — check the cohorts section before reading the delta.',
+    `Evidence coverage is ${(coverage * 100).toFixed(1)}%: attribution-dependent metrics only describe commits whose provenance is known. Repository change signals (the \`repo\` block) cover all authored commits regardless of evidence.`,
+    `Commit scope is \`${commitStream.scope}\` at ${commitStream.headSha.slice(0, 12) || 'an empty repository'}; default-branch reports exclude work reachable only from other refs. This describes integrated git history, not deployed production state.`,
+    'Rapid retouch is file-level: any subsequent commit touching the same file within the horizon counts. It is a churn signal, not proof of a defect, rollback, or wasted work.',
+    'Fixed-horizon rates exclude files too recent to have a known outcome from the denominator and report them separately.',
+    'Migrations and generated files are excluded from repo rapid-retouch metrics because their convention-driven lifecycles carry a different signal.',
     'AI tagging uses heuristic patterns; false positives/negatives possible.',
     'Outcome correlation only covers what git can see: reverts resolved by hash and hotfix-pattern commits linked to the most recent prior touch of the same file(s). Incidents, SAST findings, and reverts/hotfixes outside the collected window are not represented.',
     'Outcome ratios compare a cohort\'s share of reverts/hotfixes against its share of authored commits: 1.00x means "exactly as often as its size predicts". They are descriptive, not causal, and on small counts a single commit can move the ratio a long way.',
@@ -330,12 +356,7 @@ export function calculateMetrics(
   }
   if (!prAcceptance) {
     caveats.push(
-      "PR acceptance is unavailable: run 'aida fetch-prs' to measure whether AI work is accepted. Git history alone cannot answer that."
-    );
-  }
-  if (fairComparison) {
-    caveats.push(
-      `Fair comparison caps both cohorts' observation window to ${fairComparison.capDays} days (the younger cohort's average commit age) — the raw AI vs Baseline table above does not, and may simply reflect one cohort having existed longer.`
+      "PR merge outcomes are unavailable: run 'aida fetch-prs' to compare merged and closed-unmerged work. Git history alone cannot recover discarded PRs."
     );
   }
   if (baseline?.assumed) {
@@ -351,13 +372,15 @@ export function calculateMetrics(
 
   return {
     schemaVersion: METRICS_SCHEMA_VERSION,
-    generatedAt: formatISODate(new Date()),
+    generatedAt: formatISODate(asOf),
     window: {
       since: commitStream.since,
       until: commitStream.until,
     },
     repoPath: commitStream.repoPath,
     defaultBranch: commitStream.defaultBranch,
+    scope: commitStream.scope,
+    headSha: commitStream.headSha,
     attribution,
     repo,
     trend,

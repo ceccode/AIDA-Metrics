@@ -16,10 +16,13 @@
 // `evidence` (how we know) — with `attribution` demoted to a derived
 // projection of them. `modeEvidence` was renamed `evidence`, `automated`
 // became its own boolean, and the redundant `ai` boolean was dropped.
-export const COMMIT_STREAM_SCHEMA_VERSION = 2;
+// v3 (pre-1.0 audit): collection scope and snapshot HEAD are explicit. The
+// default scope changed from every local/remote ref to default-branch history.
+export const COMMIT_STREAM_SCHEMA_VERSION = 3;
 // v2 (#25): coverage is measured on the evidence axis, and the prior is
 // `defaultMode` (an autonomy level) rather than `defaultAttribution`.
-export const METRICS_SCHEMA_VERSION = 2;
+// v3: scope/snapshot metadata and fixed-horizon rapid-retouch semantics.
+export const METRICS_SCHEMA_VERSION = 3;
 
 export class SchemaVersionError extends Error {
   constructor(

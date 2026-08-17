@@ -1,21 +1,12 @@
 import { Command } from 'commander';
-import { AidaConfig, createLogger, describeError, parseRelativeDate, writeJSON } from '@aida-dev/core';
+import { createLogger, describeError, parseRelativeDate, writeJSON } from '@aida-dev/core';
 import { join } from 'path';
-import { readFile } from 'fs/promises';
 import { fetchClosedPRs } from '../providers/github-prs.js';
+import { loadAidaConfig } from '../config/load.js';
 
-// `aida fetch-prs` (#51) — the only command that touches the network.
-// Kept separate on purpose: `collect` remains git-only and offline, so the
-// "nothing leaves your machine" promise stays verifiable by not running this.
-
-async function loadAidaConfig(repoPath: string): Promise<Partial<AidaConfig>> {
-  try {
-    const raw = await readFile(join(repoPath, '.aida.json'), 'utf-8');
-    return AidaConfig.parse(JSON.parse(raw));
-  } catch {
-    return {};
-  }
-}
+// `aida fetch-prs` (#51) is explicitly networked. Collection, analysis,
+// blame, and report generation remain local; `aida comment` is the other
+// network command.
 
 function detectRepo(explicit?: string): string | null {
   return explicit || process.env.GITHUB_REPOSITORY || null;

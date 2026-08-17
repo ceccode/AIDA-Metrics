@@ -14,7 +14,7 @@ import { z } from 'zod';
 //   - **Attribution comes from the PR's own commit messages** as returned by
 //     the API, not from a join against local git. That is what makes this
 //     work for squash-merged PRs whose branches no longer exist.
-export const PR_STREAM_SCHEMA_VERSION = 1;
+export const PR_STREAM_SCHEMA_VERSION = 2;
 
 export const PRCommit = z.object({
   sha: z.string(),
@@ -38,6 +38,10 @@ export const PullRequest = z.object({
   closedAt: z.string().datetime(),
   mergedAt: z.string().datetime().nullable(),
   commits: z.array(PRCommit),
+  // GitHub exposes at most 250 commits through this endpoint. Attribution
+  // from an incomplete commit list must be labelled, never silently treated
+  // as the whole PR.
+  commitsComplete: z.boolean(),
 });
 
 export const PRStream = z.object({

@@ -58,10 +58,19 @@ export const CommitStream = z.object({
   schemaVersion: z.number().int().positive(),
   repoPath: z.string(),
   defaultBranch: z.string(),
+  // v3: the universe of commits is part of the data contract. A default
+  // report describes what is reachable from the integration branch; all
+  // refs is an explicit exploratory scope, never an invisible default.
+  scope: z.enum(['default-branch', 'all-refs', 'pr']),
+  // Commit checked out/analyzed when the stream was produced. Optional
+  // artifacts such as blame must refer to the same snapshot.
+  headSha: z.string(),
   generatedAt: z.string().datetime(),
   since: z.string().optional(),
   until: z.string().optional(),
   aiPatterns: z.array(z.string()),
+  // Newest-first topological order. Consumers reverse this array when they
+  // need the first subsequent event; timestamps never define graph order.
   commits: z.array(Commit),
 });
 

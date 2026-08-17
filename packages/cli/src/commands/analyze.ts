@@ -4,7 +4,6 @@ import {
   writeJSON,
   createLogger,
   CommitStream,
-  AidaConfig,
   COMMIT_STREAM_SCHEMA_VERSION,
   BlameStream,
   BLAME_STREAM_SCHEMA_VERSION,
@@ -12,30 +11,15 @@ import {
   PR_STREAM_SCHEMA_VERSION,
   assertSchemaVersion,
   fileExists,
-  assertNoRetiredConfigKeys,
   describeError,
 } from '@aida-dev/core';
 import { calculateMetrics } from '@aida-dev/metrics';
-import { join } from 'path';
-import { readFile } from 'fs/promises';
+import { join, resolve } from 'path';
 import { CLIConfig } from '../schema/config.js';
 import { HOOK_NAME, isAidaHookInstalled } from '../hooks/detect.js';
+import { loadAidaConfig } from '../config/load.js';
 
 const MODES = ['none', 'autocomplete', 'assisted', 'agent'];
-
-async function loadAidaConfig(repoPath: string): Promise<Partial<AidaConfig>> {
-  let raw: string;
-  try {
-    raw = await readFile(join(repoPath, '.aida.json'), 'utf-8');
-  } catch {
-    return {}; // No config file: every setting keeps its default
-  }
-  // A present-but-broken config must not be silently ignored — that would
-  // apply defaults the repo explicitly opted out of.
-  const parsed = JSON.parse(raw);
-  assertNoRetiredConfigKeys(parsed);
-  return AidaConfig.parse(parsed);
-}
 
 export function createAnalyzeCommand(): Command {
   return new Command('analyze')
@@ -145,6 +129,16 @@ export function createAnalyzeCommand(): Command {
             "Rerun 'aida blame' with this version of AIDA."
           );
           blameStream = BlameStream.parse(rawBlame);
+          if (resolve(blameStream.repoPath) !== resolve(commitStream.repoPath)) {
+            throw new Error(
+              'blame-stream.json belongs to a different repository. Remove it or rerun `aida blame` for the collected repo.'
+            );
+          }
+          if (blameStream.headSha !== commitStream.headSha) {
+            throw new Error(
+              `blame-stream.json describes ${blameStream.headSha.slice(0, 12)}, but commit-stream.json describes ${commitStream.headSha.slice(0, 12)}. Rerun collect and blame from the same checkout before analyzing.`
+            );
+          }
           logger.info(`Blame data loaded: ${blameStream.totalLines} lines`);
         }
 
@@ -220,13 +214,18 @@ export function createAnalyzeCommand(): Command {
         const lc = metrics.trend.latestComparison;
         logger.info(
           lc
-            ? `Trend ${lc.from} -> ${lc.to}: persistence ${lc.avgPersistenceDays.from}d -> ${lc.avgPersistenceDays.to}d` +
-                (lc.reworkRate
-                  ? `, rework ${(lc.reworkRate.from * 100).toFixed(1)}% -> ${(lc.reworkRate.to * 100).toFixed(1)}%`
-                  : '')
+            ? `Trend ${lc.from} -> ${lc.to}: ${metrics.trend.observationDays}d rapid retouch ` +
+                (lc.rapidRetouchRate
+                  ? `${(lc.rapidRetouchRate.from * 100).toFixed(1)}% -> ${(lc.rapidRetouchRate.to * 100).toFixed(1)}%`
+                  : 'unavailable (no eligible files)')
             : `Trend: fewer than two mature periods (${metrics.trend.observationDays}d window) — no comparison yet`
         );
-        logger.info(`Average persistence: ${metrics.persistence.avgDays} days`);
+        const retouch30 = metrics.repo.persistence.rapidRetouch.find(
+          (result) => result.windowDays === 30
+        );
+        logger.info(
+          `Repo rapid retouch (30d): ${retouch30?.rate === null || !retouch30 ? 'unavailable' : `${(retouch30.rate * 100).toFixed(1)}% (${retouch30.retouched}/${retouch30.eligible})`}`
+        );
         if (metrics.lineSurvival) {
           const ls = metrics.lineSurvival;
           logger.info(

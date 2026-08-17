@@ -9,6 +9,7 @@ export const CLIConfig = z.object({
   aiTrailerDomains: z.array(z.string()).default([]),
   aiBotBlocklist: z.array(z.string()).default([]),
   defaultBranch: z.string().optional(),
+  scope: z.enum(['default-branch', 'all-refs']).default('default-branch'),
   redactAuthors: z.boolean().optional(),
   outDir: z.string().default('./aida-output'),
   verbose: z.boolean().default(false),

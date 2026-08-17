@@ -20,6 +20,19 @@ function formatDelta(value: number, suffix: string): string {
   return `${sign}${value}${suffix}`;
 }
 
+function rapidRetouch(
+  persistence: Metrics['persistence'],
+  days: number
+): Metrics['persistence']['rapidRetouch'][number] | null {
+  return persistence.rapidRetouch.find((result) => result.windowDays === days) ?? null;
+}
+
+function formatRetouch(result: ReturnType<typeof rapidRetouch>): string {
+  return result?.rate === null || !result
+    ? '—'
+    : `${(result.rate * 100).toFixed(1)}% (${result.retouched}/${result.eligible})`;
+}
+
 function generateMarkdownReport(metrics: Metrics): string {
   const a = metrics.attribution;
   const coveragePct = (a.coverage * 100).toFixed(1);
@@ -33,7 +46,7 @@ function generateMarkdownReport(metrics: Metrics): string {
   const warnOnRecent = a.recent ? a.recent.belowThreshold : a.belowThreshold;
 
   const coverageWarning = warnOnRecent
-    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** The sections from here down depend on attribution evidence and are low-confidence — the Code Quality section above is unaffected, it needs no evidence. Install the commit hook (\`aida install-hooks\`) so new commits declare their autonomy mode, or set \`defaultMode\` in \`.aida.json\` for the history that predates it.\n`
+    ? `\n> ⚠️ **Coverage is below ${(a.coverageThreshold * 100).toFixed(0)}%${a.recent ? ` in the last ${a.recent.windowDays} days` : ''}.** The sections from here down depend on attribution evidence and are low-confidence — Repository Change Signals above is unaffected, because it needs no attribution evidence. Install the commit hook (\`aida install-hooks\`) so new commits declare their autonomy mode, or set \`defaultMode\` in \`.aida.json\` for the history that predates it.\n`
     : '';
 
   const priorNote =
@@ -52,34 +65,30 @@ function generateMarkdownReport(metrics: Metrics): string {
     stats !== null && stats.commits - stats.assumed > 0;
 
   const AI_MODES = ['agent', 'assisted', 'autocomplete'] as const;
-  const aiCohortHasEvidence = AI_MODES.some((mode) => evidenceBacked(metrics.byMode[mode]));
+  const aiCohortHasEvidence =
+    AI_MODES.some((mode) => evidenceBacked(metrics.byMode[mode])) ||
+    evidenceBacked(metrics.byMode.unknown);
   const baselineHasEvidence = evidenceBacked(metrics.byMode.none);
 
   const baselineLabel = metrics.baseline?.assumed
     ? 'Human baseline (assumed)'
     : 'Human baseline';
 
-  const fc = metrics.fairComparison;
-  const fairComparisonSection = fc
-    ? `
-**Age-normalized (fair) comparison** — both cohorts capped to ${fc.capDays} days of observation (the younger cohort's average commit age), so neither side gets credit for time it hasn't had:
-
-| Metric | AI commits (capped) | ${baselineLabel} (capped) | Delta |
-|---|---:|---:|---:|
-| Avg persistence (days) | ${fc.ai.avgDays} | ${fc.baseline.avgDays} | ${formatDelta(fc.delta.avgPersistenceDays, '')} |
-| Median persistence (days) | ${fc.ai.medianDays} | ${fc.baseline.medianDays} | ${formatDelta(fc.delta.medianPersistenceDays, '')} |
-`
-    : '';
-
   const comparisonSection = metrics.baseline && metrics.delta && aiCohortHasEvidence && baselineHasEvidence
-    ? `## AI vs Baseline
+    ? (() => {
+        const ai30 = rapidRetouch(metrics.persistence, 30);
+        const baseline30 = rapidRetouch(metrics.baseline.persistence, 30);
+        return `## AI vs Baseline
+
+Fixed-horizon outcomes compare like with like: files too recent to have reached day 30 are excluded from both denominators and reported separately.
 
 | Metric | AI commits | ${baselineLabel} | Delta |
 |---|---:|---:|---:|
 | Commits | ${metrics.persistence.commitsConsidered} | ${metrics.baseline.persistence.commitsConsidered} | — |
-| Avg persistence (days) | ${metrics.persistence.avgDays} | ${metrics.baseline.persistence.avgDays} | ${formatDelta(metrics.delta.avgPersistenceDays, '')} |
-| Median persistence (days) | ${metrics.persistence.medianDays} | ${metrics.baseline.persistence.medianDays} | ${formatDelta(metrics.delta.medianPersistenceDays, '')} |
-${fairComparisonSection}`
+| Retouched within 30d | ${formatRetouch(ai30)} | ${formatRetouch(baseline30)} | ${metrics.delta.rapidRetouch30Rate === null ? '—' : formatDelta(round1(metrics.delta.rapidRetouch30Rate * 100), ' pt')} |
+| Too recent for 30d | ${ai30?.tooRecent ?? '—'} | ${baseline30?.tooRecent ?? '—'} | — |
+`;
+      })()
     : `## AI vs Baseline
 
 ${
@@ -107,17 +116,17 @@ ${
   function categoryRow(cat: (typeof categories)[number]) {
     const c = metrics.byCategory[cat];
     if (!c.ai && !c.baseline) return null;
-    return `| ${cat} | ${c.ai ? `${c.ai.avgDays}d (${c.ai.filesConsidered} files)` : '—'} | ${c.baseline ? `${c.baseline.avgDays}d (${c.baseline.filesConsidered} files)` : '—'} | ${c.deltaAvgDays !== null ? formatDelta(c.deltaAvgDays, '') : '—'} |`;
+    return `| ${cat} | ${c.ai ? formatRetouch(c.ai.rapidRetouch30) : '—'} | ${c.baseline ? formatRetouch(c.baseline.rapidRetouch30) : '—'} |`;
   }
   const categoryRows = categories.map(categoryRow).filter(Boolean);
   const byCategorySection =
     categoryRows.length > 0
       ? `
 
-**Within-category comparison** — avg persistence per file category, instead of pooling everything (a mismatched task mix can't masquerade as a quality difference):
+**Within-category comparison** — 30-day rapid retouch per file category, instead of pooling everything (a mismatched task mix can't masquerade as a quality difference):
 
-| Category | AI avg persistence | Baseline avg persistence | Delta |
-|---|---:|---:|---:|
+| Category | AI retouched ≤30d | Baseline retouched ≤30d |
+|---|---:|---:|
 ${categoryRows.join('\n')}
 `
       : '';
@@ -150,7 +159,7 @@ ${byCategorySection}`;
     .filter((row) => row.stats !== null)
     .map(
       ({ mode, stats }) =>
-        `| ${mode} | ${stats!.commits}${stats!.assumed > 0 ? ` (${stats!.assumed} assumed)` : ''} | ${stats!.persistence.avgDays} | ${stats!.persistence.medianDays} | ${stats!.persistence.censored} |`
+        `| ${mode} | ${stats!.commits}${stats!.assumed > 0 ? ` (${stats!.assumed} assumed)` : ''} | ${formatRetouch(rapidRetouch(stats!.persistence, 30))} | ${rapidRetouch(stats!.persistence, 30)?.tooRecent ?? '—'} |`
     );
   const gatedModes = modeOrder.filter(
     (mode) => mode !== 'unknown' && metrics.byMode[mode] !== null && !evidenceBacked(metrics.byMode[mode])
@@ -172,8 +181,8 @@ Cohorts here include commits placed by the \`defaultMode\` prior, marked *assume
             : ''
         }
 
-| Mode | Commits | Avg persistence (d) | Median (d) | Surviving |
-|---|---:|---:|---:|---:|
+| Mode | Commits | Retouched ≤30d | Too recent |
+|---|---:|---:|---:|
 ${modeRows.join('\n')}
 
 `
@@ -191,7 +200,7 @@ Install the commit hook (\`aida install-hooks\`) so commits declare their own mo
   const lineSection = ls
     ? `## Line Survival
 
-Exact per-line attribution from \`git blame\` — of the code alive in the tree right now, who last wrote it. Unlike file-level persistence, one AI line no longer marks a whole file.${ls.truncated ? '\n\n> ⚠️ Capped sample (`--max-files`): an evenly spaced slice of the tree, not the whole tree.' : ''}
+Exact per-line attribution from \`git blame\` — of the code alive in the collected tree, which observed commit last wrote it. Unlike file-level metrics, one AI line no longer marks a whole file. The \`defaultMode\` prior is never applied here: an assumption cannot relabel living lines.${ls.truncated ? '\n\n> ⚠️ Capped sample (`--max-files`): an evenly spaced slice of the tree, not the whole tree.' : ''}
 
 | Cohort | Lines alive | Share |
 |---|---:|---:|
@@ -267,9 +276,9 @@ ${hotfixRows.join('\n')}
     return `| ${label} | ${stats.total} | ${stats.merged} | ${stats.closed} | ${(stats.acceptanceRate * 100).toFixed(1)}% |`;
   }
   const prSection = acc
-    ? `## PR Acceptance
+    ? `## PR Merge Outcome
 
-Whether the work was **accepted**, from the ${acc.provider} API — the question git history cannot answer, since squash merges and deleted branches erase what was discarded.${acc.truncated ? '\n\n> ⚠️ Capped sample (`--max-prs`): not the full history.' : ''}
+Merged vs closed-unmerged in the ${acc.provider} API. This is an observable repository outcome, not proof of review quality, deployment, or business acceptance.${acc.truncated ? '\n\n> ⚠️ Partial data: the PR window or at least one commit list was capped.' : ''}
 
 | Cohort | PRs | Merged | Closed unmerged | Acceptance |
 |---|---:|---:|---:|---:|
@@ -288,7 +297,7 @@ ${[
 `
     : '';
 
-  // Code Quality opens the report (#77 step 2): the repo-level block from
+  // Repository Change Signals opens the report: the repo-level block from
   // step 1, rendered first because it is the only view that needs no
   // attribution evidence — valid at 0% coverage, untouched by the prior.
   // It also replaces the old "Persistence (file-level survival)" section,
@@ -298,24 +307,22 @@ ${[
   const rq = metrics.repo;
   const rqp = rq.persistence;
 
-  // Quality over time (#77 step 3). The headline of a quality-first report is
+  // Change signals over time. The headline is
   // the direction of travel, not the snapshot — and the direction is only
   // readable between periods that have had the same amount of time to be
   // reworked, hence the maturity marker below.
   const tr = metrics.trend;
   const lc = tr.latestComparison;
   const trendHeadline = lc
-    ? `**${lc.from} → ${lc.to}:** average persistence ${lc.avgPersistenceDays.from}d → **${lc.avgPersistenceDays.to}d** (${formatDelta(lc.avgPersistenceDays.delta, 'd')})${
-        lc.reworkRate
-          ? `, rework ${(lc.reworkRate.from * 100).toFixed(1)}% → **${(lc.reworkRate.to * 100).toFixed(1)}%** (${formatDelta(round1(lc.reworkRate.delta * 100), 'pt')})`
-          : ''
-      }.`
+    ? lc.rapidRetouchRate
+      ? `**${lc.from} → ${lc.to}:** rapid retouch within ${tr.observationDays}d ${(lc.rapidRetouchRate.from * 100).toFixed(1)}% → **${(lc.rapidRetouchRate.to * 100).toFixed(1)}%** (${formatDelta(round1(lc.rapidRetouchRate.delta * 100), ' pt')}).`
+      : `**${lc.from} → ${lc.to}:** not enough eligible files for a ${tr.observationDays}-day comparison.`
     : `**No comparison yet** — fewer than two periods have been over for the full ${tr.observationDays}-day observation window. A trend needs two points that have had the same amount of time.`;
 
   const immature = tr.periods.filter((p) => !p.mature).length;
   const trendRows = tr.periods.map((p) => {
     const persistence = p.persistence;
-    return `| ${p.label}${p.mature ? '' : ' *(immature)*'} | ${p.commitsAuthored} | ${persistence ? persistence.avgDays : '—'} | ${persistence?.rework ? `${(persistence.rework.rate * 100).toFixed(1)}%` : '—'} | ${p.coverage === null ? '—' : `${(p.coverage * 100).toFixed(0)}%`} |`;
+    return `| ${p.label}${p.mature ? '' : ' *(immature)*'} | ${p.commitsAuthored} | ${persistence ? formatRetouch(rapidRetouch(persistence, tr.observationDays)) : '—'} | ${p.coverage === null ? '—' : `${(p.coverage * 100).toFixed(0)}%`} |`;
   });
 
   const trendSection =
@@ -327,32 +334,28 @@ ${trendHeadline}
 
 Every period is measured through the same ${tr.observationDays}-day window, so no period gets credit for time the others have not had.
 
-| Period | Commits | Avg persistence (d) | Rework | Coverage |
-|---|---:|---:|---:|---:|
+| Period | Commits | Retouched ≤${tr.observationDays}d | Coverage |
+|---|---:|---:|---:|
 ${trendRows.join('\n')}
 ${immature > 0 ? `\n*(immature)* — Too recent to judge: the period has not been over for the full ${tr.observationDays}-day window, so its files have had less time to be reworked than every period above. Shown for completeness, excluded from the comparison — otherwise every report would find quality declining.\n` : ''}`
       : '';
-  const codeQualitySection = `## Code Quality
+  const codeQualitySection = `## Repository Change Signals
 
-How the code holds up, as a property of the **repo** — measured over all ${rq.commitsAuthored} authored commits (${rq.commitsAutomated} automated excluded). No attribution evidence required: these numbers do not move with coverage or with the \`defaultMode\` prior.
+How files change again, as a property of the **repo** — measured over all ${rq.commitsAuthored} authored commits (${rq.commitsAutomated} automated excluded). No attribution evidence required: these numbers do not move with coverage or with the \`defaultMode\` prior.
 
-- Files measured: ${rqp.filesConsidered} (${rqp.censored} still surviving at collection time; ${rqp.filesExcluded} excluded: migrations/generated)
-- Average persistence: ${rqp.avgDays} days · median: ${rqp.medianDays}${
-    rqp.rework
-      ? `
-- **Rework rate (${rqp.rework.windowDays}d):** ${(rqp.rework.rate * 100).toFixed(1)}% — ${rqp.rework.reworked} of ${rqp.rework.determined} files with a determined outcome${rqp.rework.undetermined > 0 ? ` (${rqp.rework.undetermined} too recent to judge)` : ''}`
-      : ''
-  }
+- Files measured: ${rqp.filesConsidered} (${rqp.filesExcluded} excluded: migrations/generated)
 
-| 0–1d | 2–7d | 8–30d | 31–90d | 90d+ |
+**Rapid retouch** means a subsequent commit touched the same file within the stated horizon. It is a churn signal, not proof of a defect or “rework”. A file is eligible once it is retouched in time or has been observed event-free for the full horizon; otherwise it is too recent.
+
+| Horizon | Retouched | Eligible | Too recent | Rate |
 |---:|---:|---:|---:|---:|
-| ${rqp.buckets.d0_1} | ${rqp.buckets.d2_7} | ${rqp.buckets.d8_30} | ${rqp.buckets.d31_90} | ${rqp.buckets.d90_plus} |
+${rqp.rapidRetouch.map((result) => `| ${result.windowDays}d | ${result.retouched} | ${result.eligible} | ${result.tooRecent} | ${result.rate === null ? '—' : `${(result.rate * 100).toFixed(1)}%`} |`).join('\n')}
 ${trendSection}
 `;
 
   const baselineDetail = metrics.baseline && baselineHasEvidence
     ? `## ${baselineLabel}
-- Persistence — commits considered: ${metrics.baseline.persistence.commitsConsidered}, avg: ${metrics.baseline.persistence.avgDays}d, median: ${metrics.baseline.persistence.medianDays}d
+- Commits considered: ${metrics.baseline.persistence.commitsConsidered}; rapid retouch within 30d: ${formatRetouch(rapidRetouch(metrics.baseline.persistence, 30))}
 
 `
     : '';
@@ -361,12 +364,13 @@ ${trendSection}
 
 **Repo:** ${metrics.repoPath}  
 **Default branch:** ${metrics.defaultBranch}  
+**Scope:** ${metrics.scope} @ ${metrics.headSha.slice(0, 12) || 'empty repo'}
 **Window:** ${metrics.window.since || 'beginning'} → ${metrics.window.until || 'now'}  
 **Generated:** ${metrics.generatedAt}
 
 ${codeQualitySection}${lineSection}${outcomeSection}${prSection}## Autonomy
 
-The lens over the quality above: **at what level of AI autonomy** the code was written. Everything from here down depends on attribution evidence — see Data Quality below for how much of it this repo has.
+The lens over the repository signals above: **at what level of AI autonomy** the code was written. Everything from here down depends on attribution evidence — see Data Quality below for how much of it this repo has.
 ${coverageWarning}
 | Autonomy level | Commits |
 |---|---:|
@@ -382,7 +386,7 @@ ${priorNote}
 ${byModeSection}${comparisonSection}
 ${fairnessSection}${baselineDetail}## Data Quality
 
-**${coveragePct}% of commits carry attribution evidence** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · none ${a.evidence.none} (${unknownPct}%). Evidence gates the autonomy sections above, never Code Quality.
+**${coveragePct}% of commits carry attribution evidence** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · none ${a.evidence.none} (${unknownPct}%). Evidence gates the autonomy sections above, never repository-level change signals.
 ${recentLine}
 ### Caveats
 ${metrics.caveats.map((caveat) => `- ${caveat}`).join('\n')}

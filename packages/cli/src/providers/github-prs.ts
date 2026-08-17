@@ -11,8 +11,8 @@ import {
 
 // GitHub PR fetcher for `aida fetch-prs` (#51).
 //
-// Deliberately the only network code in AIDA, in its own opt-in command:
-// `collect` stays git-only and offline. Nothing about the PR author is read
+// Deliberately isolated in an opt-in command: `collect` stays git-only and
+// offline. Nothing about the PR author is read
 // or stored — only outcomes and the attribution of the PR's own commits.
 
 const API_PAGE_SIZE = 100;
@@ -115,32 +115,47 @@ export async function fetchClosedPRs(options: FetchPROptions): Promise<PRStream>
   const prs: PullRequest[] = [];
   let page = 1;
   let truncated = false;
-  let reachedWindow = false;
 
-  while (!reachedWindow) {
+  while (true) {
     const url = `${apiUrl}/repos/${repo}/pulls?state=closed&sort=updated&direction=desc&per_page=${API_PAGE_SIZE}&page=${page}`;
     const batch = await apiGet<GitHubPR[]>(url, token);
     if (batch.length === 0) break;
 
     for (const pr of batch) {
       if (!pr.closed_at) continue; // still open despite the filter
+      if (pr.draft) continue; // no terminal acceptance outcome for draft work
 
       if (since && new Date(pr.closed_at) < since) {
-        // Sorted by updated desc: everything after this is older
-        reachedWindow = true;
-        break;
+        // The endpoint is sorted by updated_at, not closed_at. Keep scanning:
+        // a later page can still contain a recently closed PR.
+        continue;
       }
 
       if (maxPRs && prs.length >= maxPRs) {
         truncated = true;
-        reachedWindow = true;
         break;
       }
 
-      const commits = await apiGet<GitHubPRCommit[]>(
-        `${apiUrl}/repos/${repo}/pulls/${pr.number}/commits?per_page=${API_PAGE_SIZE}`,
-        token
-      );
+      const commits: GitHubPRCommit[] = [];
+      let commitPage = 1;
+      let commitsComplete = true;
+      while (true) {
+        const commitBatch = await apiGet<GitHubPRCommit[]>(
+          `${apiUrl}/repos/${repo}/pulls/${pr.number}/commits?per_page=${API_PAGE_SIZE}&page=${commitPage}`,
+          token
+        );
+        commits.push(...commitBatch);
+        if (commitBatch.length < API_PAGE_SIZE) break;
+        // GitHub documents a hard maximum of 250 commits for this endpoint.
+        if (commits.length >= 250 || commitPage >= 3) {
+          commitsComplete = false;
+          commits.splice(250);
+          break;
+        }
+        commitPage++;
+      }
+      if (commits.length >= 250) commitsComplete = false;
+      if (!commitsComplete) truncated = true;
 
       const taggedCommits: PRCommit[] = commits.map((commit) => {
         let tags: AITagResult = tagger(commit.commit.message);
@@ -161,10 +176,15 @@ export async function fetchClosedPRs(options: FetchPROptions): Promise<PRStream>
         closedAt: new Date(pr.closed_at).toISOString(),
         mergedAt: pr.merged_at ? new Date(pr.merged_at).toISOString() : null,
         commits: taggedCommits,
+        commitsComplete,
       });
     }
 
     logger?.info(`Fetched ${prs.length} closed PR(s)...`);
+    if (maxPRs && prs.length >= maxPRs) {
+      if (batch.length === API_PAGE_SIZE) truncated = true;
+      break;
+    }
     if (batch.length < API_PAGE_SIZE) break;
     page++;
   }

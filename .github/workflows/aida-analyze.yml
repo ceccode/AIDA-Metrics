@@ -6,50 +6,93 @@ on:
   pull_request:
 
 jobs:
-  analyze:
+  quality:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
-      checks: write
-      pull-requests: write
-      id-token: write
+    strategy:
+      matrix:
+        node-version: [22, 24]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -w build
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  analyze:
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
 
       - name: Run AIDA (full history on main)
         if: github.event_name == 'push'
         run: |
-          node packages/cli/dist/index.js collect --out-dir ./.aida
+          node packages/cli/dist/index.js collect --out-dir ./.aida --redact-authors
           node packages/cli/dist/index.js analyze --out-dir ./.aida
           node packages/cli/dist/index.js report --out-dir ./.aida
 
       - name: Run AIDA (PR-scoped)
         if: github.event_name == 'pull_request'
         run: |
-          node packages/cli/dist/index.js collect --pr --out-dir ./.aida
+          node packages/cli/dist/index.js collect --pr --out-dir ./.aida --redact-authors
           node packages/cli/dist/index.js analyze --out-dir ./.aida
           node packages/cli/dist/index.js report --out-dir ./.aida
-          node packages/cli/dist/index.js comment --out-dir ./.aida
+
+      # Keep the write-capable token away from code built from the PR. The
+      # report is posted by GitHub's preinstalled CLI in its own narrow step.
+      - name: Post AIDA report to PR
+        if: github.event_name == 'pull_request'
+        run: |
+          marker='<!-- aida-metrics-report -->'
+          comment_id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --jq '.[] | select(.body | startswith("<!-- aida-metrics-report -->")) | .id' | head -n 1)
+          payload=$(jq -Rs --arg marker "$marker" '{body: ($marker + "\n" + .)}' < ./.aida/report.md)
+          if [ -n "$comment_id" ]; then
+            printf '%s' "$payload" | gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/issues/comments/$comment_id" --input -
+          else
+            printf '%s' "$payload" | gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --input -
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
       - name: Upload AIDA artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: aida-report
+          include-hidden-files: true
           path: |
             ./.aida/commit-stream.json
             ./.aida/metrics.json
