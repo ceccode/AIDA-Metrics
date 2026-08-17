@@ -3,7 +3,7 @@ import { Commit, CommitStream } from '@aida-dev/core';
 import { calculateOutcomeCorrelation } from './outcome-correlation.js';
 
 function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
-  return {
+  const commit: Commit = {
     authorName: 'Test',
     authorEmail: 'test@example.com',
     authorDate: '2025-01-01T00:00:00.000Z',
@@ -18,16 +18,22 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,
   };
+  if (overrides.authorDate && overrides.committerDate === undefined) {
+    commit.committerDate = overrides.authorDate;
+  }
+  return commit;
 }
 
 function makeStream(commits: Commit[]): CommitStream {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     repoPath: '/test',
     defaultBranch: 'main',
+    scope: 'default-branch',
+    headSha: 'head',
     generatedAt: '2025-02-01T00:00:00.000Z',
     aiPatterns: [],
-    commits,
+    commits: [...commits].reverse(),
   };
 }
 

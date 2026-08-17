@@ -69,6 +69,18 @@ export const Rework = z.object({
   rate: z.number().min(0).max(1),
 });
 
+// Fixed-horizon rapid retouch (# pre-1.0 metric contract). Unlike a raw
+// average of event times and censored follow-up, this answers one bounded
+// question: among files whose outcome by day N is known, how many were
+// touched again? Files that have not yet reached N are stated separately.
+export const RapidRetouch = z.object({
+  windowDays: z.number().int().positive(),
+  retouched: z.number().int().nonnegative(),
+  eligible: z.number().int().nonnegative(),
+  tooRecent: z.number().int().nonnegative(),
+  rate: z.number().min(0).max(1).nullable(),
+});
+
 export const Persistence = z.object({
   commitsConsidered: z.number().int().nonnegative(),
   filesConsidered: z.number().int().nonnegative(),
@@ -78,6 +90,7 @@ export const Persistence = z.object({
   medianDays: z.number().nonnegative(),
   // Null when no file has a determined outcome in the window (#22)
   rework: Rework.nullable(),
+  rapidRetouch: z.array(RapidRetouch),
   buckets: z.object({
     d0_1: z.number().int().nonnegative(),
     d2_7: z.number().int().nonnegative(),
@@ -130,6 +143,7 @@ export const Baseline = z.object({
 export const Delta = z.object({
   avgPersistenceDays: z.number(),
   medianPersistenceDays: z.number(),
+  rapidRetouch30Rate: z.number().nullable(),
 });
 
 // Age-normalized comparison (#29): the AI vs Baseline table above can be
@@ -155,6 +169,7 @@ export const CategoryPersistence = z.object({
   filesConsidered: z.number().int().nonnegative(),
   avgDays: z.number().nonnegative(),
   medianDays: z.number().nonnegative(),
+  rapidRetouch30: RapidRetouch.nullable(),
 });
 
 export const CategoryComparison = z.object({
@@ -378,6 +393,7 @@ export const Trend = z.object({
       to: z.string(),
       avgPersistenceDays: TrendDelta,
       reworkRate: TrendDelta.nullable(),
+      rapidRetouchRate: TrendDelta.nullable(),
     })
     .nullable(),
 });
@@ -392,6 +408,8 @@ export const Metrics = z.object({
   }),
   repoPath: z.string(),
   defaultBranch: z.string(),
+  scope: z.enum(['default-branch', 'all-refs', 'pr']),
+  headSha: z.string(),
   attribution: Attribution,
   // Repo-level quality (#77): cohort-free, prior-free, the primary object
   repo: RepoQuality,
@@ -428,6 +446,7 @@ export const Metrics = z.object({
 export type Attribution = z.infer<typeof Attribution>;
 export type RecentCoverage = z.infer<typeof RecentCoverage>;
 export type Rework = z.infer<typeof Rework>;
+export type RapidRetouch = z.infer<typeof RapidRetouch>;
 export type AgeStats = z.infer<typeof AgeStats>;
 export type FileCategory = z.infer<typeof FileCategory>;
 export type CategoryCounts = z.infer<typeof CategoryCounts>;

@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { calculateMetrics } from './index.js';
 import { Commit, CommitStream } from '@aida-dev/core';
 
 function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
-  return {
+  const commit: Commit = {
     authorName: 'Test User',
     authorEmail: 'test@example.com',
     authorDate: '2025-01-01T00:00:00.000Z',
@@ -18,16 +18,22 @@ function makeCommit(overrides: Partial<Commit> & { hash: string }): Commit {
     stats: { totalAdditions: 1, totalDeletions: 0, files: [] },
     ...overrides,
   };
+  if (overrides.authorDate && overrides.committerDate === undefined) {
+    commit.committerDate = overrides.authorDate;
+  }
+  return commit;
 }
 
 function makeStream(commits: Commit[]): CommitStream {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     repoPath: '/test/repo',
     defaultBranch: 'main',
+    scope: 'default-branch',
+    headSha: 'head',
     generatedAt: '2025-01-01T00:00:00.000Z',
     aiPatterns: [],
-    commits,
+    commits: [...commits].reverse(),
   };
 }
 
@@ -36,6 +42,22 @@ const humanTags: Commit['tags'] = { attribution: 'human', automated: false, mode
 const unknownTags: Commit['tags'] = { attribution: 'unknown', automated: false, mode: 'unknown', evidence: 'none', level: 'none', sources: [] };
 
 describe('calculateMetrics attribution coverage', () => {
+  it('is byte-deterministic for the same collected snapshot', () => {
+    const stream = makeStream([makeCommit({ hash: 'a1', tags: aiTags })]);
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+      const first = calculateMetrics(stream);
+      vi.setSystemTime(new Date('2040-01-01T00:00:00Z'));
+      const second = calculateMetrics(stream);
+
+      expect(JSON.stringify(first)).toBe(JSON.stringify(second));
+      expect(first.generatedAt).toBe(stream.generatedAt);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('reports coverage as (ai + human) / total', () => {
     const metrics = calculateMetrics(
       makeStream([
@@ -78,8 +100,8 @@ describe('calculateMetrics attribution coverage', () => {
   });
 
   it('reports recent-window coverage alongside all-time (#52)', () => {
-    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
-    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const recent = '2024-12-27T00:00:00.000Z';
+    const old = '2023-12-01T00:00:00.000Z';
     const metrics = calculateMetrics(
       makeStream([
         // Old, untagged: drags all-time coverage down forever
@@ -99,7 +121,7 @@ describe('calculateMetrics attribution coverage', () => {
   });
 
   it('has a null recent block when the window contains no commits', () => {
-    const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+    const old = '2023-12-01T00:00:00.000Z';
     const metrics = calculateMetrics(
       makeStream([makeCommit({ hash: 'o1', tags: aiTags, authorDate: old })]),
       { coverageWindowDays: 30 }
@@ -219,7 +241,7 @@ describe('calculateMetrics baseline cohort', () => {
     );
 
     expect(metrics.cohorts.ai.age?.commits).toBe(1);
-    expect(metrics.cohorts.ai.age?.avgAgeDays).toBeGreaterThan(0);
+    expect(metrics.cohorts.ai.age?.avgAgeDays).toBe(0); // measured at stream.generatedAt
     expect(metrics.cohorts.ai.taskMix?.source).toBe(1);
     expect(metrics.cohorts.ai.taskMix?.tests).toBe(1);
     expect(metrics.cohorts.baseline.age).toBeNull();

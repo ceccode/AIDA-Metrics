@@ -1,7 +1,7 @@
 {
   "name": "@aida-dev/metrics",
   "version": "0.16.0",
-  "description": "Metrics engine for AIDA (AI Development Accounting) - Merge ratio, persistence, and AI impact analysis",
+  "description": "Deterministic rapid-retouch, trend, attribution, and outcome metrics for AIDA",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -48,7 +48,7 @@
     "url": "https://github.com/ceccode/aida-metrics/issues"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "publishConfig": {
     "access": "public"

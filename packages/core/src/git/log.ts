@@ -53,8 +53,11 @@ function parseStatus(code: string): FileChangeType['status'] {
  */
 export async function logWithStats(git: SimpleGit, rangeArgs: string[]): Promise<RawCommit[]> {
   const [numstatRaw, nameStatusRaw] = await Promise.all([
-    git.raw(['log', `--format=${LOG_FORMAT}`, '--numstat', ...rangeArgs]),
-    git.raw(['log', `--format=${RS}%H`, '--name-status', ...rangeArgs]),
+    // Newest-first topological order is part of the stream contract. Metrics
+    // reverse this array to define "subsequent"; author timestamps can move
+    // backwards after a rebase and must not reorder history.
+    git.raw(['log', '--topo-order', `--format=${LOG_FORMAT}`, '--numstat', ...rangeArgs]),
+    git.raw(['log', '--topo-order', `--format=${RS}%H`, '--name-status', ...rangeArgs]),
   ]);
 
   // hash -> path -> status

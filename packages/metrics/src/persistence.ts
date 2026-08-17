@@ -1,4 +1,4 @@
-import { Commit, CommitStream, daysBetween } from '@aida-dev/core';
+import { Commit, CommitStream } from '@aida-dev/core';
 import { categorizeFile } from './cohort.js';
 import { FileCategory, Persistence } from './schema/metrics.js';
 
@@ -13,6 +13,7 @@ export const DEFAULT_PERSISTENCE_EXCLUDED_CATEGORIES: FileCategory[] = [
 ];
 
 export const DEFAULT_REWORK_WINDOW_DAYS = 7;
+export const DEFAULT_RAPID_RETOUCH_HORIZONS = [7, 30, 90] as const;
 
 export interface PersistenceOptions {
   excludeCategories?: FileCategory[];
@@ -31,6 +32,9 @@ export interface PersistenceOptions {
   // category, bypassing excludeCategories (the caller is explicitly asking
   // for that category's own data, generated/migrations included).
   onlyCategory?: FileCategory;
+  // Fixed horizons whose outcomes are reported without mixing censored
+  // follow-up with event durations.
+  retouchHorizons?: number[];
 }
 
 interface FileLifecycle {
@@ -38,6 +42,12 @@ interface FileLifecycle {
   firstTargetDate: Date;
   // Set when a later commit modifies or deletes the file: survival ends
   eventDate: Date | null;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function elapsedDays(from: Date, to: Date): number {
+  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / DAY_MS));
 }
 
 // Persistence = survival: days from the first target-cohort touch of a file
@@ -55,6 +65,7 @@ export function calculatePersistence(
     reworkWindowDays = DEFAULT_REWORK_WINDOW_DAYS,
     maxObservationDays,
     onlyCategory,
+    retouchHorizons = [...DEFAULT_RAPID_RETOUCH_HORIZONS],
   } = options;
   const excluded = new Set<FileCategory>(excludeCategories);
 
@@ -68,6 +79,13 @@ export function calculatePersistence(
     avgDays: 0,
     medianDays: 0,
     rework: null,
+    rapidRetouch: retouchHorizons.map((windowDays) => ({
+      windowDays,
+      retouched: 0,
+      eligible: 0,
+      tooRecent: 0,
+      rate: null,
+    })),
     buckets: { d0_1: 0, d2_7: 0, d8_30: 0, d31_90: 0, d90_plus: 0 },
   };
 
@@ -75,10 +93,10 @@ export function calculatePersistence(
     return { ...empty, commitsConsidered: 0 };
   }
 
-  // Sort commits by date (oldest first)
-  const sortedCommits = [...commitStream.commits].sort(
-    (a, b) => new Date(a.authorDate).getTime() - new Date(b.authorDate).getTime()
-  );
+  // Collection guarantees newest-first topological order. Reverse it to
+  // define "subsequent" without letting a rewritten timestamp reorder the
+  // graph. Committer time remains the elapsed-time proxy for integration.
+  const sortedCommits = [...commitStream.commits].reverse();
 
   // First target-cohort touch per file
   const lifecycles = new Map<string, FileLifecycle>();
@@ -96,7 +114,7 @@ export function calculatePersistence(
       }
       lifecycles.set(file.path, {
         firstTargetIndex: index,
-        firstTargetDate: new Date(commit.authorDate),
+        firstTargetDate: new Date(commit.committerDate),
         eventDate: null,
       });
     }
@@ -109,7 +127,7 @@ export function calculatePersistence(
       if (!lifecycle || lifecycle.firstTargetIndex < 0) continue; // excluded category
       if (index <= lifecycle.firstTargetIndex) continue; // not later than first touch
       if (lifecycle.eventDate === null) {
-        lifecycle.eventDate = new Date(commit.authorDate);
+        lifecycle.eventDate = new Date(commit.committerDate);
       }
     }
   });
@@ -123,6 +141,12 @@ export function calculatePersistence(
   let reworked = 0;
   let determined = 0;
   let undetermined = 0;
+  const horizonCounts = new Map(
+    [...new Set(retouchHorizons)].sort((a, b) => a - b).map((windowDays) => [
+      windowDays,
+      { windowDays, retouched: 0, eligible: 0, tooRecent: 0 },
+    ])
+  );
   for (const lifecycle of lifecycles.values()) {
     if (lifecycle.firstTargetIndex < 0) continue; // excluded category
 
@@ -139,13 +163,13 @@ export function calculatePersistence(
             )
           )
         : observationEnd;
-    const observedDays = Math.max(0, daysBetween(lifecycle.firstTargetDate, effectiveEnd));
+    const observedDays = elapsedDays(lifecycle.firstTargetDate, effectiveEnd);
 
     if (lifecycle.eventDate && lifecycle.eventDate <= effectiveEnd) {
-      const survived = daysBetween(lifecycle.firstTargetDate, lifecycle.eventDate);
+      const survived = elapsedDays(lifecycle.firstTargetDate, lifecycle.eventDate);
       survivalDays.push(survived);
       determined++;
-      if (survived < reworkWindowDays) reworked++;
+      if (survived <= reworkWindowDays) reworked++;
     } else {
       // No event within the effective window: censored there, whether
       // because the file was never touched again or the cap cut us off
@@ -156,6 +180,21 @@ export function calculatePersistence(
         determined++; // observed long enough to say "not reworked"
       } else {
         undetermined++; // too recent to judge
+      }
+    }
+
+    for (const horizon of horizonCounts.values()) {
+      const eventDays =
+        lifecycle.eventDate && lifecycle.eventDate <= effectiveEnd
+          ? elapsedDays(lifecycle.firstTargetDate, lifecycle.eventDate)
+          : null;
+      if (eventDays !== null && eventDays <= horizon.windowDays) {
+        horizon.retouched++;
+        horizon.eligible++;
+      } else if (observedDays >= horizon.windowDays) {
+        horizon.eligible++;
+      } else {
+        horizon.tooRecent++;
       }
     }
   }
@@ -188,6 +227,13 @@ export function calculatePersistence(
             rate: Math.round((reworked / determined) * 10000) / 10000,
           }
         : null,
+    rapidRetouch: [...horizonCounts.values()].map((horizon) => ({
+      ...horizon,
+      rate:
+        horizon.eligible > 0
+          ? Math.round((horizon.retouched / horizon.eligible) * 10000) / 10000
+          : null,
+    })),
     buckets: {
       d0_1: survivalDays.filter((days) => days <= 1).length,
       d2_7: survivalDays.filter((days) => days >= 2 && days <= 7).length,

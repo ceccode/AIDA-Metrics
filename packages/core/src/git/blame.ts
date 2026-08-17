@@ -1,9 +1,9 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { BLAME_STREAM_SCHEMA_VERSION, BlameStream } from '../schema/blame.js';
 import { Logger } from '../utils/log.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Line-level survival via `git blame` (#23).
 //
@@ -24,14 +24,21 @@ const CHUNK_HEADER = /^([0-9a-f]{40})\s+\d+\s+\d+\s+(\d+)$/;
 
 export async function blameFileLineCounts(
   repoPath: string,
-  file: string
+  file: string,
+  ref = 'HEAD'
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
 
   // -w ignores whitespace-only changes, so reformatting does not reattribute
   // a line to whoever ran the formatter.
-  const { stdout } = await execAsync(
-    `git blame --incremental -w HEAD -- ${JSON.stringify(file)}`,
+  // `file` comes from the repository and is therefore hostile input. Passing
+  // it through a shell used to make names such as `$(touch PWNED)` execute
+  // command substitutions even though the value had been JSON-stringified:
+  // double quotes are not a shell security boundary. Keep every git argument
+  // separate so no shell is involved (# security audit, pre-1.0).
+  const { stdout } = await execFileAsync(
+    'git',
+    ['blame', '--incremental', '-w', ref, '--', file],
     { cwd: repoPath, maxBuffer: 64 * 1024 * 1024 }
   );
 
@@ -52,18 +59,22 @@ const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 // `git blame` does not fail on binary files: it reports the whole blob as a
 // single line, which would silently add junk to the line totals. Detecting
 // them up front in one command is both correct and cheap.
-export async function findBinaryFiles(repoPath: string): Promise<Set<string>> {
+export async function findBinaryFiles(repoPath: string, ref = 'HEAD'): Promise<Set<string>> {
   const binary = new Set<string>();
   try {
-    const { stdout } = await execAsync(`git diff --numstat ${EMPTY_TREE} HEAD`, {
+    const { stdout } = await execFileAsync('git', ['diff', '--numstat', '-z', EMPTY_TREE, ref], {
       cwd: repoPath,
       maxBuffer: 64 * 1024 * 1024,
     });
-    for (const line of stdout.split('\n')) {
-      const parts = line.split('\t');
-      if (parts.length >= 3 && parts[0] === '-' && parts[1] === '-') {
-        binary.add(parts[parts.length - 1]);
-      }
+    const records = stdout.split('\0');
+    for (let i = 0; i < records.length; i++) {
+      const parts = records[i].split('\t');
+      if (parts.length < 3) continue;
+      // With -z a rename is `<add>\t<del>\t\0<old>\0<new>\0`.
+      // The empty third field therefore consumes the following two records.
+      const path = parts[2] || records[i + 2];
+      if (!parts[2]) i += 2;
+      if (path && parts[0] === '-' && parts[1] === '-') binary.add(path);
     }
   } catch {
     // An empty repo or unreadable history: nothing to exclude
@@ -85,6 +96,7 @@ function stride<T>(items: T[], max: number): T[] {
 
 export interface CollectBlameOptions {
   repoPath: string;
+  ref?: string;
   // Paths to skip — lockfiles and generated output would dominate the line
   // count while carrying no authorship signal.
   exclude?: (path: string) => boolean;
@@ -93,15 +105,23 @@ export interface CollectBlameOptions {
 }
 
 export async function collectBlame(options: CollectBlameOptions): Promise<BlameStream> {
-  const { repoPath, exclude, maxFiles, logger } = options;
+  const { repoPath, ref = 'HEAD', exclude, maxFiles, logger } = options;
 
-  const { stdout: fileList } = await execAsync('git ls-tree -r HEAD --name-only', {
+  // NUL separation is required for valid git paths containing newlines.
+  const { stdout: fileList } = await execFileAsync(
+    'git',
+    ['ls-tree', '-r', '-z', ref, '--name-only'],
+    {
+      cwd: repoPath,
+      maxBuffer: 64 * 1024 * 1024,
+    }
+  );
+  const { stdout: headSha } = await execFileAsync('git', ['rev-parse', ref], {
     cwd: repoPath,
-    maxBuffer: 64 * 1024 * 1024,
   });
 
-  const allFiles = fileList.split('\n').filter(Boolean);
-  const binaryFiles = await findBinaryFiles(repoPath);
+  const allFiles = fileList.split('\0').filter(Boolean);
+  const binaryFiles = await findBinaryFiles(repoPath, ref);
   const textFiles = allFiles.filter((f) => !binaryFiles.has(f));
   const binarySkipped = allFiles.length - textFiles.length;
 
@@ -128,7 +148,7 @@ export async function collectBlame(options: CollectBlameOptions): Promise<BlameS
   for (const file of selected) {
     let counts: Map<string, number>;
     try {
-      counts = await blameFileLineCounts(repoPath, file);
+      counts = await blameFileLineCounts(repoPath, file, ref);
     } catch (error) {
       // Submodules, unreadable paths, a missing object in a partial clone,
       // or stdout past maxBuffer. Never fatal — but counting these as
@@ -167,6 +187,7 @@ export async function collectBlame(options: CollectBlameOptions): Promise<BlameS
   return {
     schemaVersion: BLAME_STREAM_SCHEMA_VERSION,
     repoPath,
+    headSha: headSha.trim(),
     generatedAt: new Date().toISOString(),
     filesBlamed,
     filesSkipped,

@@ -107,9 +107,7 @@ function calculateHotfixes(
   windowDays: number,
   baseRates: Record<Cohort, number | null>
 ): HotfixStats {
-  const sorted = [...commitStream.commits].sort(
-    (a, b) => new Date(a.authorDate).getTime() - new Date(b.authorDate).getTime()
-  );
+  const sorted = [...commitStream.commits].reverse();
 
   const lastTouch = new Map<string, { date: Date; commit: Commit }>();
   let total = 0;
@@ -126,7 +124,7 @@ function calculateHotfixes(
       for (const file of commit.stats.files) {
         const prior = lastTouch.get(file.path);
         if (!prior) continue;
-        const gapDays = daysBetween(prior.date, new Date(commit.authorDate));
+        const gapDays = daysBetween(prior.date, new Date(commit.committerDate));
         if (gapDays <= windowDays && gapDays < smallestGap) {
           smallestGap = gapDays;
           antecedent = prior.commit;
@@ -147,7 +145,7 @@ function calculateHotfixes(
       if (file.status === 'deleted') {
         lastTouch.delete(file.path);
       } else {
-        lastTouch.set(file.path, { date: new Date(commit.authorDate), commit });
+        lastTouch.set(file.path, { date: new Date(commit.committerDate), commit });
       }
     }
   }

@@ -1,6 +1,6 @@
 # @aida-dev/cli
 
-Command-line interface for AIDA (AI Development Accounting) metrics.
+Command-line interface for AIDA — an auditable evidence ledger for AI-assisted software development.
 
 ## Installation
 
@@ -20,8 +20,8 @@ aida collect --since 90d
 # Analyze collected data
 aida analyze
 
-# Generate reports
-aida report --format both
+# Generate the Markdown report
+aida report
 ```
 
 ### Commands
@@ -35,6 +35,7 @@ Options:
 - `--repo <path>` - Repository path (default: current directory)
 - `--since <date>` - Start date (ISO or relative like 90d)
 - `--until <date>` - End date (ISO or relative)
+- `--scope <value>` - `default-branch` (default) or `all-refs`
 - `--ai-pattern <pattern>` - Custom AI detection pattern (repeatable)
 - `--default-branch <name>` - Default branch name (auto-detect if omitted)
 - `--out-dir <path>` - Output directory (default: ./aida-output)
@@ -50,11 +51,10 @@ Generate human-readable reports from metrics
 
 Options:
 
-- `--format <format>` - Output format: json, md, both (default: both)
+- `--out-dir <path>` - Output directory containing `metrics.json`
 
 ## Output Files
 
 - `commit-stream.json` - Normalized commit data with AI tagging
-- `metrics.json` - Calculated merge ratio and persistence metrics
-- `report.json` - JSON report (same as metrics.json)
+- `metrics.json` - Scoped attribution, rapid-retouch, trend, and outcome metrics
 - `report.md` - Human-readable Markdown report

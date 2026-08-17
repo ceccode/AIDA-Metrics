@@ -9,11 +9,14 @@ import { z } from 'zod';
 // v2 adds `blamedPaths`: the survival rate divides surviving AI lines by AI
 // lines added, and without the file list those two numbers were measured
 // over different file sets (see line-survival.ts).
-export const BLAME_STREAM_SCHEMA_VERSION = 2;
+// v3 binds blame output to the exact HEAD it describes, so analyze cannot
+// silently join living lines from one checkout with commits from another.
+export const BLAME_STREAM_SCHEMA_VERSION = 3;
 
 export const BlameStream = z.object({
   schemaVersion: z.number().int().positive(),
   repoPath: z.string(),
+  headSha: z.string(),
   generatedAt: z.string().datetime(),
   filesBlamed: z.number().int().nonnegative(),
   // Binary or empty paths: skipped rather than failing the run

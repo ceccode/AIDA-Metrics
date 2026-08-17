@@ -20,7 +20,7 @@ export const AidaConfig = z.object({
   // Replace author/committer identities with a per-run salted hash (#35).
   // Recommended in CI, where commit-stream.json leaves the machine.
   redactAuthors: z.boolean().default(false),
-});
+}).strict();
 
 export type AidaConfig = z.infer<typeof AidaConfig>;
 

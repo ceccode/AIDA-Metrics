@@ -1,7 +1,7 @@
 {
   "name": "@aida-dev/core",
   "version": "0.18.0",
-  "description": "Core functionality for AIDA (AI Development Accounting) - Git collection, AI tagging, and schemas",
+  "description": "Git collection, AI attribution, and versioned schemas for AIDA",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -51,7 +51,7 @@
     "@vitest/coverage-v8": "^2.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "publishConfig": {
     "access": "public"

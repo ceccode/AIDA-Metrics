@@ -273,8 +273,8 @@ describe('collectCommits synthetic PR merge (#40)', () => {
     expect(subjects.some((s) => /^Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}$/.test(s))).toBe(false);
   });
 
-  it('keeps merge commits in standard (non-PR) mode', async () => {
-    const stream = await collectCommits({ repoPath: prRepoPath });
+  it('keeps merge commits when all refs are explicitly requested', async () => {
+    const stream = await collectCommits({ repoPath: prRepoPath, scope: 'all-refs' });
     expect(
       stream.commits.some((c) => /^Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}$/.test(c.message))
     ).toBe(true);
@@ -318,7 +318,7 @@ describe('collectCommits on degenerate repositories', () => {
 
       const stream = await collectCommits({ repoPath: emptyPath });
       expect(stream.commits).toEqual([]);
-      expect(stream.schemaVersion).toBe(2);
+      expect(stream.schemaVersion).toBe(3);
       expect(stream.defaultBranch).toBe('main');
     } finally {
       rmSync(emptyPath, { recursive: true, force: true });
@@ -367,5 +367,31 @@ describe('collectCommits on degenerate repositories', () => {
     };
     await collectCommits({ repoPath, logger });
     expect(warnings.join(' ')).not.toMatch(/SHALLOW/);
+  });
+});
+
+describe('collectCommits scope contract', () => {
+  it('keeps unreachable branch work out of the default report', async () => {
+    const scopedRepo = mkdtempSync(join(tmpdir(), 'aida-scope-'));
+    const runHere = (cmd: string) => execSync(cmd, { cwd: scopedRepo });
+    try {
+      runHere('git init -q -b main');
+      runHere('git config user.name test && git config user.email test@example.com');
+      runHere('git commit -q --allow-empty -m "main: base"');
+      const mainHead = runHere('git rev-parse HEAD').toString().trim();
+      runHere('git checkout -q -b abandoned');
+      runHere('git commit -q --allow-empty -m "branch: unreachable"');
+
+      const defaultStream = await collectCommits({ repoPath: scopedRepo });
+      const allRefsStream = await collectCommits({ repoPath: scopedRepo, scope: 'all-refs' });
+
+      expect(defaultStream.scope).toBe('default-branch');
+      expect(defaultStream.headSha).toBe(mainHead);
+      expect(defaultStream.commits.map((commit) => commit.message)).toEqual(['main: base']);
+      expect(allRefsStream.scope).toBe('all-refs');
+      expect(allRefsStream.commits.map((commit) => commit.message)).toContain('branch: unreachable');
+    } finally {
+      rmSync(scopedRepo, { recursive: true, force: true });
+    }
   });
 });

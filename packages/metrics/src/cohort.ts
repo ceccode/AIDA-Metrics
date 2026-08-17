@@ -10,7 +10,7 @@ export function calculateAgeStats(commits: Commit[], now: Date): AgeStats | null
   }
 
   const ages = commits
-    .map((commit) => daysBetween(new Date(commit.authorDate), now))
+    .map((commit) => daysBetween(new Date(commit.committerDate), now))
     .sort((a, b) => a - b);
 
   const avg = ages.reduce((sum, days) => sum + days, 0) / ages.length;

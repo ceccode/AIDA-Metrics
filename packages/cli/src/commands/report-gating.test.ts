@@ -90,7 +90,7 @@ describe('overlay gating (#77 step 4)', () => {
     expect(report).not.toContain('## Cohort Fairness');
 
     // Repo-level quality is untouched by the gate: it never needed evidence
-    expect(report).toContain('## Code Quality');
+    expect(report).toContain('## Repository Change Signals');
     expect(report).toContain('### Trend');
   });
 
@@ -99,7 +99,7 @@ describe('overlay gating (#77 step 4)', () => {
     git('git add -A && git commit -q -m "feat: undeclared"');
     writeFileSync(join(repoPath, 'b.ts'), 'export const b = 1;\n');
     git(
-      'git add -A && git commit -q -m "feat: declared" -m "Co-Authored-By: Claude <noreply@anthropic.com>"'
+      'git add -A && git commit -q -m "feat: declared" -m "AI-Mode: agent"'
     );
 
     const { report } = await pipeline(['--default-mode', 'agent']);

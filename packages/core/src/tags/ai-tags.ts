@@ -46,14 +46,12 @@ export function projectAttribution({ mode, evidence, automated }: AutonomyAxes):
 // their prefixes ('claude code' before 'claude').
 export const MODE_BY_TOOL: Array<[pattern: RegExp, mode: AIMode]> = [
   [/\bclaude\s+code\b/i, 'agent'],
-  // Co-Authored-By: Claude <noreply@anthropic.com> is Claude Code's own
-  // commit convention → agent
-  [/\bclaude\b/i, 'agent'],
   // GitHub's autonomous coding agent, which opens its own PRs — must be
-  // matched before the bare `copilot` rule, or it reads as autocomplete.
+  // matched before the bare `copilot` rule.
   [/\bcopilot[-\s]?swe[-\s]?agent\b/i, 'agent'],
-  [/\bcopilot\b/i, 'autocomplete'],
-  [/\b(cursor|windsurf|codeium|chatgpt|gemini)\b/i, 'assisted'],
+  // A tool name proves involvement, not autonomy. Only declarations
+  // (AI-Mode) or unambiguous product identities may name a mode.
+  [/\b(copilot|claude|cursor|windsurf|codeium|chatgpt|gemini)\b/i, 'unknown'],
 ];
 
 // Commit-time declared mode (#61): `AI-Mode: agent` written by the
@@ -162,21 +160,41 @@ function buildPatterns(tools: string, domains: string) {
   };
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function compileCustomPattern(pattern: string): RegExp {
+  try {
+    return new RegExp(pattern, 'im');
+  } catch (error) {
+    throw new Error(
+      'Invalid AI detection regex ' +
+        JSON.stringify(pattern) +
+        ': ' +
+        (error instanceof Error ? error.message : String(error))
+    );
+  }
+}
+
 export function createAITagger(
   config: AITagConfig = { patterns: [] }
 ): (message: string) => AITagResult {
   // Merge default tools with user-provided tools
   const allTools = [...DEFAULT_TOOLS, ...(config.tools || [])];
-  const toolsPattern = allTools.join('|');
+  const toolsPattern = allTools.map(escapeRegex).join('|');
 
   // Merge default trailer domains with user-provided domains
   const allDomains = [...DEFAULT_TRAILER_DOMAINS, ...(config.trailerDomains || [])];
-  const domainsPattern = allDomains.join('|');
+  const domainsPattern = allDomains.map(escapeRegex).join('|');
 
   // Merge default bot blocklist with user-provided entries
   const allBlocked = [...DEFAULT_BOT_BLOCKLIST, ...(config.botBlocklist || [])];
   const blockedLineRegex = allBlocked.length
-    ? new RegExp(`^Co-authored-by:.*\\b(${allBlocked.join('|')})\\b`, 'i')
+    ? new RegExp(
+        `^Co-authored-by:.*\\b(${allBlocked.map(escapeRegex).join('|')})\\b`,
+        'i'
+      )
     : null;
 
   const p = buildPatterns(toolsPattern, domainsPattern);
@@ -187,7 +205,7 @@ export function createAITagger(
   const implicitRegexes = p.implicit.map((s) => new RegExp(s, 'im'));
   const mentionContextRegexes = p.mentionContext.map((s) => new RegExp(s, 'im'));
   const toolNameRegex = new RegExp(p.toolName, 'im');
-  const customRegexes = config.patterns.map((s) => new RegExp(s, 'im'));
+  const customRegexes = config.patterns.map(compileCustomPattern);
 
   return (message: string): AITagResult => {
     const sources: string[] = [];

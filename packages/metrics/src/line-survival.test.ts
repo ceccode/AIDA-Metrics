@@ -37,20 +37,23 @@ function makeCommit(hash: string, tags: Partial<Commit['tags']>, additions = 0):
 
 function makeStream(commits: Commit[]): CommitStream {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     repoPath: '/test',
     defaultBranch: 'main',
+    scope: 'default-branch',
+    headSha: 'head',
     generatedAt: '2026-02-01T00:00:00.000Z',
     aiPatterns: [],
-    commits,
+    commits: [...commits].reverse(),
   };
 }
 
 function makeBlame(linesBySha: Record<string, number>, overrides: Partial<BlameStream> = {}): BlameStream {
   const totalLines = Object.values(linesBySha).reduce((a, b) => a + b, 0);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     repoPath: '/test',
+    headSha: 'head',
     generatedAt: '2026-02-01T00:00:00.000Z',
     filesBlamed: 3,
     filesSkipped: 0,

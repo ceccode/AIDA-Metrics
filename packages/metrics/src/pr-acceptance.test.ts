@@ -27,12 +27,13 @@ function pr(number: number, state: 'merged' | 'closed', commits: PRCommit[]): Pu
     closedAt: '2026-01-02T00:00:00.000Z',
     mergedAt: state === 'merged' ? '2026-01-02T00:00:00.000Z' : null,
     commits,
+    commitsComplete: true,
   };
 }
 
 function stream(prs: PullRequest[], truncated = false): PRStream {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     provider: 'github',
     repo: 'owner/name',
     fetchedAt: '2026-01-03T00:00:00.000Z',

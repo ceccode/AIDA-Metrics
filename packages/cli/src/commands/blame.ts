@@ -17,6 +17,7 @@ export function createBlameCommand(): Command {
   return new Command('blame')
     .description('Compute line-level attribution with git blame (slow, opt-in)')
     .option('--repo <path>', 'Repository path', process.cwd())
+    .option('--ref <ref>', 'Git ref to blame (default: HEAD)', 'HEAD')
     .option('--max-files <n>', 'Stop after this many files (bounds runtime)')
     .option('--include-generated', 'Also blame lockfiles and generated output', false)
     .option('--out-dir <path>', 'Output directory', './aida-output')
@@ -34,6 +35,7 @@ export function createBlameCommand(): Command {
 
         const blameStream = await collectBlame({
           repoPath: options.repo,
+          ref: options.ref,
           exclude: options.includeGenerated
             ? undefined
             : (path) => EXCLUDED_CATEGORIES.has(categorizeFile(path)),

@@ -1,8 +1,8 @@
 <h1 align="center">📊 AIDA Metrics</h1>
 
 <p align="center">
-  <strong>AI Development Accounting — Track and measure AI-assisted development in your repositories.</strong><br/>
-  Move beyond AI hype. Measure what actually ships to production.<br/>
+  <strong>AIDA — AI Development Accounting</strong><br/>
+  An auditable evidence ledger for AI-assisted software development.<br/>
 </p>
 
 <p align="center">
@@ -27,22 +27,26 @@
 
 ## Why AIDA?
 
-AI coding assistants (Copilot, Cursor, Windsurf, Claude Code, ChatGPT, Gemini, etc.) are increasingly part of the development workflow — but today we lack a structured way to **quantify their real contribution**.
+AI coding assistants are increasingly part of development workflows, but Git evidence is partial and easy to over-interpret. AIDA turns that evidence into bounded, auditable observations.
 
-- **CFOs and finance teams** ask: *what part of AI costs can be capitalized as real development effort?*
-- **CTOs and engineers** ask: *is AI really saving time and delivering stable code?*
+Here, **accounting means keeping a traceable ledger of evidence, scope, assumptions, and outcomes**. It does not mean that repository history alone can establish financial value. The ledger is the foundation on which later, explicitly modelled cost estimates can be built.
 
-AIDA provides **tangible, auditable metrics** to distinguish between **AI noise** (suggestions discarded, unstable code) and **AI value** (stable, production-ready contributions).
+- Which autonomy modes are declared, inferred, or unknown?
+- How often are files touched again within a fixed horizon?
+- Are reverts or hotfix patterns over-represented for a cohort?
+- Is the evidence coverage high enough to compare cohorts at all?
+
+AIDA does **not** infer productivity, defects, deployment, causality, capitalization, or developer performance from Git history.
 
 ## Features
 
 - **4-Level AI Detection** — Classifies commits as explicit, implicit, mention, or none across Claude Code, Copilot, ChatGPT, Cursor, Windsurf/Devin, Gemini, Codeium
 - **Configurable Tools** — Add custom AI tools via `.aida.json` or CLI flags
-- **Quality First** — Repo-level persistence and rework as the primary object ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)), valid at any coverage; autonomy as the lens over it
+- **Bounded Change Signals** — Fixed-horizon rapid-retouch rates with eligible and too-recent counts
 - **Autonomy** — Two orthogonal axes: *involvement* (`none`/`autocomplete`/`assisted`/`agent`) and *evidence* (`declared`/`inferred`/`none`)
-- **Persistence** — Measure how long AI-generated code survives in your codebase
+- **Explicit Scope** — Default-branch ancestry by default; all refs and PR ranges are opt-in and labelled
 - **Comparative Baseline** — AI vs non-AI side-by-side with delta, so metrics are interpretable
-- **Fast & Deterministic** — Versioned JSON output schemas, so consumers detect breaking changes instead of reading silent `undefined`s
+- **Fast & Deterministic** — A metrics artifact is reproducible from the same collected snapshot; schemas reject incompatible inputs
 - **CLI-First** — Simple commands for collection, analysis, and reporting
 - **CI/CD Ready** — GitHub Actions integration out of the box
 
@@ -56,6 +60,8 @@ npm install -g @aida-dev/cli
 
 ### From Source
 
+Requires Node.js 22 or newer and pnpm.
+
 ```bash
 git clone https://github.com/ceccode/aida-metrics.git
 cd aida-metrics
@@ -65,24 +71,24 @@ pnpm build
 
 ## Core Metrics
 
-1. **Code Quality (repo-level), and its trend**  
-   How long code survives and how often it is reworked, as a property of the repo — no attribution evidence required, so it opens the report and means something on any repository. Reported over time as well as in total: the repo compared with its own past is the comparator that still works once every commit is AI-assisted.
+1. **Rapid retouch (repo-level), and its trend**
+   The share of eligible files touched again within 7, 30, and 90 days. A file is eligible after a qualifying retouch, or after it has remained untouched for the full horizon; unresolved recent files are reported separately. This is a churn signal, not proof of a defect or wasted work.
 
-2. **Persistence**  
-   How long AI-generated code survives in the codebase before being rewritten or removed (file-level survival with censoring).
+2. **Attribution and autonomy coverage**
+   What the commit history declares or permits AIDA to infer, with `unknown` retained as a real answer. Tool identity proves involvement, not a precise autonomy mode.
 
-3. **Comparative Baseline**  
-   The same metrics computed per cohort (human baseline, autonomy levels), with a signed delta. Turns raw numbers into interpretable signal — e.g. "AI code is rewritten 17 days sooner than human code in the same repo."
+3. **Cohort overlays**
+   The same fixed-horizon signal by autonomy or AI/baseline cohort, shown only when evidence backs the cohorts and with task mix visible.
 
 The report outputs a side-by-side table:
 
 ```markdown
-| Metric                  | AI commits | Human baseline | Delta   |
-|-------------------------|------------|----------------|---------|
-| Avg persistence (days)  | 45.3       | 62.1           | −16.8   |
+| Metric | AI commits | Human baseline | Delta |
+|---|---:|---:|---:|
+| Retouched within 30d | 21.4% (12/56) | 24.1% (7/29) | −2.7 pt |
 ```
 
-> ⚠️ Metrics are **evolving**. The goal is not perfect precision, but providing **a baseline for discussion and analysis**.
+> AIDA reports observations and their limits. It does not turn correlation into causality.
 
 ## Quick Start
 
@@ -128,6 +134,8 @@ node packages/cli/dist/index.js report
 
 [AGENTS.md](AGENTS.md) carries the working agreements for coding agents on this repo: how provenance is stamped, what counts as a regression test here, and the recurring defect class to watch for.
 
+Security issues should be reported privately as described in [SECURITY.md](SECURITY.md). Repository paths, Git metadata, configuration, API responses, and generated artifacts are treated as untrusted input.
+
 ## Architecture
 
 This is a TypeScript monorepo with three main packages:
@@ -166,7 +174,7 @@ aida blame --max-files 500
 
 #### `aida fetch-prs`
 
-Fetch pull request outcomes from the forge API (**opt-in, the only command that uses the network**):
+Fetch pull request outcomes from the forge API (**opt-in and networked; `aida comment` is also networked**):
 
 ```bash
 GITHUB_TOKEN=... aida fetch-prs --github-repo owner/name --since 90d
@@ -202,6 +210,7 @@ aida report --out-dir ./aida-output
 - `--ai-trailer-domain <domain>` - Additional Co-authored-by domain (repeatable)
 - `--ai-bot-blocklist <name>` - Non-AI bot to exclude from trailer matching (repeatable)
 - `--default-branch <name>` - Default branch name (auto-detect if omitted)
+- `--scope <value>` - Commit universe: `default-branch` (default) or `all-refs`
 - `--redact-authors` - Replace author/committer identities with a per-run salted hash (recommended in CI)
 - `--out-dir <path>` - Output directory (default: ./aida-output)
 - `--verbose` - Verbose logging
@@ -234,6 +243,7 @@ aida report --out-dir ./aida-output
 #### `aida blame`
 
 - `--repo <path>` - Repository path (default: current directory)
+- `--ref <ref>` - Git ref to blame (default: `HEAD`; use the collected stream's head when joining artifacts)
 - `--max-files <n>` - Blame at most this many files, spread evenly across the tree (bounds runtime, flags the result as a sample)
 - `--include-generated` - Also blame lockfiles and generated output
 - `--out-dir <path>` - Output directory (default: ./aida-output)
@@ -419,7 +429,7 @@ Override or supplement `.aida.json` via CLI:
 
 ```bash
 aida collect --ai-tool "devbot" --ai-tool "codyai"
-aida collect --ai-trailer-domain "mycompany\\.com"
+aida collect --ai-trailer-domain "mycompany.com"
 aida collect --ai-bot-blocklist "acme-ci-bot"
 aida collect --ai-pattern "my-custom-regex"
 aida analyze --default-mode none --coverage-threshold 0.8
@@ -431,7 +441,7 @@ aida analyze --default-mode none --coverage-threshold 0.8
 
 The comparator that replaces cohorts ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77) step 3). Once AI participates in nearly every commit, "AI vs human" has no second side left — `No baseline cohort` becomes the normal outcome, not bad luck. What still answers *"is this getting better or worse?"* is the repo compared with **its own past**.
 
-`metrics.trend` slices the same repo-level quality by calendar period (month or quarter), derived from the commit stream in a single run — a team gets a trend the first time they run AIDA, not after months of archiving reports.
+`metrics.trend` slices the same repo-level change signal by calendar period (month or quarter), derived from the commit stream in a single run — a team gets a trend the first time they run AIDA, not after months of archiving reports.
 
 Two mechanisms keep it honest, because the naive version is guaranteed to lie:
 
@@ -453,7 +463,7 @@ They are separate because they fail separately. `mode: unknown, evidence: inferr
 
 `declared` means someone stated it: the `AI-Mode:` trailer written by the commit hook, or the attribution manifest. `inferred` means AIDA concluded it from tool identity or commit structure. Automation ([#39](https://github.com/ceccode/AIDA-Metrics/issues/39) — merge commits, known bots, manifest `excluded_commits`) is a third, orthogonal flag: its provenance is known, so it counts toward coverage, but it joins no autonomy cohort, because automation is not authored code.
 
-**Coverage** = share of commits with any evidence at all (`declared` + `inferred`). Since the quality-first reframe ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)) it gates the *attribution-dependent* sections, not the report: repo-level Code Quality needs no evidence and opens the report, while coverage lives in a Data Quality section at the end.
+**Coverage** = share of commits with any evidence at all (`declared` + `inferred`). It gates the *attribution-dependent* sections, not the report: repository-level change signals need no attribution evidence and open the report, while coverage lives in a Data Quality section at the end.
 
 **The three-state view survives as a projection.** `ai` (mode above `none`), `human` (declared `none`), `automated`, `unknown` (no evidence) are derived from the axes above — never decided independently — and kept because a headline needs one word. The rich model underneath, the one-line summary on top.
 
@@ -469,15 +479,15 @@ Coverage is reported over **two windows** ([#52](https://github.com/ceccode/AIDA
 
 Persistence computed per autonomy mode (`agent` / `assisted` / `autocomplete` / `none`) ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)). Automated commits are excluded; modes with no commits are `null`. A mode whose every commit was placed by the `defaultMode` prior is withheld from the report rather than rendered as a measurement ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77) step 4) — the data stays in `metrics.json`.
 
-### PR Acceptance
+### PR Merge Outcome
 
-Whether AI-written work is **accepted**, measured from the forge API ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)): merged vs closed-unmerged pull requests, broken down by attribution and autonomy level.
+Merged vs closed-unmerged pull requests from the forge API ([#51](https://github.com/ceccode/AIDA-Metrics/issues/51)), broken down by attribution and autonomy level. Merge is an observable repository outcome, not proof of review quality, deployment, or business acceptance.
 
-This is the successor to the removed merge ratio. The difference is the data source: a forge never deletes a closed PR, so the negative outcome is observable — while git history erases it.
+This is the successor to the removed git-only merge ratio. The forge preserves closed-unmerged outcomes that landed history cannot represent.
 
 Two deliberate properties:
 
-- **Opt-in and additive.** `aida fetch-prs` is the only command that touches the network; everything else stays git-only and offline. Without a token the metric is absent, with a caveat saying so.
+- **Opt-in and additive.** Collection, analysis, blame, and report generation stay local. `aida fetch-prs` and `aida comment` are the explicit network commands. Without a token the PR metric is absent, with a caveat saying so.
 - **No author identity is ever fetched or stored.** `pr-stream.json` holds PR numbers, outcomes, dates, and the attribution of the PR's own commits — nothing that names anyone ([#35](https://github.com/ceccode/AIDA-Metrics/issues/35)).
 
 PRs are attributed from **their own commit messages as returned by the API**, not from a join against local git. That is what makes this work for squash-merged PRs whose branches no longer exist — the exact case where git-based measurement failed.
@@ -491,13 +501,26 @@ Early versions shipped a merge ratio ("% of AI commits that land on the default 
 
 A rough metric with visible error bars is worth shipping; a metric whose data source systematically deletes the negative outcomes is not. The honest successor is a **PR acceptance rate** built on forge APIs (GitHub/GitLab), where declined PRs are never deleted — planned as a separate metric.
 
-### Rework Rate
+### Rapid Retouch
 
-Share of AI-touched files modified again within a short window (default 7 days, `--rework-window`) — the bucket that actually carries signal, since tests and source get rewritten when the code moves ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)).
+Share of files touched again within fixed 7, 30, and 90-day horizons ([#22](https://github.com/ceccode/AIDA-Metrics/issues/22)). The report gives the numerator, eligible denominator, too-recent count, and rate for every horizon.
 
-**Right-censoring is handled explicitly**: a file first touched two days ago and not yet reworked has no determined answer to a seven-day question, so it counts in neither the numerator nor the denominator. The report shows how many files were set aside for this reason.
+**Right-censoring is handled explicitly**: a file first touched two days ago and not retouched has no known answer to a seven-day question, so it is excluded from the denominator and counted as too recent. A retouch already observed inside the horizon is a known outcome immediately.
 
-**Honest limit**: it is file-level, so consecutive commits from a single working session touching the same file count as rework. For iterative workflows this inflates the number substantially — on this repo it reads 55%, most of which is within-session iteration rather than code that had to be redone. Line-level tracking ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) is what turns this into a quality signal.
+**Honest limit**: it is file-level. A second touch can be normal iteration, review feedback, feature extension, formatting, or a defect fix. AIDA therefore calls this *rapid retouch*, not rework, and never treats it as causality by itself.
+
+Metric contract:
+
+| Contract field | Definition |
+|---|---|
+| Commit universe | The stream's labelled scope: default-branch ancestry by default, all refs or a PR range only when requested |
+| Unit | A non-generated, non-migration file first touched by the target cohort; repo-level uses all authored commits |
+| Entry time | Committer time of the first target touch, used as the local Git proxy for integration time |
+| Event | The first topologically subsequent commit that modifies or deletes the same path |
+| Censoring | Observation ends at `commit-stream.generatedAt`; files with no event and insufficient follow-up are `tooRecent` and excluded from the denominator |
+| Horizons | Fixed at 7, 30, and 90 days; trend uses its configured fixed observation window |
+| Permitted reading | “Of files with a known N-day outcome, X% were touched again within N days” |
+| Forbidden reading | Defect rate, wasted work, productivity, causality, deployment, line survival, or developer performance |
 
 ### Line Survival (`aida blame`)
 
@@ -512,20 +535,20 @@ Kept in its own opt-in command because it runs one git process per file — the 
 
 **What it measures exactly**: the living codebase — those share figures are precise. **What it cannot measure**: deleted lines, because blame only sees what survived. The derived "approximate survival of AI-introduced lines" is therefore labelled as approximate: a line rewritten twice was added twice, and additions to files since deleted or renamed fall outside the count. Both halves of that ratio are scoped to the files blame actually visited — otherwise a capped or filtered walk divides a fraction of the repo by all of it.
 
-### Persistence (MVP)
+### Legacy Follow-up Distribution
 
-File-level survival: days from the first target-cohort touch of a file until the **first subsequent modification** (or deletion) by any commit.
+`metrics.json` retains the pre-1.0 follow-up duration fields for consumers, but the report does not use their average or median as a quality headline: those summaries mix event durations with right-censored follow-up.
 
 - Files never modified again are **censored** at collection time — they survived the whole observation window, the best possible outcome (not zero). The report shows how many.
 - **Migrations and generated files** (lockfiles, changelogs, snapshots) are excluded by default: their lifecycle is convention-driven — append-only or churned on every release — and carries no quality signal either way. They still appear in the task-mix table.
-- Buckets: 0-1d, 2-7d, 8-30d, 31-90d, 90d+, with average and median survival times.
+- Buckets: 0-1d, 2-7d, 8-30d, 31-90d, 90d+, with legacy average and median follow-up.
 - Known roughness: multi-commit sessions touching the same file produce short survivals (the clock starts at the first touch); line-level tracking ([#23](https://github.com/ceccode/AIDA-Metrics/issues/23)) will refine this.
 
 ### Comparative Baseline
 
 Persistence is computed for the baseline (autonomy level `none`) cohort as well.  
 The `metrics.json` output includes `baseline` and `delta` (AI minus baseline) sections.  
-The markdown report renders the side-by-side table under `## AI vs Baseline`, below the repo-level Code Quality section — the comparison is a lens, not the headline ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)).  
+The markdown report renders the side-by-side table under `## AI vs Baseline`, below Repository Change Signals — the comparison is a lens, not the headline ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)).
 If no commits sit at autonomy level `none` and no `defaultMode` prior assigns the no-evidence ones, `baseline` and `delta` are `null`: AIDA does not invent a comparison cohort. And when one side exists *only* because of the prior, the comparison is withheld with an explanation rather than shown — a measured cohort against an assumed one yields a delta that describes the prior, not the repo.
 
 ### Fair Comparison (age-normalized)
@@ -571,7 +594,7 @@ These metrics are honest approximations, not ground truth. Read the numbers with
 ## Output Files
 
 - `commit-stream.json` - Normalized commit data on the two axes: autonomy `mode` and `evidence`, with the three-state `attribution` derived from them
-- `metrics.json` - Repo-level quality (`repo`), quality over time (`trend`), evidence coverage, per-cohort and per-autonomy-level metrics
+- `metrics.json` - Repo-level change signals (`repo`), trend, evidence coverage, per-cohort and per-autonomy-level metrics
 - `blame-stream.json` - Per-commit surviving line counts (only when `aida blame` ran)
 - `pr-stream.json` - PR outcomes and per-PR attribution (only when `aida fetch-prs` ran)
 - `report.md` - Human-readable Markdown report
@@ -584,9 +607,9 @@ Both JSON files carry a `schemaVersion` ([#53](https://github.com/ceccode/AIDA-M
 - **Removing a field, renaming it, or changing its meaning** bumps `schemaVersion`.
 - Readers **refuse** a version they don't understand rather than parsing it half-way: `aida analyze` on a stale `commit-stream.json` fails with `Rerun 'aida collect'`, not a silent wrong result.
 
-Current: `commit-stream.json` **v2**, `metrics.json` **v2**, `pr-stream.json` v1, `blame-stream.json` **v2**.
+Current: `commit-stream.json` **v3**, `metrics.json` **v3**, `pr-stream.json` **v2**, `blame-stream.json` **v3**.
 
-The v2 bumps: `commit-stream.json` and `metrics.json` moved to the two-axis model ([#25](https://github.com/ceccode/AIDA-Metrics/issues/25)) — `mode` + `evidence` primary, `attribution` derived, `defaultAttribution` replaced by `defaultMode`. `blame-stream.json` gained `blamedPaths` so a survival rate can scope its denominator to the files blame actually visited.
+The v3 contract binds artifacts to a labelled commit scope and head snapshot, makes default-branch ancestry the default universe, and adds fixed-horizon rapid-retouch outcomes. Blame v3 carries its HEAD for join validation; PR v2 labels incomplete commit lists.
 
 ## CI/CD Integration
 
@@ -710,8 +733,9 @@ Bitbucket is currently out of scope ([#17](https://github.com/ceccode/AIDA-Metri
 - **v0.25** ✅ Quality-first, steps 1–2 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): repo-level `repo` block in `metrics.json` (cohort-free persistence and rework, prior-proof), and the report reframe — Code Quality opens, the autonomy lens follows, coverage demoted to a Data Quality footnote.
 - **v0.26** ✅ Quality over time, step 3 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)): `metrics.trend` — per-period persistence, rework and coverage derived from the commit stream in a single run, every period measured through the same observation window, immature periods reported but never compared.
 - **v0.27** ✅ Overlay gating, step 4 ([#77](https://github.com/ceccode/AIDA-Metrics/issues/77)) — cohort tables render only where real evidence backs them; a `defaultMode` prior can no longer conjure an autonomy cohort or a baseline comparison out of assumption alone. Completes the quality-first migration.
-- **Next** → Bitbucket PR comment provider ([#17](https://github.com/ceccode/AIDA-Metrics/issues/17)), cost metrics ([#27](https://github.com/ceccode/AIDA-Metrics/issues/27)).  
-- **v1.0** → Dashboard / GitHub Action for continuous tracking.  
+- **v1.0** → Security and measurement contract: shell-free Git execution, default-branch scope, snapshot-bound schema v3, deterministic analysis, fixed-horizon rapid retouch, complete/labelled PR collection, and minimum-permission CI.
+- **Post-1.0** → Confidence intervals and minimum-sample guidance; explicit deployment/change-management joins for teams that need production scope; provider parity; removal of deprecated raw follow-up summaries in the next major version.
+- **Exploratory accounting layer** → Scenario-based token and cost estimates, clearly separated from observed evidence. A first model may assume all AI-attributed output was generated by AI and expose model price, tokenization, input/output multiplier, retries, and uncertainty as user-controlled assumptions. It must report a range and provenance for every assumption—never present lines of code as measured token consumption or estimated cost as booked financial value.
 
 ### Direction: from AI detection to AI accountability
 

@@ -39,12 +39,14 @@ function makeCommit(hash: string, date: string, files: string[], automated = fal
 
 function makeStream(commits: Commit[]): CommitStream {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     repoPath: '/test',
     defaultBranch: 'main',
+    scope: 'default-branch',
+    headSha: 'head',
     generatedAt: NOW.toISOString(),
     aiPatterns: [],
-    commits,
+    commits: [...commits].reverse(),
   };
 }
 

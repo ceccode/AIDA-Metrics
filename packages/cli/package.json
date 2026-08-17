@@ -1,7 +1,7 @@
 {
   "name": "@aida-dev/cli",
   "version": "0.19.0",
-  "description": "CLI for AIDA (AI Development Accounting) - Track and measure AI-assisted development",
+  "description": "CLI for the AIDA auditable evidence ledger",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -34,7 +34,7 @@
     "url": "https://github.com/ceccode/aida-metrics/issues"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "publishConfig": {
     "access": "public"

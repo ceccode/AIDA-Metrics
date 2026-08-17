@@ -44,12 +44,45 @@ describe('blameFileLineCounts', () => {
   it('rejects a path that does not exist rather than reporting zero', async () => {
     await expect(blameFileLineCounts(repoPath, 'nope.ts')).rejects.toThrow();
   });
+
+  // A repository controls its own file names. The old implementation passed
+  // a JSON-stringified path to `exec`, where `$()` and backticks still execute
+  // inside double quotes. This regression proves the absence of execution,
+  // rather than merely proving that ordinary paths continue to work.
+  it('treats hostile git paths as data and never executes them', async () => {
+    const hostile = mkdtempSync(join(tmpdir(), 'aida-blame-hostile-'));
+    execSync('git init -q -b main', { cwd: hostile });
+    execSync('git config user.name test && git config user.email test@example.com', {
+      cwd: hostile,
+    });
+    const paths = [
+      '$(touch AIDA_DOLLAR_PWNED)',
+      '`touch AIDA_BACKTICK_PWNED`',
+      "single'quote.ts",
+      'double"quote.ts',
+      'line\nbreak.ts',
+      '-leading-dash.ts',
+    ];
+    for (const path of paths) writeFileSync(join(hostile, path), 'safe\n');
+    execSync('git add -A && git commit -q -m "hostile paths"', { cwd: hostile });
+
+    try {
+      const stream = await collectBlame({ repoPath: hostile });
+      expect(stream.filesFailed).toBe(0);
+      expect(stream.filesBlamed).toBe(paths.length);
+      expect(stream.blamedPaths.sort()).toEqual([...paths].sort());
+      expect(() => execSync('test ! -e AIDA_DOLLAR_PWNED', { cwd: hostile })).not.toThrow();
+      expect(() => execSync('test ! -e AIDA_BACKTICK_PWNED', { cwd: hostile })).not.toThrow();
+    } finally {
+      rmSync(hostile, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('collectBlame', () => {
   it('aggregates line counts across the tree', async () => {
     const stream = await collectBlame({ repoPath });
-    expect(stream.schemaVersion).toBe(2);
+    expect(stream.schemaVersion).toBe(3);
     expect(stream.filesBlamed).toBe(2); // app.ts + pnpm-lock.yaml
     expect(stream.totalLines).toBe(7); // 4 + 3
     expect(stream.linesBySha[firstSha]).toBe(2);

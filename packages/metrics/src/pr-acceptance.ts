@@ -8,6 +8,7 @@ import { AcceptanceStats, PRAcceptance } from './schema/metrics.js';
 // commit is AI-attributed, AI participated in that PR. Automated commits
 // (merge commits inside the branch) are ignored — they are not authored work.
 export function prAttribution(pr: PullRequest): 'ai' | 'human' | 'unknown' {
+  if (!pr.commitsComplete) return 'unknown';
   const authored = pr.commits.filter((c) => c.tags.attribution !== 'automated');
   if (authored.length === 0) return 'unknown';
   if (authored.some((c) => c.tags.attribution === 'ai')) return 'ai';
@@ -21,6 +22,7 @@ type Mode = keyof typeof MODE_RANK;
 // A PR's mode is the highest autonomy level present in it: the riskiest kind
 // of participation is what characterizes the change.
 export function prMode(pr: PullRequest): Mode {
+  if (!pr.commitsComplete) return 'unknown';
   const authored = pr.commits.filter((c) => c.tags.attribution !== 'automated');
   return authored.reduce<Mode>(
     (highest, c) => (MODE_RANK[c.tags.mode] > MODE_RANK[highest] ? c.tags.mode : highest),
