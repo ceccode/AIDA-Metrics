@@ -74,6 +74,27 @@ describe('calculateMetrics attribution coverage', () => {
     expect(metrics.attribution.unknown).toBe(2);
     expect(metrics.attribution.coverage).toBe(0.5);
     expect(metrics.attribution.belowThreshold).toBe(true); // default threshold 0.7
+    expect(metrics.attribution.missingEvidence).toEqual({
+      commits: [
+        { hash: 'u2', subject: 'commit' },
+        { hash: 'u1', subject: 'commit' },
+      ],
+      truncated: false,
+    });
+  });
+
+  it('bounds the evidence-gap diagnostic without hiding the total', () => {
+    const metrics = calculateMetrics(
+      makeStream(
+        Array.from({ length: 21 }, (_, index) =>
+          makeCommit({ hash: `u${index + 1}`, message: `undeclared ${index + 1}`, tags: unknownTags })
+        )
+      )
+    );
+
+    expect(metrics.attribution.unknown).toBe(21);
+    expect(metrics.attribution.missingEvidence.commits).toHaveLength(20);
+    expect(metrics.attribution.missingEvidence.truncated).toBe(true);
   });
 
   it('counts automated commits toward coverage — their provenance is known', () => {

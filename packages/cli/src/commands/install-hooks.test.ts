@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import type { Command } from 'commander';
 import { createInstallHooksCommand } from './install-hooks.js';
 import { createCollectCommand } from './collect.js';
 import { createAnalyzeCommand } from './analyze.js';
+import { HOOK_SCRIPT } from '../hooks/prepare-commit-msg.js';
 
 let repoPath: string;
 
@@ -133,6 +135,26 @@ describe('aida install-hooks', () => {
     writeFileSync(hookPath(), '#!/bin/sh\necho mine\n', { mode: 0o755 });
     await run(createInstallHooksCommand(), ['--repo', repoPath, '--uninstall']);
     expect(readFileSync(hookPath(), 'utf-8')).toContain('echo mine');
+  });
+});
+
+describe('this repository prepare bootstrap', () => {
+  it('installs the canonical hook on a fresh clone before the CLI is built', () => {
+    // Regression: root `pnpm install` used to skip installation whenever
+    // packages/cli/dist/index.js did not exist — exactly the state of a fresh
+    // clone. Nothing failed, but every subsequent commit silently lost its
+    // provenance and AIDA reported it as unknown.
+    const installer = fileURLToPath(
+      new URL('../../../../scripts/install-hooks.mjs', import.meta.url)
+    );
+    const result = spawnSync(process.execPath, [installer], {
+      cwd: repoPath,
+      encoding: 'utf8',
+    });
+
+    expect(result.status).toBe(0);
+    expect(readFileSync(hookPath(), 'utf8')).toBe(HOOK_SCRIPT);
+    expect(statSync(hookPath()).mode & 0o111).toBeTruthy();
   });
 });
 
@@ -272,5 +294,6 @@ describe('low-coverage warning names a missing hook in a configured repo', () =>
 
     expect(warnings).toContain('Coverage is below');
     expect(warnings).not.toContain('THIS CLONE');
+    expect(warnings).toContain('A defaultMode prior does not increase coverage');
   });
 });

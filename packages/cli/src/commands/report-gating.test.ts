@@ -98,9 +98,7 @@ describe('overlay gating (#77 step 4)', () => {
     writeFileSync(join(repoPath, 'a.ts'), 'export const a = 1;\n');
     git('git add -A && git commit -q -m "feat: undeclared"');
     writeFileSync(join(repoPath, 'b.ts'), 'export const b = 1;\n');
-    git(
-      'git add -A && git commit -q -m "feat: declared" -m "AI-Mode: agent"'
-    );
+    git('git add -A && git commit -q -m "feat: declared" -m "AI-Mode: agent"');
 
     const { report } = await pipeline(['--default-mode', 'agent']);
 
@@ -136,5 +134,48 @@ describe('overlay gating (#77 step 4)', () => {
 
     expect(section(report, '## By Autonomy Level')).toMatch(/\| unknown \|/);
     expect(report).not.toContain('**Comparison withheld**');
+  });
+});
+
+describe('PR-scoped evidence report', () => {
+  it('names unknown commits and suppresses immature repository-time metrics', async () => {
+    writeFileSync(join(repoPath, '.aida.json'), JSON.stringify({ defaultMode: 'agent' }));
+    writeFileSync(join(repoPath, 'base.ts'), 'export const base = true;\n');
+    git('git add -A && git commit -q -m "chore: base"');
+    git('git checkout -q -b feature');
+    writeFileSync(join(repoPath, 'feature.ts'), 'export const feature = true;\n');
+    git('git add -A && git commit -q -m "feat: undeclared PR work"');
+    const prHash = execSync('git rev-parse HEAD', { cwd: repoPath }).toString().trim();
+
+    await run(createCollectCommand(), [
+      '--repo',
+      repoPath,
+      '--out-dir',
+      outDir,
+      '--diff-base',
+      'main',
+    ]);
+    await run(createAnalyzeCommand(), ['--out-dir', outDir]);
+    await run(createReportCommand(), ['--out-dir', outDir]);
+
+    const report = readFileSync(join(outDir, 'report.md'), 'utf8');
+    expect(report).toContain('# AIDA PR Evidence Report');
+    expect(report).toContain(`\`${prHash.slice(0, 12)}\``);
+    expect(report).toContain('feat: undeclared PR work');
+    expect(report).toContain('a repository-wide prior is not evidence');
+    expect(report).toContain('defaultMode: agent');
+
+    // A one-commit PR is necessarily too young for time-to-next-touch
+    // metrics. Showing 0/0 tables looked precise while saying nothing.
+    expect(report).not.toContain('## Repository Change Signals');
+    expect(report).not.toContain('### Trend');
+    expect(report).not.toContain('## AI vs Baseline');
+    expect(report).not.toContain("run 'aida fetch-prs'");
+
+    const info = vi.mocked(console.log).mock.calls.flat().join('\n');
+    const warnings = vi.mocked(console.warn).mock.calls.flat().join('\n');
+    expect(info).not.toContain('Repo rapid retouch');
+    expect(info).not.toContain('Trend:');
+    expect(warnings).not.toContain('No baseline cohort');
   });
 });

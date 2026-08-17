@@ -16,6 +16,11 @@ export const RecentCoverage = z.object({
   belowThreshold: z.boolean(),
 });
 
+export const EvidenceGap = z.object({
+  hash: z.string(),
+  subject: z.string(),
+});
+
 export const Attribution = z.object({
   commitsTotal: z.number().int().nonnegative(),
   ai: z.number().int().nonnegative(),
@@ -49,6 +54,12 @@ export const Attribution = z.object({
     declared: z.number().int().nonnegative(),
     inferred: z.number().int().nonnegative(),
     none: z.number().int().nonnegative(),
+  }),
+  // A bounded diagnostic list makes `unknown` actionable. Counts alone say
+  // that provenance is missing; these identifiers say where to repair it.
+  missingEvidence: z.object({
+    commits: z.array(EvidenceGap),
+    truncated: z.boolean(),
   }),
 });
 
@@ -445,6 +456,7 @@ export const Metrics = z.object({
 
 export type Attribution = z.infer<typeof Attribution>;
 export type RecentCoverage = z.infer<typeof RecentCoverage>;
+export type EvidenceGap = z.infer<typeof EvidenceGap>;
 export type Rework = z.infer<typeof Rework>;
 export type RapidRetouch = z.infer<typeof RapidRetouch>;
 export type AgeStats = z.infer<typeof AgeStats>;
