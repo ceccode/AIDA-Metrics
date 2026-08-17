@@ -205,48 +205,54 @@ export function createAnalyzeCommand(): Command {
           // Worth naming precisely rather than repeating generic advice.
           const configured = await fileExists(join(commitStream.repoPath, '.aida.json'));
           const hooked = await isAidaHookInstalled(commitStream.repoPath);
+          const confidenceContext =
+            commitStream.scope === 'pr'
+              ? 'the PR provenance summary is incomplete'
+              : 'attribution-dependent metrics are low-confidence (repo-level change signals are unaffected)';
           logger.warn(
             configured && !hooked
-              ? `Coverage is below ${threshold}%: attribution-dependent metrics are low-confidence (repo-level quality is unaffected). This repo is set up for AIDA (.aida.json) but THIS CLONE has no ${HOOK_NAME} hook, so its commits declare nothing. Run 'aida install-hooks' — or add "prepare": "aida install-hooks --if-git" to package.json so every clone gets it.`
-              : `Coverage is below ${threshold}%: attribution-dependent metrics are low-confidence (repo-level quality is unaffected). Install the commit hook (aida install-hooks), or set defaultMode in .aida.json.`
+              ? `Coverage is below ${threshold}%: ${confidenceContext}. This repo is set up for AIDA (.aida.json) but THIS CLONE has no ${HOOK_NAME} hook, so its commits declare nothing. Run 'aida install-hooks' — or add "prepare": "aida install-hooks --if-git" to package.json so every clone gets it.`
+              : `Coverage is below ${threshold}%: ${confidenceContext}. Install the commit hook (aida install-hooks) for future commits; repair existing provenance with truthful AI-Mode trailers or an attribution manifest. A defaultMode prior does not increase coverage.`
           );
         }
-        const lc = metrics.trend.latestComparison;
-        logger.info(
-          lc
-            ? `Trend ${lc.from} -> ${lc.to}: ${metrics.trend.observationDays}d rapid retouch ` +
-                (lc.rapidRetouchRate
-                  ? `${(lc.rapidRetouchRate.from * 100).toFixed(1)}% -> ${(lc.rapidRetouchRate.to * 100).toFixed(1)}%`
-                  : 'unavailable (no eligible files)')
-            : `Trend: fewer than two mature periods (${metrics.trend.observationDays}d window) — no comparison yet`
-        );
-        const retouch30 = metrics.repo.persistence.rapidRetouch.find(
-          (result) => result.windowDays === 30
-        );
-        logger.info(
-          `Repo rapid retouch (30d): ${retouch30?.rate === null || !retouch30 ? 'unavailable' : `${(retouch30.rate * 100).toFixed(1)}% (${retouch30.retouched}/${retouch30.eligible})`}`
-        );
-        if (metrics.lineSurvival) {
-          const ls = metrics.lineSurvival;
+        if (commitStream.scope !== 'pr') {
+          const lc = metrics.trend.latestComparison;
           logger.info(
-            `Line survival: ${(ls.aiShare * 100).toFixed(1)}% of attributed lines were last written by AI (${ls.byAttribution.ai}/${ls.totalLines})`
+            lc
+              ? `Trend ${lc.from} -> ${lc.to}: ${metrics.trend.observationDays}d rapid retouch ` +
+                  (lc.rapidRetouchRate
+                    ? `${(lc.rapidRetouchRate.from * 100).toFixed(1)}% -> ${(lc.rapidRetouchRate.to * 100).toFixed(1)}%`
+                    : 'unavailable (no eligible files)')
+              : `Trend: fewer than two mature periods (${metrics.trend.observationDays}d window) — no comparison yet`
           );
-        }
-        if (metrics.prAcceptance) {
-          const ai = metrics.prAcceptance.byAttribution.ai;
+          const retouch30 = metrics.repo.persistence.rapidRetouch.find(
+            (result) => result.windowDays === 30
+          );
           logger.info(
-            `PR acceptance overall: ${(metrics.prAcceptance.overall.acceptanceRate * 100).toFixed(1)}%` +
-              (ai ? ` · AI PRs: ${(ai.acceptanceRate * 100).toFixed(1)}% (${ai.total})` : '')
+            `Repo rapid retouch (30d): ${retouch30?.rate === null || !retouch30 ? 'unavailable' : `${(retouch30.rate * 100).toFixed(1)}% (${retouch30.retouched}/${retouch30.eligible})`}`
           );
-        }
-        const oc = metrics.outcomeCorrelation;
-        if (oc.reverts.total > 0 || oc.hotfixes.total > 0) {
-          logger.info(
-            `Outcome correlation: ${oc.reverts.resolved}/${oc.reverts.total} reverts resolved, ${oc.hotfixes.linked}/${oc.hotfixes.total} hotfixes linked`
-          );
-        }
-        if (!metrics.baseline) {
-          logger.warn('No baseline cohort: no commits attributed as human (see caveats).');
+          if (metrics.lineSurvival) {
+            const ls = metrics.lineSurvival;
+            logger.info(
+              `Line survival: ${(ls.aiShare * 100).toFixed(1)}% of attributed lines were last written by AI (${ls.byAttribution.ai}/${ls.totalLines})`
+            );
+          }
+          if (metrics.prAcceptance) {
+            const ai = metrics.prAcceptance.byAttribution.ai;
+            logger.info(
+              `PR acceptance overall: ${(metrics.prAcceptance.overall.acceptanceRate * 100).toFixed(1)}%` +
+                (ai ? ` · AI PRs: ${(ai.acceptanceRate * 100).toFixed(1)}% (${ai.total})` : '')
+            );
+          }
+          const oc = metrics.outcomeCorrelation;
+          if (oc.reverts.total > 0 || oc.hotfixes.total > 0) {
+            logger.info(
+              `Outcome correlation: ${oc.reverts.resolved}/${oc.reverts.total} reverts resolved, ${oc.hotfixes.linked}/${oc.hotfixes.total} hotfixes linked`
+            );
+          }
+          if (!metrics.baseline) {
+            logger.warn('No baseline cohort: no commits attributed as human (see caveats).');
+          }
         }
         logger.info(`Output written to: ${outputPath}`);
       } catch (error) {

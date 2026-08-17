@@ -33,6 +33,7 @@ export * from './outcome-correlation.js';
 export * from './trend.js';
 
 export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
+const MAX_EVIDENCE_GAPS = 20;
 
 export interface MetricsOptions {
   // Prior for commits with no evidence (#25): which cohort, if any, they
@@ -109,8 +110,10 @@ export function calculateMetrics(
     recentCounts[commit.tags.attribution]++;
     if (commit.tags.evidence !== 'none') recentWithEvidence++;
   }
-  const recentCoverage =
-    recentCommits.length > 0 ? recentWithEvidence / recentCommits.length : 0;
+  const recentCoverage = recentCommits.length > 0 ? recentWithEvidence / recentCommits.length : 0;
+  const commitsMissingEvidence = commitStream.commits.filter(
+    (commit) => commit.tags.evidence === 'none'
+  );
 
   const attribution: Attribution = {
     commitsTotal: total,
@@ -137,6 +140,13 @@ export function calculateMetrics(
         : null,
     modes,
     evidence,
+    missingEvidence: {
+      commits: commitsMissingEvidence.slice(0, MAX_EVIDENCE_GAPS).map((commit) => ({
+        hash: commit.hash,
+        subject: commit.message,
+      })),
+      truncated: commitsMissingEvidence.length > MAX_EVIDENCE_GAPS,
+    },
   };
 
   // Cohort membership is decided on the mode axis (#25), with the prior
@@ -236,13 +246,9 @@ export function calculateMetrics(
   const delta = baseline
     ? {
         avgPersistenceDays: round(persistence.avgDays - baseline.persistence.avgDays, 2),
-        medianPersistenceDays: round(
-          persistence.medianDays - baseline.persistence.medianDays,
-          2
-        ),
+        medianPersistenceDays: round(persistence.medianDays - baseline.persistence.medianDays, 2),
         rapidRetouch30Rate:
-          retouchRate(persistence, 30) !== null &&
-          retouchRate(baseline.persistence, 30) !== null
+          retouchRate(persistence, 30) !== null && retouchRate(baseline.persistence, 30) !== null
             ? round(retouchRate(persistence, 30)! - retouchRate(baseline.persistence, 30)!, 4)
             : null,
       }
@@ -258,7 +264,9 @@ export function calculateMetrics(
     baseline && aiAge && baselineAge
       ? (() => {
           const capDays = Math.min(aiAge.avgAgeDays, baselineAge.avgAgeDays);
-          const cappedAI = calculatePersistence(commitStream, isAI, { maxObservationDays: capDays });
+          const cappedAI = calculatePersistence(commitStream, isAI, {
+            maxObservationDays: capDays,
+          });
           const cappedBaseline = calculateBaselinePersistence(commitStream, isBaseline, {
             maxObservationDays: capDays,
           });
@@ -282,7 +290,14 @@ export function calculateMetrics(
   // AI vs baseline, instead of only reporting the mix. Always computed —
   // useful even without a baseline cohort, to compare e.g. AI-written tests
   // against AI-written source within the same repo.
-  const CATEGORIES: FileCategory[] = ['source', 'tests', 'migrations', 'config', 'docs', 'generated'];
+  const CATEGORIES: FileCategory[] = [
+    'source',
+    'tests',
+    'migrations',
+    'config',
+    'docs',
+    'generated',
+  ];
   const byCategory = Object.fromEntries(
     CATEGORIES.map((category) => {
       const toLean = (p: ReturnType<typeof calculatePersistence>) =>
@@ -329,42 +344,59 @@ export function calculateMetrics(
     hotfixWindowDays !== undefined ? { hotfixWindowDays } : {}
   );
 
+  const scopeCaveat =
+    commitStream.scope === 'pr'
+      ? `Commit scope is \`pr\` at ${commitStream.headSha.slice(0, 12) || 'an empty repository'}: only commits in base..HEAD are included. This is a change-set view, not repository history, merge status, or deployed production state.`
+      : commitStream.scope === 'all-refs'
+        ? `Commit scope is \`all-refs\` at ${commitStream.headSha.slice(0, 12) || 'an empty repository'}: commits reachable from every local and remote ref are included, including work that may never have been integrated or deployed.`
+        : `Commit scope is \`default-branch\` at ${commitStream.headSha.slice(0, 12) || 'an empty repository'}: work reachable only from other refs is excluded. This describes integrated git history, not deployed production state.`;
   const caveats = [
-    `Evidence coverage is ${(coverage * 100).toFixed(1)}%: attribution-dependent metrics only describe commits whose provenance is known. Repository change signals (the \`repo\` block) cover all authored commits regardless of evidence.`,
-    `Commit scope is \`${commitStream.scope}\` at ${commitStream.headSha.slice(0, 12) || 'an empty repository'}; default-branch reports exclude work reachable only from other refs. This describes integrated git history, not deployed production state.`,
-    'Rapid retouch is file-level: any subsequent commit touching the same file within the horizon counts. It is a churn signal, not proof of a defect, rollback, or wasted work.',
-    'Fixed-horizon rates exclude files too recent to have a known outcome from the denominator and report them separately.',
-    'Migrations and generated files are excluded from repo rapid-retouch metrics because their convention-driven lifecycles carry a different signal.',
-    'AI tagging uses heuristic patterns; false positives/negatives possible.',
-    'Outcome correlation only covers what git can see: reverts resolved by hash and hotfix-pattern commits linked to the most recent prior touch of the same file(s). Incidents, SAST findings, and reverts/hotfixes outside the collected window are not represented.',
-    'Outcome ratios compare a cohort\'s share of reverts/hotfixes against its share of authored commits: 1.00x means "exactly as often as its size predicts". They are descriptive, not causal, and on small counts a single commit can move the ratio a long way.',
+    commitStream.scope === 'pr'
+      ? `Evidence coverage is ${(coverage * 100).toFixed(1)}%: a missing signal remains \`unknown\`; it is not evidence of human authorship and a \`defaultMode\` prior does not turn it into observed provenance.`
+      : `Evidence coverage is ${(coverage * 100).toFixed(1)}%: attribution-dependent metrics only describe commits whose provenance is known. Repository change signals (the \`repo\` block) cover all authored commits regardless of evidence.`,
+    scopeCaveat,
   ];
-  if (prAcceptance?.truncated) {
+  if (commitStream.scope === 'pr') {
+    caveats.push(
+      'Rapid-retouch rates and trends are omitted from the PR report because a fresh change set has not had a comparable observation window.',
+      'AI tagging uses declarations and conservative heuristics; tool use that leaves no commit evidence cannot be recovered from git alone.'
+    );
+  } else {
+    caveats.push(
+      'Rapid retouch is file-level: any subsequent commit touching the same file within the horizon counts. It is a churn signal, not proof of a defect, rollback, or wasted work.',
+      'Fixed-horizon rates exclude files too recent to have a known outcome from the denominator and report them separately.',
+      'Migrations and generated files are excluded from repo rapid-retouch metrics because their convention-driven lifecycles carry a different signal.',
+      'AI tagging uses heuristic patterns; false positives/negatives possible.',
+      'Outcome correlation only covers what git can see: reverts resolved by hash and hotfix-pattern commits linked to the most recent prior touch of the same file(s). Incidents, SAST findings, and reverts/hotfixes outside the collected window are not represented.',
+      'Outcome ratios compare a cohort\'s share of reverts/hotfixes against its share of authored commits: 1.00x means "exactly as often as its size predicts". They are descriptive, not causal, and on small counts a single commit can move the ratio a long way.'
+    );
+  }
+  if (prAcceptance?.truncated && commitStream.scope !== 'pr') {
     caveats.push(
       'PR acceptance covers a capped sample of pull requests (--max-prs), not the full history.'
     );
   }
-  if (lineSurvival?.truncated) {
+  if (lineSurvival?.truncated && commitStream.scope !== 'pr') {
     caveats.push(
       'Line survival covers a capped sample of files (--max-files), not the whole tree.'
     );
   }
-  if (!lineSurvival) {
+  if (!lineSurvival && commitStream.scope !== 'pr') {
     caveats.push(
       "Line-level survival is unavailable: run 'aida blame' for exact per-line attribution instead of the file-level proxy."
     );
   }
-  if (!prAcceptance) {
+  if (!prAcceptance && commitStream.scope !== 'pr') {
     caveats.push(
       "PR merge outcomes are unavailable: run 'aida fetch-prs' to compare merged and closed-unmerged work. Git history alone cannot recover discarded PRs."
     );
   }
-  if (baseline?.assumed) {
+  if (baseline?.assumed && commitStream.scope !== 'pr') {
     caveats.push(
       `Baseline includes ${evidence.none} commit(s) with no evidence, assumed autonomy level 'none' via defaultMode — undeclared AI usage may leak into it.`
     );
   }
-  if (!baseline) {
+  if (!baseline && commitStream.scope !== 'pr') {
     caveats.push(
       'No baseline: no commits sit at autonomy level \'none\'. Set defaultMode to "none" in .aida.json if the commits with no evidence in this repo were hand-written.'
     );

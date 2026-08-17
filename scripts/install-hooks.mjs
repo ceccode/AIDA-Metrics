@@ -1,27 +1,41 @@
-// Installs AIDA's own commit hook on `pnpm install`, so this repo follows the
-// `prepare` recipe it recommends to everyone else (#75).
-//
-// Two guards the published recipe does not need. `--if-git` covers the "no
-// git" case; here we also have to survive being the tool itself: on a fresh
-// clone `pnpm install` runs before `pnpm build`, so the CLI it would invoke
-// does not exist yet. Skipping quietly is right — the next `pnpm install`
-// after a build picks it up, and hook installation is idempotent.
+// Installs AIDA's own commit hook on `pnpm install`, before the CLI exists.
+// This repository dogfoods the exact hook body shipped by the CLI; the small
+// bootstrap below only resolves Git's hook directory and writes that body.
 import { spawnSync } from 'child_process';
-import { existsSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { isAbsolute, resolve } from 'path';
+import { HOOK_MARKER, HOOK_SCRIPT } from '../packages/cli/src/hooks/prepare-commit-msg.mjs';
 
-const CLI = 'packages/cli/dist/index.js';
-
-if (!existsSync(CLI)) {
-  // Not built yet: nothing to install from. Not an error, and not silent
-  // enough to hide — a contributor who wonders why sees the reason.
-  console.log('[aida] CLI not built yet — skipping hook install (run `pnpm build`, then `pnpm install`).');
-  process.exit(0);
+function gitPath(args) {
+  const result = spawnSync('git', args, { encoding: 'utf8' });
+  return result.status === 0 ? result.stdout.trim() : null;
 }
 
-const result = spawnSync(process.execPath, [CLI, 'install-hooks', '--if-git'], {
-  stdio: 'inherit',
-});
+try {
+  if (!gitPath(['rev-parse', '--git-dir'])) process.exit(0);
 
-// Never fail an install over a hook: a broken hook install must not block
-// someone from working on the repo.
-process.exit(result.status === 0 ? 0 : 0);
+  const configuredHooksDir = gitPath(['rev-parse', '--git-path', 'hooks']);
+  if (!configuredHooksDir) process.exit(0);
+
+  const hooksDir = isAbsolute(configuredHooksDir)
+    ? configuredHooksDir
+    : resolve(process.cwd(), configuredHooksDir);
+  const hookPath = resolve(hooksDir, 'prepare-commit-msg');
+  const existing = existsSync(hookPath) ? readFileSync(hookPath, 'utf8') : null;
+
+  // `prepare` must never overwrite another tool's hook. The published CLI
+  // offers --force for an explicit choice; an install lifecycle does not.
+  if (existing && !existing.includes(HOOK_MARKER)) {
+    console.warn(`[aida] ${hookPath} belongs to another tool — hook installation skipped.`);
+    process.exit(0);
+  }
+
+  mkdirSync(hooksDir, { recursive: true });
+  writeFileSync(hookPath, HOOK_SCRIPT, { mode: 0o755 });
+  chmodSync(hookPath, 0o755);
+  console.log(`[aida] Installed ${hookPath}`);
+} catch (error) {
+  // Provenance hygiene must not make dependency installation fail.
+  const message = error instanceof Error ? error.message : String(error);
+  console.warn(`[aida] Hook installation skipped: ${message}`);
+}

@@ -33,7 +33,91 @@ function formatRetouch(result: ReturnType<typeof rapidRetouch>): string {
     : `${(result.rate * 100).toFixed(1)}% (${result.retouched}/${result.eligible})`;
 }
 
+function countLabel(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  // Commit subjects are untrusted input and this report is commonly posted
+  // to GitHub. Neutralize table syntax, formatting, HTML and @mentions while
+  // preserving a readable subject for the person repairing the evidence.
+  return value
+    .replace(/\r?\n/g, ' ')
+    .replace(/[&<|>`*_@[\]\\]/g, (character) => `&#${character.codePointAt(0)};`);
+}
+
+function generatePRMarkdownReport(metrics: Metrics): string {
+  const a = metrics.attribution;
+  const coveragePct = (a.coverage * 100).toFixed(1);
+  const filesTouched =
+    metrics.repo.persistence.filesConsidered + metrics.repo.persistence.filesExcluded;
+  const gaps = a.missingEvidence.commits;
+  const gapRows = gaps
+    .map(
+      (commit) =>
+        `| \`${commit.hash.slice(0, 12)}\` | ${escapeMarkdownTableCell(commit.subject)} |`
+    )
+    .join('\n');
+  const missingEvidenceSection =
+    gaps.length > 0
+      ? `### Commits missing provenance
+
+These commits contain no declaration or defensible inference. They remain \`unknown\` even when \`defaultMode\` is configured: a repository-wide prior is not evidence about an individual commit.
+
+| Commit | Subject |
+|---|---|
+${gapRows}
+${a.missingEvidence.truncated ? `\nOnly the first ${gaps.length} are shown; ${a.unknown - gaps.length} more ${a.unknown - gaps.length === 1 ? 'commit has' : 'commits have'} no evidence.\n` : ''}
+
+For a commit genuinely produced by an agent, declare \`AI-Mode: agent\`. The human who reviews and runs \`git commit\` remains the Git author/committer; that is separate from how the content was produced.
+`
+      : `### Provenance completeness
+
+Every commit in this change set carries attribution evidence.
+`;
+  const priorNote =
+    a.defaultMode !== null && a.evidence.none > 0
+      ? `\n> \`defaultMode: ${a.defaultMode}\` places missing-evidence commits in that analytical cohort, but does not increase the ${coveragePct}% evidence coverage or turn the assumption into a fact.\n`
+      : '';
+
+  return `# AIDA PR Evidence Report
+
+- **Repo:** ${metrics.repoPath}
+- **Default branch:** ${metrics.defaultBranch}
+- **Scope:** PR change set @ ${metrics.headSha.slice(0, 12) || 'empty repo'}
+- **Generated:** ${metrics.generatedAt}
+
+## Change Summary
+
+- ${countLabel(metrics.repo.commitsAuthored, 'authored commit')}
+- ${countLabel(metrics.repo.commitsAutomated, 'automated commit')}
+- ${countLabel(filesTouched, 'file')} touched
+
+This report describes the commits in \`base..HEAD\`, not the repository's integrated history or deployed production state. Temporal change metrics are intentionally omitted here: a new PR has not existed long enough for rapid-retouch rates or trends to be interpretable.
+
+## Observed Provenance
+
+**${coveragePct}% evidence coverage** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · none ${a.evidence.none}.
+
+| Autonomy level | Commits |
+|---|---:|
+| agent | ${a.modes.agent} |
+| assisted | ${a.modes.assisted} |
+| autocomplete | ${a.modes.autocomplete} |
+| none (hand-written) | ${a.modes.none} |
+| unknown | ${a.modes.unknown} |
+| _automated (no cohort)_ | ${a.automated} |
+${priorNote}
+${missingEvidenceSection}
+## Interpretation Limits
+
+${metrics.caveats.map((caveat) => `- ${caveat}`).join('\n')}
+`;
+}
+
 function generateMarkdownReport(metrics: Metrics): string {
+  if (metrics.scope === 'pr') return generatePRMarkdownReport(metrics);
+
   const a = metrics.attribution;
   const coveragePct = (a.coverage * 100).toFixed(1);
   const unknownPct = a.commitsTotal > 0 ? ((a.unknown / a.commitsTotal) * 100).toFixed(1) : '0.0';

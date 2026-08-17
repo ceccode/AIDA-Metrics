@@ -91,6 +91,41 @@ export async function detectDefaultBranch(git: SimpleGit): Promise<string> {
   return localBranches.current || 'main';
 }
 
+// When origin/HEAD exists, it names the integration branch the repository
+// publishes. Prefer that remote-tracking ref over a same-named local branch:
+// a local `main` can be stale while a feature checkout is current, and a
+// report silently reading the stale ref would be arithmetically correct but
+// describe the wrong snapshot.
+async function originDefaultRef(git: SimpleGit): Promise<string | null> {
+  try {
+    return (await git.raw(['symbolic-ref', 'refs/remotes/origin/HEAD'])).trim();
+  } catch {
+    return null;
+  }
+}
+
+async function resolveDefaultBranchRef(
+  git: SimpleGit,
+  defaultBranch: string,
+  preferOrigin: boolean
+): Promise<string> {
+  const remote = preferOrigin ? await originDefaultRef(git) : null;
+  const candidates = remote
+    ? [remote, defaultBranch]
+    : [defaultBranch, `origin/${defaultBranch.replace(/^origin\//, '')}`];
+
+  for (const candidate of candidates) {
+    try {
+      await git.raw(['rev-parse', '--verify', candidate]);
+      return candidate;
+    } catch {
+      // Try the next valid representation of the requested branch.
+    }
+  }
+
+  throw new Error(`Could not resolve default branch '${defaultBranch}' locally or from origin.`);
+}
+
 export async function collectCommits(options: CollectOptions): Promise<CommitStream> {
   const {
     repoPath,
@@ -143,21 +178,20 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
   const defaultBranch = providedDefaultBranch || (await detectDefaultBranch(git));
   logger?.info(`Using default branch: ${defaultBranch}`);
 
-  // A detached checkout may expose only origin/main. Keep the user-facing
-  // branch label while resolving the ref git can actually walk.
-  let defaultBranchRef = defaultBranch;
-  try {
-    await git.raw(['rev-parse', '--verify', defaultBranchRef]);
-  } catch {
-    defaultBranchRef = `origin/${defaultBranch.replace(/^origin\//, '')}`;
-    await git.raw(['rev-parse', '--verify', defaultBranchRef]);
-  }
+  // An explicit --default-branch is an operator choice. Otherwise, prefer
+  // origin/HEAD when present so local stale branches cannot redefine the
+  // default report's commit universe.
+  const defaultBranchRef = await resolveDefaultBranchRef(
+    git,
+    defaultBranch,
+    providedDefaultBranch === undefined
+  );
 
   const scope = diffBase ? 'pr' : requestedScope;
 
   // Parse dates once (avoids duplicate parsing and timestamp drift)
   const sinceDate = since ? parseRelativeDate(since) : undefined;
-  const untilDate = until ? parseRelativeDate(until) : new Date();
+  const untilDate = until ? parseRelativeDate(until) : undefined;
 
   let rangeArgs: string[];
 
@@ -170,13 +204,15 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     // still available for exploration, but must be requested explicitly:
     // stale feature branches otherwise change a production-looking metric.
     logger?.info(
-      `Collecting ${scope === 'all-refs' ? 'all refs' : defaultBranch} from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate.toISOString()}`
+      `Collecting ${scope === 'all-refs' ? 'all refs' : defaultBranch} from ${sinceDate?.toISOString() || 'beginning'} to ${untilDate?.toISOString() || 'latest reachable commit'}`
     );
     rangeArgs = scope === 'all-refs' ? ['--all'] : [defaultBranchRef];
     if (sinceDate) {
       rangeArgs.push(`--after=${sinceDate.toISOString()}`);
     }
-    rangeArgs.push(`--before=${untilDate.toISOString()}`);
+    if (untilDate) {
+      rangeArgs.push(`--before=${untilDate.toISOString()}`);
+    }
   }
 
   // Single batched pass: metadata, parents, and diff stats for all commits
@@ -208,7 +244,9 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
     if (sinceDate) {
       revListArgs.push(`--after=${sinceDate.toISOString()}`);
     }
-    revListArgs.push(`--before=${untilDate.toISOString()}`);
+    if (untilDate) {
+      revListArgs.push(`--before=${untilDate.toISOString()}`);
+    }
     defaultBranchHashes = new Set(
       (await git.raw(['rev-list', ...revListArgs])).trim().split('\n').filter(Boolean)
     );

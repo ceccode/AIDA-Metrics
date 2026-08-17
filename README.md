@@ -323,7 +323,7 @@ Meet people at the one command every clone runs:
 }
 ```
 
-This repo follows its own advice — see [`scripts/install-hooks.mjs`](scripts/install-hooks.mjs), which adds one guard the published recipe does not need: AIDA *is* the CLI here, so on a fresh clone `pnpm install` runs before `pnpm build` and there is nothing to install from yet.
+This repo follows its own advice — see [`scripts/install-hooks.mjs`](scripts/install-hooks.mjs). Because AIDA *is* the CLI here, the bootstrap imports the canonical hook body directly and installs it before `pnpm build`; a clean `pnpm install` therefore produces the same hook the published CLI would write.
 
 `--if-git` exits 0 silently where there is no git to hook into — a tarball install, `npm ci` in a container, a Docker build context — instead of failing an unrelated install. Installation is idempotent and still refuses to overwrite a hook AIDA did not write, so `prepare` re-runs cost nothing.
 
@@ -344,7 +344,11 @@ AI-Mode: agent
 | `assisted` | Supervised pair-programming |
 | `agent` | Autonomous, multi-file work |
 
+The mode describes **how the committed content was produced**, not who typed `git commit` or pushed the branch. If Codex, Claude Code, OpenCode, or another agent produced the change and a human reviewed and committed it manually, `agent` is still the truthful mode; Git's author/committer records the accountable person separately. Use `assisted` when the human substantially drove and wrote the implementation, and `none` only for genuinely hand-written work.
+
 Resolution order: **`AIDA_MODE`** env var (explicit and reliable — set it in your agent, wrapper, or shell alias) → auto-detection of known agent environments (best-effort convenience) → `defaultMode` in `.aida.json` → **nothing**. When the mode is unknown the hook writes no trailer at all: an absent declaration honestly means unknown, while a guessed one would be a fabrication.
+
+There are two deliberately different uses of `defaultMode`. Prospectively, the installed hook turns the repository policy into an `AI-Mode:` declaration on each new commit; contributors must override it when that policy is not true for a particular change. Retroactively, analysis can only treat the same setting as a prior for old untagged commits: changing config today cannot prove how yesterday's code was produced. Like any self-declaration, a trailer is auditable evidence, not cryptographic verification.
 
 ```bash
 AIDA_MODE=agent git commit -m "feat: ..."
@@ -419,8 +423,7 @@ Place a `.aida.json` file in your project root to add custom tools, trailer doma
 | `botBlocklist` | Additional non-AI bots to exclude from `Co-authored-by` trailer matching |
 | `patterns` | Raw regex patterns (treated as explicit) |
 | `defaultMode` | The repo's autonomy level when nothing else determines it. Two moments, one key: the commit hook stamps it as an `AI-Mode:` trailer (making new commits `declared`), and `aida analyze` applies it as a **prior** to older commits with no evidence. A prior joins a cohort but never raises coverage. Absent = no assumption: those commits join no cohort, and AIDA does not invent a comparison. This repo sets `agent`. |
-| `coverageThreshold` | Attribution coverage below this fraction (default `0.7`) flags all metrics as low-confidence |
-| `defaultMode` | Autonomy mode the commit hook stamps when nothing else determines it: `none` \| `autocomplete` \| `assisted` \| `agent` ([#61](https://github.com/ceccode/AIDA-Metrics/issues/61)). Absent means leave unknown rather than guess |
+| `coverageThreshold` | Attribution coverage below this fraction (default `0.7`) flags attribution-dependent sections as low-confidence |
 | `redactAuthors` | Replace author/committer identities in `commit-stream.json` with a per-run salted hash (default `false`; recommended in CI) |
 
 ### CLI Flags
@@ -513,7 +516,7 @@ Metric contract:
 
 | Contract field | Definition |
 |---|---|
-| Commit universe | The stream's labelled scope: default-branch ancestry by default, all refs or a PR range only when requested |
+| Commit universe | The stream's labelled scope: default-branch ancestry by default (prefers `origin/HEAD` when available), all refs or a PR range only when requested |
 | Unit | A non-generated, non-migration file first touched by the target cohort; repo-level uses all authored commits |
 | Entry time | Committer time of the first target touch, used as the local Git proxy for integration time |
 | Event | The first topologically subsequent commit that modifies or deletes the same path |

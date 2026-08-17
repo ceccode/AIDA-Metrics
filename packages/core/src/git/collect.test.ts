@@ -394,4 +394,40 @@ describe('collectCommits scope contract', () => {
       rmSync(scopedRepo, { recursive: true, force: true });
     }
   });
+
+  it('prefers origin/HEAD over a stale local default branch and never applies an implicit until=now', async () => {
+    // A developer often works on a feature branch while local `main` has not
+    // been fast-forwarded. Reading that stale ref makes a default-branch
+    // report look complete while omitting the latest integrated commit. The
+    // future timestamp models harmless clock skew between the forge and the
+    // machine running AIDA: no explicit --until means include reachable HEAD.
+    const scopedRepo = mkdtempSync(join(tmpdir(), 'aida-origin-default-'));
+    const runHere = (cmd: string, env: Record<string, string> = {}) =>
+      execSync(cmd, { cwd: scopedRepo, env: { ...process.env, ...env } });
+    try {
+      runHere('git init -q -b main');
+      runHere('git config user.name test && git config user.email test@example.com');
+      runHere('git commit -q --allow-empty -m "main: stale local base"');
+      const staleLocal = runHere('git rev-parse HEAD').toString().trim();
+      runHere('git commit -q --allow-empty -m "main: current remote tip"', {
+        GIT_AUTHOR_DATE: '2099-01-01T00:00:00Z',
+        GIT_COMMITTER_DATE: '2099-01-01T00:00:00Z',
+      });
+      const remoteTip = runHere('git rev-parse HEAD').toString().trim();
+      runHere(`git update-ref refs/remotes/origin/main ${remoteTip}`);
+      runHere('git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main');
+      runHere(`git checkout -q -b feature ${staleLocal}`);
+      runHere(`git branch -f main ${staleLocal}`);
+
+      const stream = await collectCommits({ repoPath: scopedRepo });
+
+      expect(stream.headSha).toBe(remoteTip);
+      expect(stream.commits.map((commit) => commit.message)).toEqual([
+        'main: current remote tip',
+        'main: stale local base',
+      ]);
+    } finally {
+      rmSync(scopedRepo, { recursive: true, force: true });
+    }
+  });
 });
