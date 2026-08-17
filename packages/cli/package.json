@@ -1,6 +1,6 @@
 {
   "name": "@aida-dev/cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI for the AIDA auditable evidence ledger",
   "type": "module",
   "main": "dist/index.js",
