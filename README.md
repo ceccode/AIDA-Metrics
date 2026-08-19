@@ -502,7 +502,7 @@ Early versions shipped a merge ratio ("% of AI commits that land on the default 
 - **Squash merges destroy the numerator's evidence** — branch commits vanish from history, so unmerged work disappears.
 - **Survivorship bias destroys the denominator** — abandoned branches get deleted, so discarded work leaves `git log --all` entirely. The ratio trends toward 100% for everyone and discriminates nothing.
 
-A rough metric with visible error bars is worth shipping; a metric whose data source systematically deletes the negative outcomes is not. The honest successor is a **PR acceptance rate** built on forge APIs (GitHub/GitLab), where declined PRs are never deleted — planned as a separate metric.
+A rough metric with visible error bars is worth shipping; a metric whose data source systematically deletes the negative outcomes is not. The honest successor is the **PR acceptance rate** collected with `aida fetch-prs` from forge APIs (GitHub/GitLab), where declined PRs are never deleted.
 
 ### Rapid Retouch
 
