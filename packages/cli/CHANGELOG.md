@@ -1,5 +1,11 @@
 # @aida/cli
 
+## 1.0.2
+
+### Patch Changes
+
+- 61deeac: Correct the root README to state that PR acceptance is already available through `aida fetch-prs`, rather than describing it as planned work.
+
 ## 1.0.1
 
 ### Patch Changes
