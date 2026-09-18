@@ -4,8 +4,8 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger, describeError } from '@evidtrail/core';
-import { CONFIG_FILENAME, findConfigFile, loadAidaConfig } from '../config/load.js';
-import { isAidaHookInstalled, isGitRepository } from '../hooks/detect.js';
+import { CONFIG_FILENAME, findConfigFile, loadConfig } from '../config/load.js';
+import { isHookInstalled, isGitRepository } from '../hooks/detect.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -120,7 +120,7 @@ export async function runDoctor(repoPath: string): Promise<DoctorCheck[]> {
   const configFile = await findConfigFile(repoPath);
   if (configFile) {
     try {
-      const config = await loadAidaConfig(repoPath);
+      const config = await loadConfig(repoPath);
       const validity = config.defaultMode
         ? `valid — defaultMode: ${config.defaultMode} (a prior: joins cohorts, never counts as evidence)`
         : 'valid — no defaultMode prior';
@@ -155,7 +155,7 @@ export async function runDoctor(repoPath: string): Promise<DoctorCheck[]> {
 
   // The hook is per-clone state. A repo can be fully set up while the clone
   // in front of you declares nothing, and nothing visibly breaks (#75).
-  const hooked = await isAidaHookInstalled(repoPath);
+  const hooked = await isHookInstalled(repoPath);
   checks.push(
     hooked
       ? { name: 'commit hook (this clone)', status: 'ok', detail: 'AI-Mode trailer will be stamped' }
@@ -191,17 +191,17 @@ export async function runDoctor(repoPath: string): Promise<DoctorCheck[]> {
 
   const workflowDir = join(repoPath, '.github', 'workflows');
   if (await exists(join(repoPath, '.github'))) {
-    let hasAida = false;
+    let hasEvidtrail = false;
     try {
       for (const file of await fs.readdir(workflowDir)) {
         const body = await fs.readFile(join(workflowDir, file), 'utf-8');
-        if (/evidtrail/i.test(body)) hasAida = true;
+        if (/evidtrail/i.test(body)) hasEvidtrail = true;
       }
     } catch {
       // no workflows dir
     }
     checks.push(
-      hasAida
+      hasEvidtrail
         ? { name: 'CI workflow', status: 'ok', detail: 'a workflow runs evidtrail' }
         : {
             name: 'CI workflow',

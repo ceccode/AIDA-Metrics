@@ -40,17 +40,17 @@ export async function isGitRepository(repoPath: string): Promise<boolean> {
 
 // A hook written before the rename is still ours — recognising it is what
 // lets `install-hooks` upgrade it in place instead of refusing it as foreign.
-export function isAidaHook(content: string): boolean {
+export function isEvidtrailHook(content: string): boolean {
   return content.includes(HOOK_MARKER) || content.includes(LEGACY_HOOK_MARKER);
 }
 
 // Whether THIS clone stamps modes. Deliberately checks the file rather than
 // trusting `.evidtrail.json`: config is committed and shared, the hook is not.
-export async function isAidaHookInstalled(repoPath: string): Promise<boolean> {
+export async function isHookInstalled(repoPath: string): Promise<boolean> {
   try {
     const hooksDir = await resolveHooksDir(repoPath);
     const content = await fs.readFile(join(hooksDir, HOOK_NAME), 'utf-8');
-    return isAidaHook(content);
+    return isEvidtrailHook(content);
   } catch {
     return false;
   }

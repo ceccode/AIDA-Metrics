@@ -3,7 +3,7 @@ import { collectCommits, writeJSON, createLogger, describeError } from '@evidtra
 import { join } from 'path';
 import { CLIConfig } from '../schema/config.js';
 import { detectPRBaseRef } from '../providers/pr-base.js';
-import { loadAidaConfig } from '../config/load.js';
+import { loadConfig } from '../config/load.js';
 
 function collectRepeatable(value: string, previous: string[]): string[] {
   return previous ? [...previous, value] : [value];
@@ -47,7 +47,7 @@ export function createCollectCommand(): Command {
 
       try {
         // Load .evidtrail.json config (merge with CLI flags)
-        const fileConfig = await loadAidaConfig(config.repo, logger);
+        const fileConfig = await loadConfig(config.repo, logger);
         const aiPatterns = [...(fileConfig.patterns || []), ...config.aiPatterns];
         const aiTools = [...(fileConfig.tools || []), ...config.aiTools];
         const aiTrailerDomains = [...(fileConfig.trailerDomains || []), ...config.aiTrailerDomains];

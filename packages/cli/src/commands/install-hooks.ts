@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { createLogger, describeError } from '@evidtrail/core';
 import { isGitRepository } from '../hooks/detect.js';
-import { installAidaHook, uninstallAidaHook } from '../hooks/install.js';
+import { installHook, uninstallHook } from '../hooks/install.js';
 
 export function createInstallHooksCommand(): Command {
   return new Command('install-hooks')
@@ -31,14 +31,14 @@ export function createInstallHooksCommand(): Command {
         }
 
         if (options.uninstall) {
-          const result = await uninstallAidaHook(options.repo);
+          const result = await uninstallHook(options.repo);
           if (result.status === 'absent') logger.info('No evidtrail hook found: nothing to uninstall.');
           else if (result.status === 'removed') logger.info(`Removed ${result.hookPath}`);
           else logger.info(`Removed the evidtrail block from ${result.hookPath}, leaving the rest intact`);
           return;
         }
 
-        const result = await installAidaHook(options.repo, { force: Boolean(options.force) });
+        const result = await installHook(options.repo, { force: Boolean(options.force) });
         if (result.status === 'refused') {
           logger.error(
             `${result.hookPath} already exists and was not written by evidtrail.\n` +

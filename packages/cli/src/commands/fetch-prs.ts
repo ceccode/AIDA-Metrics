@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { createLogger, describeError, parseRelativeDate, writeJSON } from '@evidtrail/core';
 import { join } from 'path';
 import { fetchClosedPRs } from '../providers/github-prs.js';
-import { loadAidaConfig } from '../config/load.js';
+import { loadConfig } from '../config/load.js';
 
 // `evidtrail fetch-prs` (#51) is explicitly networked. Collection, analysis,
 // blame, and report generation remain local; `evidtrail comment` is the other
@@ -42,7 +42,7 @@ export function createFetchPRsCommand(): Command {
           process.exit(1);
         }
 
-        const fileConfig = await loadAidaConfig(options.repo);
+        const fileConfig = await loadConfig(options.repo);
         const maxPRs = options.maxPrs ? Number(options.maxPrs) : undefined;
         if (maxPRs !== undefined && (!Number.isInteger(maxPRs) || maxPRs <= 0)) {
           throw new Error(`Invalid --max-prs "${options.maxPrs}": expected a positive integer`);

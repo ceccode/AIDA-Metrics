@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { loadAidaConfig } from './load.js';
+import { loadConfig } from './load.js';
 
 const dirs: string[] = [];
 
 function tempRepo(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'aida-config-'));
+  const dir = mkdtempSync(join(tmpdir(), 'evidtrail-config-'));
   dirs.push(dir);
   return dir;
 }
@@ -16,19 +16,19 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe('loadAidaConfig', () => {
+describe('loadConfig', () => {
   it('returns defaults only when the file is absent', async () => {
-    await expect(loadAidaConfig(tempRepo())).resolves.toEqual({});
+    await expect(loadConfig(tempRepo())).resolves.toEqual({});
   });
 
   it('does not silently ignore malformed JSON or misspelled keys', async () => {
     const malformed = tempRepo();
     writeFileSync(join(malformed, '.evidtrail.json'), '{ broken');
-    await expect(loadAidaConfig(malformed)).rejects.toBeInstanceOf(SyntaxError);
+    await expect(loadConfig(malformed)).rejects.toBeInstanceOf(SyntaxError);
 
     const typo = tempRepo();
     writeFileSync(join(typo, '.evidtrail.json'), JSON.stringify({ defaultMdoe: 'agent' }));
-    await expect(loadAidaConfig(typo)).rejects.toThrow('Unrecognized key');
+    await expect(loadConfig(typo)).rejects.toThrow('Unrecognized key');
   });
 
   // Rename shim: a repo upgrading the CLI keeps its prior and threshold, and
@@ -38,7 +38,7 @@ describe('loadAidaConfig', () => {
     const repo = tempRepo();
     writeFileSync(join(repo, '.aida.json'), JSON.stringify({ defaultMode: 'agent' }));
     const logger = { warn: vi.fn() };
-    await expect(loadAidaConfig(repo, logger)).resolves.toMatchObject({ defaultMode: 'agent' });
+    await expect(loadConfig(repo, logger)).resolves.toMatchObject({ defaultMode: 'agent' });
     expect(logger.warn).toHaveBeenCalledOnce();
     expect(logger.warn.mock.calls[0][0]).toContain('.evidtrail.json');
   });
@@ -48,7 +48,7 @@ describe('loadAidaConfig', () => {
     writeFileSync(join(repo, '.aida.json'), JSON.stringify({ defaultMode: 'agent' }));
     writeFileSync(join(repo, '.evidtrail.json'), JSON.stringify({ defaultMode: 'none' }));
     const logger = { warn: vi.fn() };
-    await expect(loadAidaConfig(repo, logger)).resolves.toMatchObject({ defaultMode: 'none' });
+    await expect(loadConfig(repo, logger)).resolves.toMatchObject({ defaultMode: 'none' });
     expect(logger.warn).not.toHaveBeenCalled();
   });
 });
