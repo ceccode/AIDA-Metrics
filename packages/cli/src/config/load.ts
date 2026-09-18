@@ -1,4 +1,4 @@
-import { AidaConfig, assertNoRetiredConfigKeys } from '@evidtrail/core';
+import { EvidtrailConfig, assertNoRetiredConfigKeys } from '@evidtrail/core';
 import { readFile, access } from 'fs/promises';
 import { join } from 'path';
 
@@ -30,10 +30,10 @@ export async function findConfigFile(repoPath: string): Promise<ConfigFile | nul
 }
 
 /** Load the repository configuration without turning malformed input into defaults. */
-export async function loadAidaConfig(
+export async function loadConfig(
   repoPath: string,
   logger?: { warn(message: string): void }
-): Promise<Partial<AidaConfig>> {
+): Promise<Partial<EvidtrailConfig>> {
   const file = await findConfigFile(repoPath);
   if (!file) return {};
   if (file.legacy) {
@@ -45,5 +45,5 @@ export async function loadAidaConfig(
   const raw = await readFile(file.path, 'utf-8');
   const parsed: unknown = JSON.parse(raw);
   assertNoRetiredConfigKeys(parsed);
-  return AidaConfig.parse(parsed);
+  return EvidtrailConfig.parse(parsed);
 }

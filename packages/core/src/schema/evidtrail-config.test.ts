@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AidaConfig, assertNoRetiredConfigKeys } from './aida-config.js';
+import { AidaConfig, EvidtrailConfig, assertNoRetiredConfigKeys } from './evidtrail-config.js';
 
 describe('assertNoRetiredConfigKeys', () => {
   // zod strips unknown keys, so a config still carrying the retired prior
@@ -25,8 +25,18 @@ describe('assertNoRetiredConfigKeys', () => {
   });
 
   it('parses a migrated config into the expected shape', () => {
-    const config = AidaConfig.parse({ defaultMode: 'agent' });
+    const config = EvidtrailConfig.parse({ defaultMode: 'agent' });
     expect(config.defaultMode).toBe('agent');
     expect(config).not.toHaveProperty('defaultAttribution');
+  });
+});
+
+describe('the pre-rename export name', () => {
+  // AidaConfig is a published export: renaming it outright would break any
+  // importer on a minor upgrade, which is the opposite of what the rename
+  // promised. The alias is the same shim the config file and the env var get.
+  it('still parses, and is the same schema', () => {
+    expect(AidaConfig).toBe(EvidtrailConfig);
+    expect(AidaConfig.parse({ defaultMode: 'agent' })).toMatchObject({ defaultMode: 'agent' });
   });
 });

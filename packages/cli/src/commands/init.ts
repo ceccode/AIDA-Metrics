@@ -5,7 +5,7 @@ import { join } from 'path';
 import { promisify } from 'util';
 import { createLogger, describeError } from '@evidtrail/core';
 import { isGitRepository } from '../hooks/detect.js';
-import { installAidaHook } from '../hooks/install.js';
+import { installHook } from '../hooks/install.js';
 import { CONFIG_FILENAME, findConfigFile } from '../config/load.js';
 
 const execFileAsync = promisify(execFile);
@@ -40,7 +40,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function existingAidaWorkflow(workflowDir: string): Promise<string | null> {
+async function existingWorkflow(workflowDir: string): Promise<string | null> {
   try {
     for (const file of await fs.readdir(workflowDir)) {
       if (!/\.ya?ml$/.test(file)) continue;
@@ -179,7 +179,7 @@ export async function runInit(options: InitOptions): Promise<InitStep[]> {
   }
 
   // The hook, for this clone, now.
-  const hook = await installAidaHook(repoPath);
+  const hook = await installHook(repoPath);
   steps.push(
     hook.status === 'refused'
       ? {
@@ -222,7 +222,7 @@ export async function runInit(options: InitOptions): Promise<InitStep[]> {
   if (options.workflow) {
     const workflowDir = join(repoPath, '.github', 'workflows');
     const workflowPath = join(workflowDir, 'evidtrail.yml');
-    const existing = await existingAidaWorkflow(workflowDir);
+    const existing = await existingWorkflow(workflowDir);
     if (existing) {
       steps.push({
         target: '.github/workflows/evidtrail.yml',

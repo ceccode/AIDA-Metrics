@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const AidaConfig = z.object({
+export const EvidtrailConfig = z.object({
   tools: z.array(z.string()).default([]),
   trailerDomains: z.array(z.string()).default([]),
   botBlocklist: z.array(z.string()).default([]),
@@ -22,7 +22,16 @@ export const AidaConfig = z.object({
   redactAuthors: z.boolean().default(false),
 }).strict();
 
-export type AidaConfig = z.infer<typeof AidaConfig>;
+export type EvidtrailConfig = z.infer<typeof EvidtrailConfig>;
+
+// Pre-rename name. This one is a published export of @evidtrail/core, so
+// unlike the internal identifiers it cannot simply change: anything that
+// imported it would stop compiling on a minor upgrade. Kept as an alias
+// until the next major, on the same terms as the other rename shims.
+/** @deprecated Renamed to {@link EvidtrailConfig}; removed in the next major. */
+export const AidaConfig = EvidtrailConfig;
+/** @deprecated Renamed to {@link EvidtrailConfig}; removed in the next major. */
+export type AidaConfig = EvidtrailConfig;
 
 // `defaultAttribution` was the prior on the axis #25 retired. zod strips
 // unknown keys, so leaving it in place would silently change a repo's

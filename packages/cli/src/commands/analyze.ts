@@ -16,8 +16,8 @@ import {
 import { calculateMetrics } from '@evidtrail/metrics';
 import { join, resolve } from 'path';
 import { CLIConfig } from '../schema/config.js';
-import { HOOK_NAME, isAidaHookInstalled } from '../hooks/detect.js';
-import { findConfigFile, loadAidaConfig } from '../config/load.js';
+import { HOOK_NAME, isHookInstalled } from '../hooks/detect.js';
+import { findConfigFile, loadConfig } from '../config/load.js';
 
 const MODES = ['none', 'autocomplete', 'assisted', 'agent'];
 
@@ -73,7 +73,7 @@ export function createAnalyzeCommand(): Command {
         logger.info(`Analyzing ${commitStream.commits.length} commits`);
 
         // CLI flags override .evidtrail.json (read from the collected repo's root)
-        const fileConfig = await loadAidaConfig(commitStream.repoPath, logger);
+        const fileConfig = await loadConfig(commitStream.repoPath, logger);
         const defaultMode = options.defaultMode ?? fileConfig.defaultMode;
         if (defaultMode && !MODES.includes(defaultMode)) {
           throw new Error(
@@ -204,7 +204,7 @@ export function createAnalyzeCommand(): Command {
           // not — and nothing breaks, the unknown bucket just grows (#75).
           // Worth naming precisely rather than repeating generic advice.
           const configured = (await findConfigFile(commitStream.repoPath)) !== null;
-          const hooked = await isAidaHookInstalled(commitStream.repoPath);
+          const hooked = await isHookInstalled(commitStream.repoPath);
           const confidenceContext =
             commitStream.scope === 'pr'
               ? 'the PR provenance summary is incomplete'

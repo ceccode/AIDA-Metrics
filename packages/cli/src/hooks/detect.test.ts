@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { isAidaHookInstalled, isGitRepository, resolveHooksDir } from './detect.js';
+import { isHookInstalled, isGitRepository, resolveHooksDir } from './detect.js';
 import { HOOK_SCRIPT } from './prepare-commit-msg.js';
 
 let repoPath: string;
@@ -32,20 +32,20 @@ describe('isGitRepository', () => {
   });
 });
 
-describe('isAidaHookInstalled', () => {
+describe('isHookInstalled', () => {
   // The distinction #75 turns on: `.evidtrail.json` is committed and shared, the
   // hook is per-clone. A repo can be set up for evidtrail while the clone in
   // front of you declares nothing, and nothing visibly breaks.
   it('is false on a fresh clone, even one configured for evidtrail', async () => {
     writeFileSync(join(repoPath, '.evidtrail.json'), JSON.stringify({ defaultMode: 'agent' }));
-    expect(await isAidaHookInstalled(repoPath)).toBe(false);
+    expect(await isHookInstalled(repoPath)).toBe(false);
   });
 
   it('is true once the hook is written', async () => {
     const hooks = await resolveHooksDir(repoPath);
     mkdirSync(hooks, { recursive: true });
     writeFileSync(join(hooks, 'prepare-commit-msg'), HOOK_SCRIPT, { mode: 0o755 });
-    expect(await isAidaHookInstalled(repoPath)).toBe(true);
+    expect(await isHookInstalled(repoPath)).toBe(true);
   });
 
   it('recognises a hook written before the rename as ours', async () => {
@@ -58,23 +58,23 @@ describe('isAidaHookInstalled', () => {
       '#!/bin/sh\n# >>> aida-metrics mode stamp >>>\necho old body\n# <<< aida-metrics mode stamp <<<\n',
       { mode: 0o755 }
     );
-    expect(await isAidaHookInstalled(repoPath)).toBe(true);
+    expect(await isHookInstalled(repoPath)).toBe(true);
   });
 
   it('is false for a foreign hook occupying the same path', async () => {
     const hooks = await resolveHooksDir(repoPath);
     mkdirSync(hooks, { recursive: true });
     writeFileSync(join(hooks, 'prepare-commit-msg'), '#!/bin/sh\necho not ours\n', { mode: 0o755 });
-    expect(await isAidaHookInstalled(repoPath)).toBe(false);
+    expect(await isHookInstalled(repoPath)).toBe(false);
   });
 
   it('follows core.hooksPath rather than assuming .git/hooks', async () => {
     const custom = join(repoPath, 'my-hooks');
     mkdirSync(custom, { recursive: true });
     execSync('git config core.hooksPath my-hooks', { cwd: repoPath });
-    expect(await isAidaHookInstalled(repoPath)).toBe(false);
+    expect(await isHookInstalled(repoPath)).toBe(false);
 
     writeFileSync(join(custom, 'prepare-commit-msg'), HOOK_SCRIPT, { mode: 0o755 });
-    expect(await isAidaHookInstalled(repoPath)).toBe(true);
+    expect(await isHookInstalled(repoPath)).toBe(true);
   });
 });
