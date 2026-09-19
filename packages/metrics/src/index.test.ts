@@ -685,3 +685,20 @@ describe('observation end (window.observationEnd)', () => {
     expect(metrics.window.observationEnd).toBe('2025-01-01T00:00:00.000Z');
   });
 });
+
+describe('aiModeUnknown', () => {
+  it('counts AI commits whose evidence names a tool but no autonomy level', () => {
+    const toolOnly: Commit['tags'] = { attribution: 'ai', automated: false, mode: 'unknown', evidence: 'inferred', level: 'explicit', sources: ['tool:copilot'] };
+    const metrics = calculateMetrics(
+      makeStream([
+        makeCommit({ hash: 'a1', tags: aiTags }), // mode agent
+        makeCommit({ hash: 'a2', tags: toolOnly }),
+        makeCommit({ hash: 'a3', tags: toolOnly }),
+      ])
+    );
+    expect(metrics.attribution.ai).toBe(3);
+    expect(metrics.attribution.coverage).toBe(1);
+    expect(metrics.attribution.aiModeUnknown).toBe(2);
+    expect(metrics.attribution.modes.unknown).toBe(2);
+  });
+});

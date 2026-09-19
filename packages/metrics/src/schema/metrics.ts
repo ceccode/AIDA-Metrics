@@ -42,6 +42,11 @@ export const Attribution = z.object({
   belowThreshold: z.boolean(), // all-time; see `recent` for the actionable one
   // Null when the window contains no commits (#52)
   recent: RecentCoverage.nullable(),
+  // AI commits whose evidence names a tool but no autonomy level. They count
+  // toward coverage (involvement is known) and sit in `modes.unknown` (the
+  // level is not) — the two figures disagree on purpose, and this number is
+  // what reconciles them: 100% coverage is not 100% known autonomy.
+  aiModeUnknown: z.number().int().nonnegative().optional(),
   // Autonomy axis (#25): commit counts per mode and per mode-evidence level
   modes: z.object({
     none: z.number().int().nonnegative(),
@@ -392,6 +397,23 @@ export const TrendDelta = z.object({
   delta: z.number(),
 });
 
+// Whether the two compared periods are comparable by SIZE (#102). Maturity
+// answers "have both had the same time?"; this answers "is there enough in
+// each, and are they alike enough, for a delta to mean anything?". Found on
+// this repository: 5 commits/18 files against 18 commits/53 files, with two
+// empty months between, rendered as a +60.9 pt quality change. The delta
+// is still computed — labelling, never substituting a friendlier pair.
+export const TrendComparability = z.object({
+  eligible: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative() }),
+  commits: z.object({ from: z.number().int().nonnegative(), to: z.number().int().nonnegative() }),
+  minEligible: z.number().int().positive(),
+  maxSizeRatio: z.number().positive(),
+  // ok: sizes alike and sufficient · weak: sizes differ beyond maxSizeRatio
+  // · insufficient: a side has fewer than minEligible eligible files
+  status: z.enum(['ok', 'weak', 'insufficient']),
+  reasons: z.array(z.string()),
+});
+
 export const Trend = z.object({
   granularity: TrendGranularity,
   observationDays: z.number().int().positive(),
@@ -405,6 +427,8 @@ export const Trend = z.object({
       avgPersistenceDays: TrendDelta,
       reworkRate: TrendDelta.nullable(),
       rapidRetouchRate: TrendDelta.nullable(),
+      // Additive (#102): absent in artifacts written before it existed
+      comparability: TrendComparability.optional(),
     })
     .nullable(),
 });
@@ -486,5 +510,6 @@ export type Baseline = z.infer<typeof Baseline>;
 export type Delta = z.infer<typeof Delta>;
 export type TrendGranularity = z.infer<typeof TrendGranularity>;
 export type TrendPeriod = z.infer<typeof TrendPeriod>;
+export type TrendComparability = z.infer<typeof TrendComparability>;
 export type Trend = z.infer<typeof Trend>;
 export type Metrics = z.infer<typeof Metrics>;

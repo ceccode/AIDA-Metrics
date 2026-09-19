@@ -229,3 +229,59 @@ describe('maturity under --until', () => {
     expect(unbounded.latestComparison).toMatchObject({ from: '2026-02', to: '2026-03' });
   });
 });
+
+describe('size comparability (#102)', () => {
+  // This repository's own case: 5 commits over 18 files against 18 commits
+  // over 53 files, two empty months between, rendered as +60.9 pt. The
+  // arithmetic was right; the pair was not alike enough for the delta to
+  // mean what a reader takes it to mean.
+  const files = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => `src/${prefix}${i}.ts`);
+
+  it('labels a pair whose sizes differ beyond the ratio as weak, and still computes the delta', () => {
+    const commits: Commit[] = [];
+    // April: 2 commits, 12 files; July: 8 commits, 40 files (3.3× and 4×)
+    commits.push(makeCommit('a1', '2026-04-05T00:00:00Z', files('apr', 6)));
+    commits.push(makeCommit('a2', '2026-04-06T00:00:00Z', files('aprb', 6)));
+    for (let i = 0; i < 8; i++) commits.push(makeCommit(`j${i}`, `2026-07-0${i + 1}T00:00:00Z`, files(`jul${i}`, 5)));
+    const trend = calculateTrend(makeStream(commits), {
+      observationEnd: new Date('2026-09-18T00:00:00.000Z'),
+      observationDays: 30,
+    });
+    const lc = trend.latestComparison!;
+    expect(lc).toMatchObject({ from: '2026-04', to: '2026-07' });
+    expect(lc.rapidRetouchRate).not.toBeNull();
+    expect(lc.comparability).toMatchObject({
+      status: 'weak',
+      eligible: { from: 12, to: 40 },
+      commits: { from: 2, to: 8 },
+    });
+    expect(lc.comparability!.reasons.join(' ')).toContain('12 vs 40 eligible files');
+    expect(lc.comparability!.reasons.join(' ')).toContain('2 vs 8 commits');
+  });
+
+  it('withholds when a side has fewer eligible files than the minimum', () => {
+    const trend = calculateTrend(
+      makeStream([
+        makeCommit('a1', '2026-04-05T00:00:00Z', files('apr', 3)),
+        makeCommit('j1', '2026-07-05T00:00:00Z', files('jul', 30)),
+      ]),
+      { observationEnd: new Date('2026-09-18T00:00:00.000Z'), observationDays: 30 }
+    );
+    const cmp = trend.latestComparison!.comparability!;
+    expect(cmp.status).toBe('insufficient');
+    expect(cmp.reasons).toEqual(['2026-04 has 3 eligible files (fewer than 10)']);
+  });
+
+  it('is ok for two alike, sufficient periods', () => {
+    const trend = calculateTrend(
+      makeStream([
+        makeCommit('a1', '2026-04-05T00:00:00Z', files('apr', 12)),
+        makeCommit('a2', '2026-04-06T00:00:00Z', files('aprb', 12)),
+        makeCommit('j1', '2026-07-05T00:00:00Z', files('jul', 15)),
+        makeCommit('j2', '2026-07-06T00:00:00Z', files('julb', 15)),
+      ]),
+      { observationEnd: new Date('2026-09-18T00:00:00.000Z'), observationDays: 30 }
+    );
+    expect(trend.latestComparison!.comparability).toMatchObject({ status: 'ok', reasons: [] });
+  });
+});
