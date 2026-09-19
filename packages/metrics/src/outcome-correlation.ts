@@ -142,6 +142,17 @@ function calculateHotfixes(
     // antecedent, but it does become one for a later hotfix (a chain of
     // fixes attributes to the immediately preceding touch, not the origin).
     for (const file of commit.stats.files) {
+      if (file.previousPath !== undefined) {
+        // The file moved: its touch history moves with it. A pure rename
+        // leaves the prior touch as the antecedent; a rename with edits
+        // becomes the touch, like any other edit.
+        const carried = lastTouch.get(file.previousPath);
+        lastTouch.delete(file.previousPath);
+        if (carried && file.additions + file.deletions === 0) {
+          lastTouch.set(file.path, carried);
+          continue;
+        }
+      }
       if (file.status === 'deleted') {
         lastTouch.delete(file.path);
       } else {

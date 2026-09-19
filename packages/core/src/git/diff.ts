@@ -1,5 +1,6 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
 import { FileChange } from '../schema/commit.js';
+import { splitRenamePath } from './paths.js';
 import type { z } from 'zod';
 
 type FileChangeType = z.infer<typeof FileChange>;
@@ -57,7 +58,8 @@ export async function getDiffStats(repoPathOrGit: string | SimpleGit, commitHash
       if (parts.length >= 3) {
         const additions = parts[0] === '-' ? 0 : parseInt(parts[0], 10) || 0;
         const deletions = parts[1] === '-' ? 0 : parseInt(parts[1], 10) || 0;
-        const path = parts[parts.length - 1];
+        // Same rename form as `git log --numstat`: see paths.ts
+        const { path, previousPath } = splitRenamePath(parts.slice(2).join('\t'));
 
         // Skip binary files (marked with -)
         if (parts[0] === '-' && parts[1] === '-') {
@@ -69,7 +71,8 @@ export async function getDiffStats(repoPathOrGit: string | SimpleGit, commitHash
 
         files.push({
           path,
-          status: statusMap.get(path) || 'modified',
+          status: statusMap.get(path) || (previousPath ? 'renamed' : 'modified'),
+          ...(previousPath ? { previousPath } : {}),
           additions,
           deletions,
         });

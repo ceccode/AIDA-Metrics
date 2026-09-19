@@ -460,3 +460,42 @@ describe('window bounds in the stream', () => {
     expect(relative.since).not.toBe('1d');
   });
 });
+
+describe('renamed files', () => {
+  // Found by an external review: `old.ts` → `git mv new.ts` → edit `new.ts`
+  // produced THREE paths in the stream — `old.ts`, `old.ts => new.ts` and
+  // `new.ts` — with the rename filed as a modification of a file that never
+  // existed. Every rename in a repository was one more eligible file that
+  // could never be retouched.
+  it('records a rename as one file under its new name, carrying the old one', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'evidtrail-rename-'));
+    const run = (cmd: string, date: string) =>
+      execSync(cmd, {
+        cwd: dir,
+        env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date, EVIDTRAIL_MODE: '', CLAUDECODE: '' },
+      });
+    try {
+      run('git init -q -b main', '2026-01-01T10:00:00Z');
+      run('git config user.name test && git config user.email test@example.com', '2026-01-01T10:00:00Z');
+      writeFileSync(join(dir, 'old.ts'), 'export const a = 1;\nexport const b = 2;\n');
+      run('git add -A && git commit -q -m "add old"', '2026-01-01T10:00:00Z');
+      run('git mv old.ts new.ts && git commit -q -m "rename"', '2026-01-02T10:00:00Z');
+      writeFileSync(join(dir, 'new.ts'), 'export const a = 1;\nexport const b = 3;\n');
+      run('git add -A && git commit -q -m "modify new"', '2026-01-04T10:00:00Z');
+
+      const stream = await collectCommits({ repoPath: dir });
+      const byMessage = Object.fromEntries(stream.commits.map((c) => [c.message, c.stats.files]));
+
+      expect(byMessage['rename']).toEqual([
+        { path: 'new.ts', previousPath: 'old.ts', status: 'renamed', additions: 0, deletions: 0 },
+      ]);
+      expect(byMessage['modify new']).toEqual([
+        { path: 'new.ts', status: 'modified', additions: 1, deletions: 1 },
+      ]);
+      const everyPath = stream.commits.flatMap((c) => c.stats.files.map((f) => f.path));
+      expect(everyPath).not.toContain('old.ts => new.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
