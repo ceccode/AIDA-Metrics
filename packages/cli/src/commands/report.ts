@@ -274,7 +274,7 @@ ${byCategorySection}`;
     modeRows.length > 0
       ? `## By Autonomy Level
 
-The comparison that stays meaningful when everything is AI-assisted: how code holds up per autonomy level (automated commits excluded).
+The comparison that stays meaningful when everything is AI-assisted: how often code is touched again, per autonomy level (automated commits excluded).
 
 Cohorts here include commits placed by the \`defaultMode\` prior, marked *assumed* — so these counts can exceed the observed ones above, which only ever report what the commits themselves declare.${
           gatedModes.length > 0
@@ -346,7 +346,7 @@ Approximate survival of AI-introduced lines: **${(ls.approxSurvivalRate * 100).t
 
 Reverts and hotfix-pattern commits, linked back to the attribution of the commit(s) they respond to — scoped to what git itself can answer (no incidents, no SAST).
 
-**Read the ratio, not the count.** A cohort's share of outcomes only means something against its share of authored commits: **1.00× is exactly what its size predicts**, above is an excess, below is better than average. Automated commits are excluded from both sides.
+**Read the ratio, not the count.** A cohort's share of outcomes only means something against its share of authored commits: **1.00× is exactly what its size predicts**, above is more than its share predicts, below is fewer. Automated commits are excluded from both sides.
 ${
   revertRows.length > 0
     ? `
@@ -415,16 +415,36 @@ ${[
     ? `\nObservation ends at **${metrics.window.observationEnd ?? metrics.window.until}** (the \`--until\` bound): files first touched shortly before it are *too recent*, not untouched, and periods that end after it are immature below.\n`
     : '';
 
+  // A windowed run measures a different population, not the same one over a
+  // shorter span: a file's clock starts at its first touch INSIDE the
+  // window, so long-lived files enter as if new. The same repository read
+  // 68% over its full history and 90% over its last 90 days — both correct,
+  // and only comparable with runs of the same window.
+  const windowNote = metrics.window.since
+    ? `\nWindow starts at **${metrics.window.since}** (\`--since\`): a file's first touch is its first touch inside the window, so files that predate it count from their first edit here, not from their creation. Rates from a windowed run compare with other runs of the same window, not with full history.\n`
+    : '';
+
   // Change signals over time. The headline is
   // the direction of travel, not the snapshot — and the direction is only
   // readable between periods that have had the same amount of time to be
   // reworked, hence the maturity marker below.
   const tr = metrics.trend;
   const lc = tr.latestComparison;
+  // Size comparability (#102) sits next to maturity: a mature pair can still
+  // be a poor pair. Insufficient → the delta is withheld and the reason
+  // stated; weak → the delta is shown and labelled. The pair is never swapped
+  // for a friendlier one.
+  const cmp = lc?.comparability;
   const trendHeadline = lc
-    ? lc.rapidRetouchRate
-      ? `**${lc.from} → ${lc.to}:** rapid retouch within ${tr.observationDays}d ${(lc.rapidRetouchRate.from * 100).toFixed(1)}% → **${(lc.rapidRetouchRate.to * 100).toFixed(1)}%** (${formatDelta(round1(lc.rapidRetouchRate.delta * 100), ' pt')}).`
-      : `**${lc.from} → ${lc.to}:** not enough eligible files for a ${tr.observationDays}-day comparison.`
+    ? cmp?.status === 'insufficient'
+      ? `**${lc.from} → ${lc.to}: comparison withheld** — ${cmp.reasons.join('; ')}. Both periods are mature, but a handful of files cannot carry a percentage; the rows below show what each period contains.`
+      : lc.rapidRetouchRate
+        ? `**${lc.from} → ${lc.to}:** rapid retouch within ${tr.observationDays}d ${(lc.rapidRetouchRate.from * 100).toFixed(1)}% → **${(lc.rapidRetouchRate.to * 100).toFixed(1)}%** (${formatDelta(round1(lc.rapidRetouchRate.delta * 100), ' pt')}).${
+            cmp?.status === 'weak'
+              ? ` *Weak comparison* — the periods differ in size: ${cmp.reasons.join(', ')}. A change of pace is being measured along with any change in the code.`
+              : ''
+          }`
+        : `**${lc.from} → ${lc.to}:** not enough eligible files for a ${tr.observationDays}-day comparison.`
     : `**No comparison yet** — fewer than two periods have been over for the full ${tr.observationDays}-day observation window. A trend needs two points that have had the same amount of time.`;
 
   const immature = tr.periods.filter((p) => !p.mature).length;
@@ -452,7 +472,7 @@ ${immature > 0 ? `\n*(immature)* — Too recent to judge: the period has not bee
 How files change again, as a property of the **repo** — measured over all ${rq.commitsAuthored} authored commits (${rq.commitsAutomated} automated excluded). No attribution evidence required: these numbers do not move with coverage or with the \`defaultMode\` prior.
 
 - Files measured: ${rqp.filesConsidered} (${rqp.filesExcluded} excluded: migrations/generated)
-
+${windowNote}
 **Rapid retouch** means a subsequent commit touched the same file within the stated horizon. It is a churn signal, not proof of a defect or “rework”. A file is eligible once it is retouched in time or has been observed event-free for the full horizon; otherwise it is too recent.
 ${observationNote}
 | Horizon | Retouched | Eligible | Too recent | Rate |
@@ -495,7 +515,11 @@ ${byModeSection}${comparisonSection}
 ${fairnessSection}${baselineDetail}## Data Quality
 
 **${coveragePct}% of commits carry attribution evidence** — declared ${a.evidence.declared} · inferred ${a.evidence.inferred} · none ${a.evidence.none} (${unknownPct}%). Evidence gates the autonomy sections above, never repository-level change signals.
-${recentLine}
+${
+  a.aiModeUnknown
+    ? `\nOf the ${a.ai} AI commits, **${a.aiModeUnknown} carry a tool signal but no autonomy level**: coverage counts them as evidence of involvement, the autonomy sections count them as \`unknown\`. Full coverage is not full knowledge of how the code was produced.\n`
+    : ''
+}${recentLine}
 ### Caveats
 ${metrics.caveats.map((caveat) => `- ${caveat}`).join('\n')}
 `;

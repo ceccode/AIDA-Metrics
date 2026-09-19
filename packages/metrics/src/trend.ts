@@ -1,7 +1,7 @@
 import { Commit, CommitStream } from '@evidtrail/core';
 import { observationEndOf } from './observation.js';
 import { calculatePersistence } from './persistence.js';
-import { Trend, TrendGranularity, TrendPeriod } from './schema/metrics.js';
+import { Trend, TrendComparability, TrendGranularity, TrendPeriod } from './schema/metrics.js';
 
 // Quality over time (#77, step 3). The comparator that replaces cohorts.
 //
@@ -32,6 +32,11 @@ import { Trend, TrendGranularity, TrendPeriod } from './schema/metrics.js';
 
 export const DEFAULT_TREND_OBSERVATION_DAYS = 30;
 export const DEFAULT_TREND_MAX_PERIODS = 12;
+// Size comparability (#102). Below `minEligible` files on either side the
+// headline delta is withheld; beyond `maxSizeRatio` between the two sides
+// (eligible files or authored commits) it is shown and labelled weak.
+export const DEFAULT_TREND_MIN_ELIGIBLE = 10;
+export const DEFAULT_TREND_MAX_SIZE_RATIO = 3;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -43,6 +48,50 @@ export interface TrendOptions {
   // hundred-row table is not a trend anyone reads.
   maxPeriods?: number;
   observationEnd?: Date;
+  minEligible?: number;
+  maxSizeRatio?: number;
+}
+
+// Two mature periods can still be a poor pair: a near-idle month against a
+// month of intense work measures the change of pace as much as the change
+// in code, and a handful of files cannot carry a percentage. Maturity is
+// about time; this is about size. The pair is never swapped for a
+// friendlier one — choosing the comparison to make it look valid would be
+// worse than showing a labelled weak one.
+function assessComparability(
+  previous: TrendPeriod,
+  latest: TrendPeriod,
+  observationDays: number,
+  minEligible: number,
+  maxSizeRatio: number
+): TrendComparability {
+  const eligibleOf = (period: TrendPeriod) =>
+    period.persistence?.rapidRetouch.find((r) => r.windowDays === observationDays)?.eligible ?? 0;
+  const eligible = { from: eligibleOf(previous), to: eligibleOf(latest) };
+  const commits = { from: previous.commitsAuthored, to: latest.commitsAuthored };
+  const ratio = (a: number, b: number) => (Math.min(a, b) === 0 ? Infinity : Math.max(a, b) / Math.min(a, b));
+
+  const reasons: string[] = [];
+  for (const [label, value] of [[previous.label, eligible.from], [latest.label, eligible.to]] as const) {
+    if (value < minEligible) reasons.push(`${label} has ${value} eligible file${value === 1 ? '' : 's'} (fewer than ${minEligible})`);
+  }
+  const status: TrendComparability['status'] = reasons.length > 0 ? 'insufficient' : 'ok';
+  if (status === 'ok') {
+    if (ratio(eligible.from, eligible.to) > maxSizeRatio) {
+      reasons.push(`${eligible.from} vs ${eligible.to} eligible files (${round(ratio(eligible.from, eligible.to), 1)}×)`);
+    }
+    if (ratio(commits.from, commits.to) > maxSizeRatio) {
+      reasons.push(`${commits.from} vs ${commits.to} commits (${round(ratio(commits.from, commits.to), 1)}×)`);
+    }
+  }
+  return {
+    eligible,
+    commits,
+    minEligible,
+    maxSizeRatio,
+    status: status === 'insufficient' ? 'insufficient' : reasons.length > 0 ? 'weak' : 'ok',
+    reasons,
+  };
 }
 
 function periodStart(date: Date, granularity: TrendGranularity): Date {
@@ -81,6 +130,8 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
     // against it, so a month cut short by the bound stays immature instead
     // of entering the comparison with a truncated window.
     observationEnd = observationEndOf(commitStream),
+    minEligible = DEFAULT_TREND_MIN_ELIGIBLE,
+    maxSizeRatio = DEFAULT_TREND_MAX_SIZE_RATIO,
   } = options;
 
   const empty: Trend = {
@@ -190,6 +241,7 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
               ? { from, to, delta: round(to - from, 4) }
               : null;
           })(),
+          comparability: assessComparability(previous, latest, observationDays, minEligible, maxSizeRatio),
         }
       : null;
 

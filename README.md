@@ -413,6 +413,8 @@ The mode describes **how the committed content was produced**, not who typed `gi
 
 Resolution order: **`EVIDTRAIL_MODE`** env var (explicit and reliable — set it in your agent, wrapper, or shell alias) → auto-detection of known agent environments (best-effort convenience) → `defaultMode` in `.evidtrail.json` → **nothing**. When the mode is unknown the hook writes no trailer at all: an absent declaration honestly means unknown, while a guessed one would be a fabrication.
 
+Auto-detection covers Claude Code (`CLAUDECODE`, `CLAUDE_CODE_ENTRYPOINT` → `agent`) and Cursor (`CURSOR_TRACE_ID` → `assisted`). Codex CLI documents no environment variable for the commands it spawns, so the hook does not guess at it: Codex users declare with `EVIDTRAIL_MODE=agent` in the agent's environment or a shell alias. A detection that could be wrong is worse than an honest `unknown`.
+
 There are two deliberately different uses of `defaultMode`. Prospectively, the installed hook turns the repository policy into an `AI-Mode:` declaration on each new commit; contributors must override it when that policy is not true for a particular change. Retroactively, analysis can only treat the same setting as a prior for old untagged commits: changing config today cannot prove how yesterday's code was produced. Like any self-declaration, a trailer is auditable evidence, not cryptographic verification.
 
 ```bash
