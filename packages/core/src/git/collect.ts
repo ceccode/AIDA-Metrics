@@ -377,8 +377,12 @@ export async function collectCommits(options: CollectOptions): Promise<CommitStr
       await git.raw(['rev-parse', diffBase ? 'HEAD' : scope === 'default-branch' ? defaultBranchRef : 'HEAD'])
     ).trim(),
     generatedAt: formatISODate(new Date()),
-    since,
-    until,
+    // The bounds are stored as the resolved instants, not the flag text.
+    // `--until 10d` re-read tomorrow would name a different day; metrics
+    // must be a pure function of the stream, so the stream carries the
+    // instant git was actually queried with.
+    since: sinceDate ? formatISODate(sinceDate) : undefined,
+    until: untilDate ? formatISODate(untilDate) : undefined,
     aiPatterns: [...aiPatterns],
     commits,
   };

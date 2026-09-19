@@ -444,3 +444,19 @@ describe('collectCommits scope contract', () => {
     }
   });
 });
+
+describe('window bounds in the stream', () => {
+  // Metrics must be a pure function of the stream. `--until 10d` stored as
+  // text would resolve to a different instant on every later `analyze`;
+  // the stream carries the instant git was actually queried with.
+  it('stores since/until as the resolved instants, not the flag text', async () => {
+    const stream = await collectCommits({ repoPath, since: '2025-12-31', until: '2026-01-02' });
+    expect(stream.since).toBe('2025-12-31T00:00:00.000Z');
+    expect(stream.until).toBe('2026-01-02T00:00:00.000Z');
+    expect(stream.commits.every((c) => new Date(c.committerDate) < new Date('2026-01-02T00:00:00.000Z'))).toBe(true);
+
+    const relative = await collectCommits({ repoPath, since: '1d' });
+    expect(Number.isNaN(new Date(relative.since!).getTime())).toBe(false);
+    expect(relative.since).not.toBe('1d');
+  });
+});

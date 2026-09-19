@@ -200,3 +200,32 @@ describe('calculateTrend', () => {
     expect(trend.latestComparison).toBeNull();
   });
 });
+
+describe('maturity under --until', () => {
+  // The bound ends observation. A month that ends after it has not had its
+  // window at all, and a month that ended less than a window before it has
+  // not had the full one — both must stay immature, or the comparison is
+  // made on a truncated period that looks cleaner than it was observed.
+  it('judges maturity against the bound, not the collection time', () => {
+    const stream: CommitStream = {
+      ...makeStream([
+        makeCommit('jan', '2026-01-05T00:00:00Z', ['src/jan.ts']),
+        makeCommit('feb', '2026-02-05T00:00:00Z', ['src/feb.ts']),
+        makeCommit('mar', '2026-03-05T00:00:00Z', ['src/mar.ts']),
+      ]),
+      generatedAt: '2026-09-18T00:00:00.000Z',
+      until: '2026-03-10T00:00:00.000Z',
+    };
+    const bounded = calculateTrend(stream, { observationDays: 30 });
+    const byLabel = Object.fromEntries(bounded.periods.map((p) => [p.label, p]));
+    expect(byLabel['2026-01'].mature).toBe(true); // ended 1 Feb, 30+ days before the bound
+    expect(byLabel['2026-02'].mature).toBe(false); // ended 1 Mar, 9 days before the bound
+    expect(byLabel['2026-03'].mature).toBe(false); // still running at the bound
+    expect(bounded.periods.map((p) => p.label)).not.toContain('2026-09'); // no periods past the bound
+    expect(bounded.latestComparison).toBeNull(); // only one mature period
+
+    // Without the bound the same stream compares Feb → Mar, both long over
+    const unbounded = calculateTrend({ ...stream, until: undefined }, { observationDays: 30 });
+    expect(unbounded.latestComparison).toMatchObject({ from: '2026-02', to: '2026-03' });
+  });
+});

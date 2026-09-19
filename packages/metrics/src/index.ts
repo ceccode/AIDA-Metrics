@@ -13,6 +13,7 @@ import { calculateLineSurvival } from './line-survival.js';
 import { calculateOutcomeCorrelation } from './outcome-correlation.js';
 import { calculatePRAcceptance } from './pr-acceptance.js';
 import { calculateTrend, TrendOptions } from './trend.js';
+import { observationEndOf } from './observation.js';
 import {
   Attribution,
   ByCategory,
@@ -31,6 +32,7 @@ export * from './pr-acceptance.js';
 export * from './line-survival.js';
 export * from './outcome-correlation.js';
 export * from './trend.js';
+export * from './observation.js';
 
 export const DEFAULT_COVERAGE_WINDOW_DAYS = 90;
 const MAX_EVIDENCE_GAPS = 20;
@@ -98,8 +100,11 @@ export function calculateMetrics(
   // All-time coverage is a permanent verdict on history predating adoption.
   // A metrics artifact is a pure function of its input artifact. Using wall
   // clock time here made an unchanged commit-stream.json produce different
-  // coverage, cohort ages and bytes on different days.
-  const asOf = new Date(commitStream.generatedAt);
+  // coverage, cohort ages and bytes on different days. And observation
+  // cannot outlive the `--until` bound: everything below that measures
+  // elapsed time — the recent-coverage window, censoring, trend maturity —
+  // runs to this instant and no further.
+  const asOf = observationEndOf(commitStream);
   const windowStart = new Date(asOf.getTime() - coverageWindowDays * 24 * 60 * 60 * 1000);
   const recentCommits = commitStream.commits.filter(
     (commit) => new Date(commit.committerDate) >= windowStart
@@ -184,15 +189,15 @@ export function calculateMetrics(
   const repo: RepoQuality = {
     commitsAuthored: authoredCount,
     commitsAutomated: total - authoredCount,
-    persistence: calculatePersistence(commitStream, isAuthored),
+    persistence: calculatePersistence(commitStream, isAuthored, { observationEnd: asOf }),
   };
 
   // Quality over time (#77 step 3): the same repo-level measurement, sliced
   // by period, so the repo can be compared with its own past instead of with
   // a cohort that no longer exists.
-  const trend = calculateTrend(commitStream, trendOptions);
+  const trend = calculateTrend(commitStream, { observationEnd: asOf, ...trendOptions });
 
-  const persistence = calculatePersistence(commitStream, isAI);
+  const persistence = calculatePersistence(commitStream, isAI, { observationEnd: asOf });
 
   // Fairness context (#29, #36): cohort age and task mix
   const now = asOf;
@@ -224,7 +229,7 @@ export function calculateMetrics(
         // Observed vs assumed, kept apart so the cohort size can never read
         // as evidence it isn't (#25)
         assumed: modeCommits.filter((c) => c.tags.evidence === 'none').length,
-        persistence: calculatePersistence(commitStream, isMode),
+        persistence: calculatePersistence(commitStream, isMode, { observationEnd: asOf }),
       };
       return [mode, stats];
     })
@@ -266,9 +271,11 @@ export function calculateMetrics(
           const capDays = Math.min(aiAge.avgAgeDays, baselineAge.avgAgeDays);
           const cappedAI = calculatePersistence(commitStream, isAI, {
             maxObservationDays: capDays,
+            observationEnd: asOf,
           });
           const cappedBaseline = calculateBaselinePersistence(commitStream, isBaseline, {
             maxObservationDays: capDays,
+            observationEnd: asOf,
           });
           return {
             capDays: round(capDays, 2),
@@ -311,13 +318,18 @@ export function calculateMetrics(
           : null;
 
       const aiCat = toLean(
-        calculatePersistence(commitStream, isAI, { onlyCategory: category, excludeCategories: [] })
+        calculatePersistence(commitStream, isAI, {
+          onlyCategory: category,
+          excludeCategories: [],
+          observationEnd: asOf,
+        })
       );
       const baselineCat = baseline
         ? toLean(
             calculateBaselinePersistence(commitStream, isBaseline, {
               onlyCategory: category,
               excludeCategories: [],
+              observationEnd: asOf,
             })
           )
         : null;
@@ -408,6 +420,7 @@ export function calculateMetrics(
     window: {
       since: commitStream.since,
       until: commitStream.until,
+      observationEnd: formatISODate(asOf),
     },
     repoPath: commitStream.repoPath,
     defaultBranch: commitStream.defaultBranch,

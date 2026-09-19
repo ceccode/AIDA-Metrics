@@ -416,6 +416,10 @@ export const Metrics = z.object({
   window: z.object({
     since: z.string().optional(),
     until: z.string().optional(),
+    // The instant every elapsed-time measurement runs to: the stream's
+    // generation time, or its `until` bound when that is earlier. Written so
+    // a reader of the artifact can tell which one applied.
+    observationEnd: z.string().datetime().optional(),
   }),
   repoPath: z.string(),
   defaultBranch: z.string(),

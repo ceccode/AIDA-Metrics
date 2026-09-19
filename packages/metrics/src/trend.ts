@@ -1,4 +1,5 @@
 import { Commit, CommitStream } from '@evidtrail/core';
+import { observationEndOf } from './observation.js';
 import { calculatePersistence } from './persistence.js';
 import { Trend, TrendGranularity, TrendPeriod } from './schema/metrics.js';
 
@@ -76,7 +77,10 @@ export function calculateTrend(commitStream: CommitStream, options: TrendOptions
     granularity = 'month',
     observationDays = DEFAULT_TREND_OBSERVATION_DAYS,
     maxPeriods = DEFAULT_TREND_MAX_PERIODS,
-    observationEnd = new Date(commitStream.generatedAt),
+    // A `--until` bound ends observation early; maturity below is judged
+    // against it, so a month cut short by the bound stays immature instead
+    // of entering the comparison with a truncated window.
+    observationEnd = observationEndOf(commitStream),
   } = options;
 
   const empty: Trend = {

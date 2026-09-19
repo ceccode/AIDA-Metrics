@@ -654,3 +654,34 @@ describe('repo-level quality (#77 step 1)', () => {
     expect(metrics.repo.persistence.commitsConsidered).toBe(2);
   });
 });
+
+describe('observation end (window.observationEnd)', () => {
+  it('is the --until bound when earlier than the collection time, and every elapsed-time metric uses it', () => {
+    const stream: CommitStream = {
+      ...makeStream([
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          authorDate: '2026-01-01T10:00:00.000Z',
+          committerDate: '2026-01-01T10:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'f.ts', additions: 1, deletions: 0 }] },
+        }),
+      ]),
+      generatedAt: '2026-09-18T00:00:00.000Z',
+      until: '2026-01-02T00:00:00.000Z',
+    };
+    const metrics = calculateMetrics(stream);
+    expect(metrics.window.observationEnd).toBe('2026-01-02T00:00:00.000Z');
+    // generatedAt of the artifact is the observation end, not the wall clock
+    expect(metrics.generatedAt).toBe('2026-01-02T00:00:00.000Z');
+    const week = metrics.repo.persistence.rapidRetouch.find((r) => r.windowDays === 7)!;
+    expect(week).toMatchObject({ eligible: 0, tooRecent: 1 });
+    // the recent-coverage window is anchored to the bound too: the one commit is inside it
+    expect(metrics.attribution.recent?.commitsTotal).toBe(1);
+  });
+
+  it('is the collection time when there is no bound', () => {
+    const metrics = calculateMetrics(makeStream([makeCommit({ hash: 'a1', tags: aiTags })]));
+    expect(metrics.window.observationEnd).toBe('2025-01-01T00:00:00.000Z');
+  });
+});
