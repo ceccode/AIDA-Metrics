@@ -549,3 +549,47 @@ describe('fixed-horizon rapid retouch contract', () => {
     });
   });
 });
+
+describe('observation end under --until', () => {
+  // Found by an external review: with `--until 2 Jan`, a file added on 1 Jan
+  // and edited on 4 Jan was reported as "survived 7 days untouched" (0%),
+  // because the edit was outside the stream while the clock ran on to the
+  // collection date months later. Observation stops at the bound.
+  const aiTags = { attribution: 'ai' as const, automated: false, mode: 'agent' as const, evidence: 'declared' as const, level: 'explicit' as const, sources: ['trailer'] };
+
+  it('counts a file first touched just before the bound as too recent, not as untouched', () => {
+    const stream: CommitStream = {
+      ...makeStream([
+        makeCommit({
+          hash: 'a1',
+          authorDate: '2026-01-01T10:00:00.000Z',
+          tags: aiTags,
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'f.ts', additions: 1, deletions: 0 }] },
+        }),
+      ]),
+      generatedAt: '2026-09-18T00:00:00.000Z',
+      until: '2026-01-02T00:00:00.000Z',
+    };
+    const week = calculatePersistence(stream).rapidRetouch.find((r) => r.windowDays === 7)!;
+    expect(week).toMatchObject({ retouched: 0, eligible: 0, tooRecent: 1, rate: null });
+    // and the same file, observed to the collection date, is eligible
+    const unbounded = calculatePersistence({ ...stream, until: undefined }).rapidRetouch.find((r) => r.windowDays === 7)!;
+    expect(unbounded).toMatchObject({ retouched: 0, eligible: 1, tooRecent: 0, rate: 0 });
+  });
+
+  it('ignores a bound later than the collection time, and one that is not an absolute date', () => {
+    const base = makeStream([
+      makeCommit({
+        hash: 'a1',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        tags: aiTags,
+        stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'f.ts', additions: 1, deletions: 0 }] },
+      }),
+    ]);
+    const later = calculatePersistence({ ...base, until: '2030-01-01T00:00:00.000Z' });
+    const relative = calculatePersistence({ ...base, until: '10d' }); // pre-fix streams stored the flag text
+    const plain = calculatePersistence(base);
+    expect(later.avgDays).toBe(plain.avgDays);
+    expect(relative.avgDays).toBe(plain.avgDays);
+  });
+});

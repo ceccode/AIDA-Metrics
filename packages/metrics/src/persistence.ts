@@ -1,5 +1,6 @@
 import { Commit, CommitStream } from '@evidtrail/core';
 import { categorizeFile } from './cohort.js';
+import { observationEndOf } from './observation.js';
 import { FileCategory, Persistence } from './schema/metrics.js';
 
 // Categories whose lifecycle is governed by convention, not code quality:
@@ -20,7 +21,8 @@ export interface PersistenceOptions {
   // Window for the rework rate (#22)
   reworkWindowDays?: number;
   // End of the observation window, used to measure censored files (never
-  // modified again). Defaults to the stream's collection time.
+  // modified again). Defaults to the stream's collection time, or to its
+  // `--until` bound when that is earlier — see `observationEndOf`.
   observationEnd?: Date;
   // Age-normalization (#29): cap each file's observation window to at most
   // this many days from its first target-cohort touch. Without this, an
@@ -61,7 +63,7 @@ export function calculatePersistence(
 ): Persistence {
   const {
     excludeCategories = DEFAULT_PERSISTENCE_EXCLUDED_CATEGORIES,
-    observationEnd = new Date(commitStream.generatedAt),
+    observationEnd = observationEndOf(commitStream),
     reworkWindowDays = DEFAULT_REWORK_WINDOW_DAYS,
     maxObservationDays,
     onlyCategory,

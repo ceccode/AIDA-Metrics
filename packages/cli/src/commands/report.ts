@@ -408,6 +408,13 @@ ${[
   const rq = metrics.repo;
   const rqp = rq.persistence;
 
+  // A bounded run observes nothing past its bound. Saying so next to the
+  // table is what keeps "too recent" from reading as "never touched again"
+  // when the reader knows the repository has moved on since.
+  const observationNote = metrics.window.until
+    ? `\nObservation ends at **${metrics.window.observationEnd ?? metrics.window.until}** (the \`--until\` bound): files first touched shortly before it are *too recent*, not untouched, and periods that end after it are immature below.\n`
+    : '';
+
   // Change signals over time. The headline is
   // the direction of travel, not the snapshot — and the direction is only
   // readable between periods that have had the same amount of time to be
@@ -447,7 +454,7 @@ How files change again, as a property of the **repo** — measured over all ${rq
 - Files measured: ${rqp.filesConsidered} (${rqp.filesExcluded} excluded: migrations/generated)
 
 **Rapid retouch** means a subsequent commit touched the same file within the stated horizon. It is a churn signal, not proof of a defect or “rework”. A file is eligible once it is retouched in time or has been observed event-free for the full horizon; otherwise it is too recent.
-
+${observationNote}
 | Horizon | Retouched | Eligible | Too recent | Rate |
 |---:|---:|---:|---:|---:|
 ${rqp.rapidRetouch.map((result) => `| ${result.windowDays}d | ${result.retouched} | ${result.eligible} | ${result.tooRecent} | ${result.rate === null ? '—' : `${(result.rate * 100).toFixed(1)}%`} |`).join('\n')}
