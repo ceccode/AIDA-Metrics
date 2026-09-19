@@ -285,3 +285,40 @@ describe('outcome rates against the base rate', () => {
     expect(result.reverts.rates.ai.count).toBe(0);
   });
 });
+
+describe('hotfixes across a rename', () => {
+  it('links a hotfix on the new name to the last touch under the old one', () => {
+    // a1 writes app.ts; a move-only commit renames it; a fix lands on the new
+    // name two days after the write. The antecedent is a1, not the move.
+    const result = calculateOutcomeCorrelation(
+      makeStream([
+        makeCommit({
+          hash: 'a1',
+          tags: aiTags,
+          authorDate: '2025-01-01T00:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'app.ts', additions: 1, deletions: 0 }] },
+        }),
+        makeCommit({
+          hash: 'mv',
+          tags: humanTags,
+          authorDate: '2025-01-02T00:00:00.000Z',
+          stats: {
+            totalAdditions: 0,
+            totalDeletions: 0,
+            files: [{ path: 'core/app.ts', previousPath: 'app.ts', status: 'renamed', additions: 0, deletions: 0 }],
+          },
+        }),
+        makeCommit({
+          hash: 'f1',
+          message: 'fix: null pointer',
+          authorDate: '2025-01-03T00:00:00.000Z',
+          stats: { totalAdditions: 1, totalDeletions: 0, files: [{ path: 'core/app.ts', additions: 1, deletions: 0, status: 'modified' }] },
+        }),
+      ]),
+      { hotfixWindowDays: 7 }
+    );
+    expect(result.hotfixes.linked).toBe(1);
+    expect(result.hotfixes.byAttribution.ai).toBe(1);
+    expect(result.hotfixes.byAttribution.human).toBe(0);
+  });
+});

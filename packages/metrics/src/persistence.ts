@@ -100,33 +100,49 @@ export function calculatePersistence(
   // graph. Committer time remains the elapsed-time proxy for integration.
   const sortedCommits = [...commitStream.commits].reverse();
 
-  // First target-cohort touch per file
+  // One chronological pass: a file's lifecycle opens at its first
+  // target-cohort touch and closes at the first later touch by anyone.
+  //
+  // A lifecycle is keyed by path, and paths move. When a commit renames a
+  // file, the lifecycle follows it to the new name — otherwise the move
+  // opened a second, empty lifecycle under the new name while the old one
+  // sat untouched forever, and the file's real edits counted against
+  // neither. A pure rename (no lines changed) is not a touch: nothing about
+  // the code happened, only its address. A rename that also edits is.
   const lifecycles = new Map<string, FileLifecycle>();
   let filesExcluded = 0;
   sortedCommits.forEach((commit, index) => {
-    if (!isTarget(commit)) return;
+    const target = isTarget(commit);
     for (const file of commit.stats.files) {
-      if (lifecycles.has(file.path)) continue;
-      const category = categorizeFile(file.path);
-      const isExcluded = onlyCategory ? category !== onlyCategory : excluded.has(category);
-      if (isExcluded) {
-        filesExcluded++;
-        lifecycles.set(file.path, { firstTargetIndex: -1, firstTargetDate: new Date(0), eventDate: null });
+      let isTouch = true;
+      if (file.previousPath !== undefined) {
+        const carried = lifecycles.get(file.previousPath);
+        if (carried) {
+          lifecycles.delete(file.previousPath);
+          if (!lifecycles.has(file.path)) lifecycles.set(file.path, carried);
+        }
+        isTouch = file.additions + file.deletions > 0;
+      }
+      if (!isTouch) continue;
+
+      const lifecycle = lifecycles.get(file.path);
+      if (!lifecycle) {
+        if (!target) continue; // not yet in the cohort's story
+        const category = categorizeFile(file.path);
+        const isExcluded = onlyCategory ? category !== onlyCategory : excluded.has(category);
+        if (isExcluded) {
+          filesExcluded++;
+          lifecycles.set(file.path, { firstTargetIndex: -1, firstTargetDate: new Date(0), eventDate: null });
+          continue;
+        }
+        lifecycles.set(file.path, {
+          firstTargetIndex: index,
+          firstTargetDate: new Date(commit.committerDate),
+          eventDate: null,
+        });
         continue;
       }
-      lifecycles.set(file.path, {
-        firstTargetIndex: index,
-        firstTargetDate: new Date(commit.committerDate),
-        eventDate: null,
-      });
-    }
-  });
-
-  // First subsequent modification (or deletion) ends the survival clock
-  sortedCommits.forEach((commit, index) => {
-    for (const file of commit.stats.files) {
-      const lifecycle = lifecycles.get(file.path);
-      if (!lifecycle || lifecycle.firstTargetIndex < 0) continue; // excluded category
+      if (lifecycle.firstTargetIndex < 0) continue; // excluded category
       if (index <= lifecycle.firstTargetIndex) continue; // not later than first touch
       if (lifecycle.eventDate === null) {
         lifecycle.eventDate = new Date(commit.committerDate);

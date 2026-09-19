@@ -3,6 +3,10 @@ import { z } from 'zod';
 export const FileChange = z.object({
   path: z.string(),
   status: z.enum(['added', 'modified', 'deleted', 'renamed']).optional(), // best-effort
+  // Set on a rename: the name the file had before this commit. Lets a
+  // consumer that tracks files over time carry a file's history across
+  // the move instead of starting a new one under the new name.
+  previousPath: z.string().optional(),
   additions: z.number().int().nonnegative(),
   deletions: z.number().int().nonnegative(),
 });

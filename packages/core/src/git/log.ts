@@ -1,5 +1,6 @@
 import { SimpleGit } from 'simple-git';
 import { FileChange } from '../schema/commit.js';
+import { splitRenamePath } from './paths.js';
 import type { z } from 'zod';
 
 type FileChangeType = z.infer<typeof FileChange>;
@@ -96,13 +97,15 @@ export async function logWithStats(git: SimpleGit, rangeArgs: string[]): Promise
       if (match[1] === '-' && match[2] === '-') continue;
       const additions = match[1] === '-' ? 0 : parseInt(match[1], 10) || 0;
       const deletions = match[2] === '-' ? 0 : parseInt(match[2], 10) || 0;
-      const pathParts = match[3].split('\t');
-      const path = pathParts[pathParts.length - 1];
+      // A rename is one numstat line whose path field names both sides;
+      // the name-status pass keyed its status by the new name.
+      const { path, previousPath } = splitRenamePath(match[3]);
       totalAdditions += additions;
       totalDeletions += deletions;
       files.push({
         path,
-        status: statusMap?.get(path) || 'modified',
+        status: statusMap?.get(path) || (previousPath ? 'renamed' : 'modified'),
+        ...(previousPath ? { previousPath } : {}),
         additions,
         deletions,
       });

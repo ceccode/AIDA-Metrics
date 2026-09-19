@@ -593,3 +593,58 @@ describe('observation end under --until', () => {
     expect(relative.avgDays).toBe(plain.avgDays);
   });
 });
+
+describe('renames follow the file', () => {
+  const aiTags: CommitStream['commits'][0]['tags'] = { attribution: 'ai', automated: false, mode: 'agent', evidence: 'declared', level: 'explicit', sources: [] };
+  const file = (path: string, additions: number, deletions: number, previousPath?: string) => ({
+    path,
+    additions,
+    deletions,
+    ...(previousPath ? { previousPath, status: 'renamed' as const } : {}),
+  });
+  const commit = (hash: string, date: string, files: ReturnType<typeof file>[]) =>
+    makeCommit({ hash, authorDate: date, tags: aiTags, stats: { totalAdditions: 0, totalDeletions: 0, files } });
+  const week = (stream: CommitStream) =>
+    calculatePersistence(stream).rapidRetouch.find((r) => r.windowDays === 7)!;
+
+  it('counts an edit after a rename as a retouch of the original file', () => {
+    // old.ts (1 Jan) → new.ts (2 Jan, pure rename) → edited (4 Jan). Before:
+    // three eligible files and no retouch — 0%. The truth is one file,
+    // retouched on day 3 — 100%.
+    const stream = makeStream([
+      commit('a', '2024-01-01T00:00:00.000Z', [file('old.ts', 2, 0)]),
+      commit('b', '2024-01-02T00:00:00.000Z', [file('new.ts', 0, 0, 'old.ts')]),
+      commit('c', '2024-01-04T00:00:00.000Z', [file('new.ts', 1, 1)]),
+    ]);
+    expect(week(stream)).toMatchObject({ retouched: 1, eligible: 1, tooRecent: 0, rate: 1 });
+    expect(calculatePersistence(stream).filesConsidered).toBe(1);
+  });
+
+  it('does not count a pure rename as a touch, and does not open a lifecycle with one', () => {
+    const stream = makeStream([
+      commit('a', '2024-01-01T00:00:00.000Z', [file('old.ts', 2, 0)]),
+      commit('b', '2024-01-02T00:00:00.000Z', [file('new.ts', 0, 0, 'old.ts')]),
+      // nothing else: the file survives under its new name
+    ]);
+    expect(week(stream)).toMatchObject({ retouched: 0, eligible: 1, tooRecent: 0, rate: 0 });
+
+    // a target commit that only moves a file it never wrote starts no clock
+    const moveOnly = makeStream([
+      makeCommit({
+        hash: 'h',
+        authorDate: '2024-01-01T00:00:00.000Z',
+        stats: { totalAdditions: 2, totalDeletions: 0, files: [file('old.ts', 2, 0)] },
+      }), // not a target commit
+      commit('b', '2024-01-02T00:00:00.000Z', [file('new.ts', 0, 0, 'old.ts')]),
+    ]);
+    expect(calculatePersistence(moveOnly).filesConsidered).toBe(0);
+  });
+
+  it('counts a rename that also edits as a touch', () => {
+    const stream = makeStream([
+      commit('a', '2024-01-01T00:00:00.000Z', [file('old.ts', 2, 0)]),
+      commit('b', '2024-01-03T00:00:00.000Z', [file('new.ts', 1, 1, 'old.ts')]),
+    ]);
+    expect(week(stream)).toMatchObject({ retouched: 1, eligible: 1 });
+  });
+});
