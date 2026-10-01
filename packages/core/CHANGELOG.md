@@ -1,5 +1,48 @@
 # @aida/core
 
+## 1.2.0
+
+### Minor Changes
+
+- bf37d7c: The rename reaches the identifiers no user ever sees
+
+  The 1.2 rename deliberately stopped at the surface: config file, environment variable, command name, markers. The code underneath still said `AidaConfig`, `installAidaHook`, `loadAidaConfig`, `isAidaHookInstalled`, and the schema lived in `aida-config.ts`. Harmless to run, confusing to read, and a trap for anyone opening the source after arriving from the new name.
+  - `@evidtrail/core` exports **`EvidtrailConfig`**; the schema file is `evidtrail-config.ts`. `AidaConfig` is a published export, so it stays as a deprecated alias of the same schema until the next major — renaming it outright would break importers on a minor upgrade, which is the opposite of what the rename promised. A test asserts the two are the same object.
+  - CLI internals drop the prefix rather than swapping it, where the surrounding module already says which tool it is: `loadConfig`, `installHook`, `uninstallHook`, `isHookInstalled`, `stripHookBlock`, `existingWorkflow`. Only `isEvidtrailHook` keeps a name, because its whole job is telling our hook from someone else's.
+
+  No behaviour changes: same schema, same checks, same output.
+
+### Patch Changes
+
+- b02ad4a: Observation stops at `--until`: a bounded run no longer reads truncated files as untouched, or a truncated month as mature
+
+  Found by an external review, reproduced, and it flatters: with `--until 2 Jan`, a file added on 1 Jan and edited on 4 Jan was reported as having survived a 7-day window untouched (0/1, 0%). The edit had been cut out of the stream, but every elapsed-time measurement still ran to the collection date months later, so "nothing happened" and "we stopped looking" were indistinguishable. The trend inherited the slip: a month cut short by the bound passed the maturity gate and entered the headline comparison with a window it never had.
+  - **Metrics**: observation ends at the earlier of the collection time and the `until` bound (`observationEndOf`). Persistence, rapid retouch, the recent-coverage window and trend maturity all run to that instant. The artifact records it as `window.observationEnd`.
+  - **Collect**: `since` and `until` are stored in the stream as the resolved instants, not the flag text. `--until 10d` re-read tomorrow would name a different day, and a metrics artifact must be a pure function of its input.
+  - **Report**: a bounded run says so next to the change-signals table — files first touched shortly before the bound are _too recent_, not untouched.
+
+  Runs without `--until` are unchanged. On external repositories bounded ten days back, files that had been promoted to _eligible_ return to _too recent_ (aspire: 362 → 723 at 30 days is the direction to expect; exact figures in the pull request).
+
+- 0987339: Renames follow the file: a moved file is one file, not a phantom path plus a stranger
+
+  Found by an external review, reproduced, and it flatters: `old.ts` → `git mv new.ts` → edit `new.ts` produced three paths in the stream — `old.ts`, `old.ts => new.ts` and `new.ts` — with the rename filed as a _modification_ of a file that never existed. Every rename in a repository was one more eligible file that could never be retouched, and the real file's later edits were filed under a name its first touch had never been recorded against. On react-router, 1,956 renames were doing this.
+  - **core** — `git log --numstat` names a renamed file as `old => new` or `dir/{old => new}/file`; both forms are now parsed (`splitRenamePath`). The stream records the file under its new name with `previousPath` set and status `renamed` (additive field, no schema bump). PR-scoped collection (`git show`) gets the same parsing.
+  - **metrics** — a file's lifecycle follows it across a rename. A pure rename (no lines changed) is not a touch: nothing about the code happened, only its address. A rename that also edits is one. Hotfix linking carries the touch history across the move the same way.
+
+  Direction of the change on real repositories: eligible files go down, retouches go up, and the rate rises — the phantom paths had been padding the denominator with files nothing could ever touch. Exact figures in the pull request.
+
+- 46bd263: The trend says when two periods are not comparable by size; the report drops three phrases that promised more than the numbers hold
+
+  **Comparability by size (#102).** Maturity answers "have both periods had the same time?"; nothing answered "is there enough in each, and are they alike enough, for a delta to mean anything?". Found on this repository: 5 commits over 18 files against 18 commits over 53 files, two empty months between, rendered as a +60.9 pt change in rapid retouch. The arithmetic was right; the reading it invited was not.
+  - `latestComparison.comparability` (additive): eligible files and authored commits per side, and a status — `ok`, `weak` (sizes differ beyond 3×) or `insufficient` (a side has fewer than 10 eligible files) — with the reasons spelled out.
+  - The report shows a weak delta and labels it: _a change of pace is being measured along with any change in the code_. An insufficient one is withheld with the reason, the rows still shown. The pair is never swapped for a friendlier one.
+
+  **Words.** "How code holds up" → "how often code is touched again"; "below is better than average" → "below is fewer than its share predicts". The Data Quality section now says how many AI commits carry a tool signal but no autonomy level: coverage counts them as evidence, the autonomy sections count them as `unknown`, and 100% coverage was reading as 100% known.
+
+  **Windowed runs.** With `--since`, a file's clock starts at its first touch inside the window, so the population differs from a full-history run (68% vs 90% on the same repository). The report now says so next to the table.
+
+  **Codex.** `codex` joins the default tool names: "generated by Codex" was returning no evidence while the same sentence with Claude was inferred AI. The hook does not auto-detect Codex, because Codex documents no environment variable for spawned commands and a guess that could be wrong is worse than an honest `unknown`; the README says to declare with `EVIDTRAIL_MODE`.
+
 ## 1.1.0
 
 ### Minor Changes
